@@ -215,7 +215,9 @@ bool ota_releases_fetch(void)
     if (!rest_download_range(url, sizeof url, 0, (uint32_t)s_cap - 1, s_buf, &got, &total, 30000)) { printf("ota: could not reach GitHub\n"); return false; }
     s_buf[got] = 0;
     cJSON *r = cJSON_Parse((const char *)s_buf);
-    if (!cJSON_IsArray(r)) { cJSON_Delete(r); printf("ota: release list unreadable\n"); return false; }
+    if (!cJSON_IsArray(r)) { cJSON_Delete(r); const char *e = cJSON_GetErrorPtr();
+        printf("ota: release list unreadable (%u bytes, error at %ld: %.40s)\n", (unsigned)got, e ? (long)(e - (const char *)s_buf) : -1L, e ? e : "");
+        return false; }
     int n = 0; const cJSON *it;
     cJSON_ArrayForEach(it, r) {
         if (n >= OTA_REL_MAX) break;
@@ -249,7 +251,7 @@ bool ota_install(int i)
     const ota_release_t *e = ota_release(i);
     if (!e || ota_busy()) return false;
     if (!e->has_manifest) { fail("that release has no manifest.json"); return false; }
-    char url[512];
+    static char url[2048];   /* the signed asset redirect is ~1 KB */
     snprintf(url, sizeof url, "https://github.com/%s/releases/download/%s/manifest.json", OTA_REPO, e->tag);
     size_t got = 0; uint32_t total = 0;
     if (!rest_download_range(url, sizeof url, 0, 4095, s_buf, &got, &total, 30000)) { fail("could not fetch the manifest"); return false; }

@@ -39,6 +39,7 @@
 #include "hardware/structs/sio.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
+#include "tusb.h"                 /* cdc_line_coding_t: the 1200-baud reset */
 
 #include "it8951.h"
 #include "epd_io.h"
@@ -101,7 +102,7 @@ static void handle_key(int ch);
 static void console_input(const char *text);
 static volatile const char *s_phase = "boot";   /* last main-loop phase passed (state JSON) */
 static volatile uint32_t    s_loops;
-typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE, CONTENT_BOOT, CONTENT_SETUP } content_t;   /* BOOT: logo + the boot log; SETUP: WiFi setup steps */   /* LIVE: white, the live page is drawn over it */
+typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE, CONTENT_BOOT, CONTENT_SETUP, CONTENT_FLASHING } content_t;   /* BOOT: logo + the boot log; SETUP: WiFi setup steps */   /* LIVE: white, the live page is drawn over it */
 static content_t cur_content = CONTENT_CARD;
 
 static void frame_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
@@ -226,6 +227,7 @@ static void boot_row(int y, uint8_t out[IT8951_ROW_BYTES], const boot_text_t *t)
 static char     s_setup_why[96];
 static uint32_t s_setup_until;          /* restart to try the saved WiFi again (0: stay) */
 typedef struct { int y; const bfont_t *f; uint8_t g; const char *t; } setup_line_t;
+static char s_fw_version_line[48];
 static void setup_row(int y, uint8_t out[IT8951_ROW_BYTES])
 {
     memset(out, 0xFF, IT8951_ROW_BYTES);
@@ -235,7 +237,14 @@ static void setup_row(int y, uint8_t out[IT8951_ROW_BYTES])
     }
     static char url[40];
     snprintf(url, sizeof url, "or go to http://192.168.4.1");
-    const setup_line_t L[] = {
+    const setup_line_t F[] = {          /* CONTENT_FLASHING: the panel keeps this up through a USB flash */
+        { 380,  &ui72, G_BLACK, "Updating firmware" },
+        { 520,  &ui46, G_DARK,  "New firmware is loading over USB." },
+        { 590,  &ui46, G_DARK,  "Keep the panel plugged in. It restarts by itself." },
+        { 0,    &ui34, G_DARK,  "" }, { 0, &ui34, G_DARK, "" }, { 0, &ui34, G_DARK, "" },
+        { 1240, &ui34, G_DARK,  s_fw_version_line },
+    };
+    const setup_line_t S[] = {
         { 380,  &ui72, G_BLACK, "Set up this panel" },
         { 520,  &ui46, G_DARK,  "1   On your phone, join the WiFi network" },
         { 590,  &ui96, G_BLACK, net_setup_ssid() },
@@ -244,8 +253,9 @@ static void setup_row(int y, uint8_t out[IT8951_ROW_BYTES])
         { 930,  &ui46, G_DARK,  "3   Choose your WiFi and your Tesserae server" },
         { 1240, &ui34, G_DARK,  s_setup_why },
     };
+    const setup_line_t *L = cur_content == CONTENT_FLASHING ? F : S;
     uint8_t *line = s_boot_line[get_core_num()];
-    for (size_t i = 0; i < sizeof L / sizeof L[0]; i++) {
+    for (size_t i = 0; i < sizeof S / sizeof S[0]; i++) {
         if (y < L[i].y || y >= L[i].y + L[i].f->line_h || !L[i].t[0]) continue;
         memset(line, 0xF, IT8951_W);
         int x = BOOT_LOG_X + (L[i].f == &ui34 && i == 4 ? 62 : 0);
@@ -275,7 +285,7 @@ static void boot_service(void)
 static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
 {
     if (cur_content == CONTENT_BOOT) { boot_row(y, out, &s_boot); return; }
-    if (cur_content == CONTENT_SETUP) { setup_row(y, out); return; }
+    if (cur_content == CONTENT_SETUP || cur_content == CONTENT_FLASHING) { setup_row(y, out); return; }
     const uint8_t *frame = tesserae_frame();
     if (cur_content == CONTENT_DASHBOARD && frame) dash_row(y, out, frame);
     else if (cur_content == CONTENT_WHITE || cur_content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
@@ -286,6 +296,7 @@ static const char *content_name(void)
 {
     if (cur_content == CONTENT_BOOT) return "boot screen";
     if (cur_content == CONTENT_SETUP) return "WiFi setup";
+    if (cur_content == CONTENT_FLASHING) return "updating firmware";
     if (cur_content == CONTENT_LIVE) return "live";
     if (cur_content == CONTENT_DASHBOARD) return tesserae_frame() ? "dashboard" : "dashboard (none yet)";
     return cur_content == CONTENT_CARD ? "test card" : "white";
@@ -299,7 +310,7 @@ static void composite_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
     content_row(y, out);
-    if (cur_content == CONTENT_BOOT || cur_content == CONTENT_SETUP) return;   /* these screens stand alone */
+    if (cur_content == CONTENT_BOOT || cur_content == CONTENT_SETUP || cur_content == CONTENT_FLASHING) return;   /* these screens stand alone */
     local_overlay_row(y, out);
     if (tune_banner && banner_text[0]) banner_overlay_row(banner_text, y, out);
 }
@@ -328,7 +339,7 @@ static void paint_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
     if (P.content == CONTENT_BOOT) { boot_row(y, out, &P.boot); return; }
-    if (P.content == CONTENT_SETUP) { setup_row(y, out); return; }
+    if (P.content == CONTENT_SETUP || P.content == CONTENT_FLASHING) { setup_row(y, out); return; }
     if (P.content == CONTENT_DASHBOARD && P.frame) dash_row(y, out, P.frame);
     else if (P.content == CONTENT_WHITE || P.content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
     else                                           frame_row(y, out, (void *)sample_card);
@@ -496,6 +507,29 @@ static void show_content(content_t c)
     cur_content = c;
     printf("paint: %s\n", content_name());
     repaint();
+}
+
+/* USB flashing. The host's 1200-baud reset is ours (platformio.ini turns the
+ * SDK's off): say so on the panel, which keeps the picture through the flash,
+ * then hand over to the USB bootloader. An alarm makes sure the reset happens
+ * even if the main loop is stuck. */
+static volatile bool s_usb_flash;
+static int64_t usb_boot_now(alarm_id_t id, void *u) { (void)id; (void)u; reset_usb_boot(0, 0); return 0; }
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *lc)
+{
+    (void)itf;
+    if (lc->bit_rate == 1200 && !s_usb_flash) { s_usb_flash = true; add_alarm_in_ms(6000, usb_boot_now, NULL, true); }
+}
+static void enter_usb_boot(void)
+{
+    printf("rebooting into the USB bootloader\n");
+    snprintf(s_fw_version_line, sizeof s_fw_version_line, "Now running %s", FW_VERSION);
+    show_content(CONTENT_FLASHING);
+    uint32_t t0 = to_ms_since_boot(get_absolute_time());
+    do { paint_pump(); sleep_ms(20); }
+    while ((s_flush_pending || painter_busy()) && to_ms_since_boot(get_absolute_time()) - t0 < 5000);
+    sleep_ms(100);
+    reset_usb_boot(0, 0);
 }
 
 static void clear_screen(uint8_t mode)
@@ -883,7 +917,7 @@ static void exec_command(const char *name, const char *value)
         if (!strcmp(value, "yes")) { printf("master reset (web)\n"); config_erase_all(); sleep_ms(200); watchdog_reboot(0, 0, 0); }
     }
     else if (!strcmp(name, "reboot"))    { printf("rebooting\n"); sleep_ms(100); watchdog_reboot(0, 0, 0); }
-    else if (!strcmp(name, "bootsel"))   { printf("rebooting into the USB bootloader\n"); sleep_ms(300); reset_usb_boot(0, 0); }
+    else if (!strcmp(name, "bootsel"))   { add_alarm_in_ms(6000, usb_boot_now, NULL, true); enter_usb_boot(); }
     else printf("cmd: unknown \"%s\"\n", name);
     if (save) printf(config_save() ? "config: saved\n" : "config: SAVE FAILED\n");
 }
@@ -1243,6 +1277,7 @@ static void ui_service(void)
             on_input(e);
         }
     }
+    if (s_usb_flash) enter_usb_boot();
     drain_commands();
     audio_update();
     ha_poll();

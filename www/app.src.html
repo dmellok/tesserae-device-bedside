@@ -157,6 +157,53 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 .credits{font-size:11px;color:var(--sub);margin-top:10px} .credits ul{margin:6px 0 0;padding-left:16px} .credits a{color:inherit}
 .off-banner{display:none;background:var(--warn);color:#fff;border-radius:14px;padding:10px 14px;font-size:14px;margin-bottom:12px}
 .offline .off-banner{display:block}
+/* dashboard list */
+.dl{display:flex;flex-direction:column;margin:-6px 0 0}
+.dl button{display:flex;align-items:center;gap:12px;border:0;background:none;padding:12px 4px;text-align:left;font-size:15px;color:var(--ink);border-bottom:1px solid var(--line);cursor:pointer}
+.dl button:last-child{border-bottom:0}
+.dl button span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl button small{font-size:12px;color:var(--sub)}
+.dl button svg.i{width:20px;height:20px;color:var(--on);visibility:hidden}
+.dl button.on{font-weight:600} .dl button.on svg.i{visibility:visible}
+.dacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+.dacts .chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer} .dacts svg.i{width:16px;height:16px}
+/* panel preview (desktop) */
+.pv{display:none}
+.pv canvas{display:block;width:100%;height:auto;aspect-ratio:1872/1404;border-radius:10px;background:var(--soft);image-rendering:auto}
+.pv .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--sub)}
+.pv .foot span{flex:1}
+nav .brand,nav .side-foot{display:none}
+/* desktop: sidebar, wider page, cards flow in columns */
+@media (min-width:1000px){
+  :root{--side:232px}
+  body{padding-left:var(--side)}
+  nav{top:0;right:auto;width:var(--side);flex-direction:column;justify-content:flex-start;border-top:0;border-right:1px solid var(--line);padding:22px 12px 16px}
+  nav div:not(.brand):not(.side-foot){flex-direction:column;gap:2px;max-width:none}
+  nav .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em;padding:4px 12px 22px}
+  nav .brand i{width:30px;height:30px;border-radius:9px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center}
+  nav .brand svg.i{width:18px;height:18px}
+  nav button{flex:none;height:44px;flex-direction:row;justify-content:flex-start;gap:12px;padding:0 12px;border-radius:12px;font-size:15px;cursor:pointer}
+  nav button:hover{background:var(--soft)}
+  nav button.on{background:var(--soft);color:var(--ink);font-weight:600}
+  nav .side-foot{display:block;margin-top:auto;padding:0 12px;font-size:12px;color:var(--sub);line-height:1.5}
+  header{padding:22px 32px 14px}
+  main{max-width:1240px;margin:0;padding:4px 32px 48px}
+  .toast{bottom:28px;left:calc(50% + var(--side)/2)}
+  .btn,.chip,.seg button,.rb,.days button,.key{cursor:pointer}
+  .pv{display:block}
+  #t-room.on{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:0 20px;align-items:start}
+  #t-room .rm-side{position:sticky;top:76px}
+  #t-room .rm-main,#t-device.on{columns:2 340px;column-gap:20px}
+  #t-room .rm-main>*,#t-device>*{break-inside:avoid}
+  #t-room .rm-main>.card,#t-device .grp{display:inline-block;width:100%;vertical-align:top}
+  #t-device.on{display:block}
+  .grp>h2:first-child{margin-top:6px}
+  #alarms{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 16px}
+  #t-alarms .btn.pri.w{width:auto;padding:12px 22px}
+  #c-chorus{max-width:760px}
+  .log{height:calc(100vh - 330px);min-height:320px;max-height:none;font-size:12.5px}
+}
+@media (min-width:1500px){#t-device.on{columns:3 340px}}
 </style>
 </head>
 <body>
@@ -170,6 +217,7 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 
 <!-- ROOM -->
 <section class="tab on" id="t-room">
+ <div class="rm-main">
   <div class="card">
     <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Volume<small id="vol-sub"></small></div></div>
     <div class="body sl" style="margin-top:12px">
@@ -241,15 +289,22 @@ details.more[open] summary::after{transform:rotate(-135deg)}
       <label class="sw"><input type="checkbox" id="night" data-set="night"><span></span></label></div>
   </div>
 
+ </div>
+ <div class="rm-side">
+  <div class="card pv">
+    <canvas id="pv" width="468" height="351" aria-label="What the panel shows now"></canvas>
+    <div class="foot"><span id="pv-t">The panel, as it is now</span><button class="chip" id="pv-r" type="button">Refresh</button></div>
+  </div>
   <h2>Dashboard</h2>
   <div class="card">
-    <div class="seg" id="dashes"></div>
-    <div class="grid2" style="margin-top:10px">
-      <button class="btn" data-cmd="picks"><span data-i="list"></span>Refresh list</button>
-      <button class="btn" data-cmd="fetch"><span data-i="arrow-clockwise"></span>Fetch now</button>
-      <button class="btn" data-cmd="action=refresh"><span data-i="monitor"></span>Re-render</button>
+    <div class="dl" id="dashes"></div>
+    <div class="dacts">
+      <button class="chip" data-cmd="picks"><span data-i="list"></span>Refresh list</button>
+      <button class="chip" data-cmd="fetch"><span data-i="arrow-clockwise"></span>Fetch now</button>
+      <button class="chip" data-cmd="action=refresh"><span data-i="monitor"></span>Re-render</button>
     </div>
   </div>
+ </div>
 </section>
 
 <!-- ALARMS -->
@@ -436,12 +491,12 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 </section>
 </main>
 
-<nav><div>
+<nav><div class="brand"><i data-i="moon"></i>Bedside</div><div>
   <button data-tab="room" class="on"><span data-i="house"></span>Room</button>
   <button data-tab="alarms"><span data-i="alarm"></span>Alarms</button>
   <button data-tab="console"><span data-i="terminal"></span>Console</button>
   <button data-tab="device"><span data-i="gear"></span>Device</button>
-</div></nav>
+</div><div class="side-foot" id="side-foot"></div></nav>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -468,11 +523,12 @@ const TITLES={room:'Room',alarms:'Alarms',console:'Console',device:'Device'};
 function tab(t){
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
-  $('#title').textContent=TITLES[t]; try{localStorage.tab=t}catch(e){}
+  $('#title').textContent=TITLES[t]; try{localStorage.tab=t;history.replaceState(null,'','#'+t)}catch(e){}
   scrollTo(0,0); if(t==='console')logPoll(true);
 }
 $$('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
-try{if(localStorage.tab&&TITLES[localStorage.tab])tab(localStorage.tab)}catch(e){}
+try{const h=location.hash.slice(1),t=TITLES[h]?h:localStorage.tab;if(TITLES[t])tab(t)}catch(e){}
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(TITLES[h])tab(h)});
 
 /* ---- room controls ---- */
 $$('.seg[data-seg]').forEach(s=>{
@@ -650,7 +706,7 @@ $('#alarm-add').onclick=()=>{alarmsLocal.push({h:7,m:0,on:1,days:31,early:15});t
 
 /* ---- dashboard picker (Room tab) ---- */
 $('#dashes').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#dashes button').forEach(x=>x.classList.toggle('on',x===b));touch('dash',4000);
-  if(b.dataset.p!==undefined){set('pick',b.dataset.p);if(+b.dataset.p>=0)toast('Loading '+b.textContent+'…')}else set('dash',b.dataset.v)};
+  if(b.dataset.p!==undefined){set('pick',b.dataset.p);if(+b.dataset.p>=0)toast('Loading '+b.dataset.n+'…')}else set('dash',b.dataset.v)};
 
 /* ---- console: the panel's log, and the serial commands ---- */
 let logPos=0, logT=0, logBusy=false;
@@ -707,6 +763,30 @@ function renderHA(){const m=st.mqtt;if(!m)return;
 /* ---- software: releases on GitHub, installed over the air ---- */
 let swSig='';
 function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
+/* ---- desktop: section groups, the panel preview, the sidebar footer ---- */
+$$('#t-device>h2').forEach(h=>{const g=document.createElement('div'),c=h.nextElementSibling;g.className='grp';h.before(g);g.append(h);if(c)g.append(c)});
+const desk=matchMedia('(min-width:1000px)');
+let pvSeq=-1,pvBusy=false;
+async function pvLoad(){
+  if(pvBusy)return; pvBusy=true;
+  try{
+    const buf=await(await fetch('/frame?s=4',{cache:'no-store'})).arrayBuffer();
+    const v=new DataView(buf),w=v.getUint16(0,true),h=v.getUint16(2,true),c=$('#pv');
+    if(w&&h&&buf.byteLength>=4+(w>>1)*h){
+      c.width=w;c.height=h;
+      const ctx=c.getContext('2d'),img=ctx.createImageData(w,h),px=new Uint8Array(buf,4),d=img.data,rb=w>>1;
+      for(let y=0,o=0;y<h;y++)for(let x=0;x<w;x++,o+=4){const b=px[y*rb+(x>>1)],g=((x&1)?(b&15):(b>>4))*17;d[o]=d[o+1]=d[o+2]=g;d[o+3]=255}
+      ctx.putImageData(img,0,0);
+      $('#pv-t').textContent='The panel, as of '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    }
+  }catch(e){pvSeq=-1}
+  pvBusy=false;
+}
+$('#pv-r').onclick=()=>{pvSeq=-1;pvLoad()};
+function renderDesk(){
+  $('#side-foot').innerHTML=`v${st.fw||'?'}<br>${st.ip||''}`;
+  if(desk.matches&&$('#t-room').classList.contains('on')&&!st.busy&&st.paints!==pvSeq){pvSeq=st.paints;pvLoad()}
+}
 function renderSoftware(){
   const o=st.ota; if(!o)return;
   $('#sw-ver').textContent=`${st.fw}${o.slot>=0?' · slot '+'AB'[o.slot]:''}${o.checked_s>=0?' · checked '+(o.checked_s<60?'just now':Math.round(o.checked_s/60)+' min ago'):''}`;
@@ -770,7 +850,7 @@ function renderPanelSettings(){
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
-  renderSoftware();
+  renderSoftware(); renderDesk();
   renderHome(p);
   const lv=st.live; if(!lv)return;
   if(document.activeElement!==$('#lv-base'))$('#lv-base').value=lv.ss_base;
@@ -821,8 +901,10 @@ async function poll(){
     if(!held('dash')){
       // Tesserae 0.498+: Live, then the dashboards bound to this panel; older servers: the rotation
       const picks=ui.picks&&ui.picks.length?ui.picks:null;
-      const ds=picks?[`<button data-p="-1" class="${ui.pick<0?'on':''}">Live</button>`].concat(picks.map((n,i)=>`<button data-p="${i}" class="${i===ui.pick?'on':''}">${n.replace(/</g,'&lt;')}</button>`)).join('')
-                    :ui.dashes.map((n,i)=>`<button data-v="${i}" class="${i===ui.dash?'on':''}">${n}</button>`).join('');
+      const esc=n=>String(n).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      const row=(attr,n,on,note)=>`<button ${attr} data-n="${esc(n)}" class="${on?'on':''}"><span>${esc(n)}</span>${note?`<small>${note}</small>`:''}${svg('check')}</button>`;
+      const ds=picks?[row('data-p="-1"','Live',ui.pick<0,'follows the schedule')].concat(picks.map((n,i)=>row(`data-p="${i}"`,n,i===ui.pick))).join('')
+                    :ui.dashes.map((n,i)=>row(`data-v="${i}"`,n,i===ui.dash)).join('');
       if($('#dashes').innerHTML!==ds)$('#dashes').innerHTML=ds}
   }catch(e){if(++failN>1)setConn(false,'Offline')}
   inflight=false;
