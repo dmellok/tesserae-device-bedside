@@ -10,6 +10,8 @@
 #include "lwip/tcp.h"
 #include "lwip/netif.h"
 #include "audio.h"
+#include "dhcpserver.h"
+#include "dnsserver.h"
 
 extern const uint8_t www_index[];
 extern const uint8_t www_index_end[];
@@ -39,6 +41,46 @@ typedef struct {
 static conn_t          s_conns[MAX_CONN];
 static struct tcp_pcb *s_listen;
 static char            s_ip[20];
+static bool          s_setup;
+static char          s_ap_ssid[33];
+static dhcp_server_t s_dhcp;
+static dns_server_t  s_dnss;
+#define SCAN_MAX 20
+static struct { char ssid[33]; int16_t rssi; } s_scan[SCAN_MAX];
+static int s_nscan;
+
+static const char SETUP_PAGE[] = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Set up Bedside</title>\n"
+"<style>:root{--ink:#1c1b19;--sub:#6d6a64;--line:#e4e0d8;--bg:#f4f2ee;--red:#d0493c}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,sans-serif;padding:22px 18px 40px}\n"
+"main{max-width:460px;margin:0 auto}h1{font-size:24px;margin:0 0 4px}p{color:var(--sub);margin:0 0 18px}.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.06);margin-bottom:14px}\n"
+"label{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px}label:first-child{margin-top:0}input,select{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}\n"
+"button{width:100%;font:600 16px inherit;padding:13px;border:0;border-radius:12px;background:var(--ink);color:#fff;margin-top:6px}.mark{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:700;font-size:20px}\n"
+".tile{width:34px;height:34px;border-radius:10px;background:var(--ink);position:relative}.tile:before{content:\"\";position:absolute;left:50%;top:21%;width:29%;height:29%;background:var(--red);border-top-right-radius:30%}.tile:after{content:\"\";position:absolute;left:21%;top:50%;width:29%;height:29%;background:#fffdf8;border-bottom-left-radius:30%}\n"
+".hint{font-size:13px;color:var(--sub);margin-top:8px}#done{display:none}</style></head><body><main>\n"
+"<div class=mark><span class=tile></span>Tesserae</div>\n"
+"<div id=form><h1>Set up your bedside panel</h1><p>Choose your WiFi, then where your Tesserae server is. The panel restarts and joins your network.</p>\n"
+"<form id=f class=card><label for=ssid>WiFi network</label><select id=ssid></select><input id=ssid2 placeholder=\"Network name\" style=\"display:none;margin-top:8px\" autocapitalize=off autocomplete=off>\n"
+"<label for=pass>Password</label><input id=pass type=password placeholder=\"Leave empty for an open network\" autocomplete=off>\n"
+"<label for=server>Tesserae server</label><input id=server placeholder=\"http://192.168.1.50:8765\" autocapitalize=off autocomplete=off inputmode=url>\n"
+"<div class=hint>Plain http, with the port. The panel can't resolve .local names.</div>\n"
+"<label for=name>Panel name</label><input id=name placeholder=\"Bedside\">\n"
+"<button>Save and connect</button></form></div>\n"
+"<div id=done class=card><h1>Saved</h1><p id=dmsg></p><p>You can close this page. Your phone will go back to your usual WiFi.</p></div>\n"
+"<script>\n"
+"const $=s=>document.querySelector(s),enc=encodeURIComponent;let info={};\n"
+"fetch('/api/setupinfo').then(r=>r.json()).then(j=>{info=j;const s=$('#ssid');\n"
+" s.innerHTML=j.networks.map(n=>`<option ${n.ssid===j.ssid?'selected':''}>${n.ssid.replace(/</g,'&lt;')}</option>`).join('')+'<option value=\"\">Other…</option>';\n"
+" if(!j.networks.length)s.value='';s.onchange=()=>{$('#ssid2').style.display=s.value?'none':'block'};s.onchange();\n"
+" $('#server').value=j.server||'';$('#name').value=j.name||''}).catch(()=>{});\n"
+"$('#f').onsubmit=async e=>{e.preventDefault();const ssid=$('#ssid').value||$('#ssid2').value.trim();if(!ssid)return;\n"
+" const cmd=q=>fetch('/api/cmd?'+q,{method:'POST'});\n"
+" await cmd('wifi='+enc(ssid+'|'+$('#pass').value));\n"
+" const sv=$('#server').value.trim();if(sv&&sv!==info.server)await cmd('server='+enc(sv));\n"
+" const nm=$('#name').value.trim();if(nm&&nm!==info.name)await cmd('name='+enc(nm));\n"
+" $('#dmsg').textContent='The panel is restarting and joining \"'+ssid+'\".';$('#form').style.display='none';$('#done').style.display='block';\n"
+" setTimeout(()=>cmd('reboot=1'),800)};\n"
+"</script></main></body></html>";
+
+
 static bool            s_up;
 static int             s_frame_users;
 static char            s_json[10240];   /* state JSON incl. bindings + action table */
@@ -181,6 +223,31 @@ static void handle_request(conn_t *c)
     char *query = strchr(path, '?');
     if (query) *query++ = 0; else query = "";
 
+    if (s_setup) {                                   /* setup mode: the setup page, or a redirect to it */
+        if (!strcmp(path, "/") || !strcmp(path, "/index.html") || !strcmp(path, "/setup")) {
+            respond(c, 200, "text/html; charset=utf-8", SETUP_PAGE, sizeof SETUP_PAGE - 1, false); return;
+        }
+        if (!strcmp(path, "/api/setupinfo")) {
+            size_t n = (size_t)snprintf(s_json, sizeof s_json, "{\"ssid\":\"%s\",\"server\":\"%s\",\"name\":\"%s\",\"networks\":[",
+                                        app_setup_ssid(), app_setup_server(), app_setup_name());
+            for (int i = 0; i < s_nscan && n < sizeof s_json - 80; i++) {
+                n += (size_t)snprintf(s_json + n, sizeof s_json - n, "%s{\"ssid\":\"", i ? "," : "");
+                for (const char *p = s_scan[i].ssid; *p && n < sizeof s_json - 16; p++) {    /* JSON-escape */
+                    if (*p == '"' || *p == '\\') s_json[n++] = '\\';
+                    s_json[n++] = (*p >= 32) ? *p : ' ';
+                }
+                n += (size_t)snprintf(s_json + n, sizeof s_json - n, "\",\"rssi\":%d}", s_scan[i].rssi);
+            }
+            n += (size_t)snprintf(s_json + n, sizeof s_json - n, "]}");
+            respond(c, 200, "application/json", s_json, n, true); return;
+        }
+        if (strcmp(path, "/api/cmd") && strcmp(path, "/api/log") && strcmp(path, "/api/state")) {
+            c->hdr_len = (size_t)snprintf(c->hdr, sizeof c->hdr,
+                "HTTP/1.1 302 Found\r\nLocation: http://192.168.4.1/\r\nContent-Length: 0\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n");
+            c->body = NULL; c->body_len = 0; c->body_copy = false; c->sent = c->acked = 0;
+            conn_pump(c); return;
+        }
+    }
     if (!strcmp(path, "/") || !strcmp(path, "/index.html")) {
         respond(c, 200, "text/html; charset=utf-8", www_index, (size_t)(www_index_end - www_index), false);
     } else if (!strcmp(path, "/api/state")) {
@@ -321,6 +388,65 @@ static int join(const char *ssid, const char *pass, uint32_t auth, uint32_t time
         sleep_ms(50);
     }
     return PICO_ERROR_TIMEOUT;
+}
+
+/* ---- setup mode: the panel's own WiFi network and a setup page -------------------
+ * A phone that joins "Bedside-setup-xxxx" gets an address from the DHCP server,
+ * every name resolves to the panel (DNS server), and every path but the setup
+ * page and its two endpoints redirects to it, so the phone's captive-portal
+ * check opens it by itself. The page saves through /api/cmd (wifi=, server=,
+ * name=) and restarts the panel. */
+static int on_scan(void *env, const cyw43_ev_scan_result_t *r)
+{
+    (void)env;
+    if (!r || !r->ssid_len || r->ssid_len > 32) return 0;
+    char name[33]; memcpy(name, r->ssid, r->ssid_len); name[r->ssid_len] = 0;
+    for (int i = 0; i < s_nscan; i++) if (!strcmp(s_scan[i].ssid, name)) { if (r->rssi > s_scan[i].rssi) s_scan[i].rssi = r->rssi; return 0; }
+    if (s_nscan < SCAN_MAX) { snprintf(s_scan[s_nscan].ssid, sizeof s_scan[0].ssid, "%s", name); s_scan[s_nscan].rssi = r->rssi; s_nscan++; }
+    return 0;
+}
+
+static err_t on_accept(void *arg, struct tcp_pcb *newpcb, err_t err);
+bool net_setup_active(void) { return s_setup; }
+const char *net_setup_ssid(void) { return s_ap_ssid; }
+
+bool net_start_setup(const char *ap_ssid)
+{
+    if (!s_cyw43_up) {
+        if (cyw43_arch_init()) { printf("net: cyw43 init failed\n"); return false; }
+        s_cyw43_up = true;
+    }
+    /* Nearby networks first, for the page's list (the radio scans as a station). */
+    cyw43_arch_enable_sta_mode();
+    cyw43_wifi_scan_options_t opts = { 0 };
+    s_nscan = 0;
+    if (cyw43_wifi_scan(&cyw43_state, &opts, NULL, on_scan) == 0) {
+        absolute_time_t until = make_timeout_time_ms(8000);
+        while (cyw43_wifi_scan_active(&cyw43_state) && !time_reached(until)) { if (s_wait_hook) s_wait_hook(); sleep_ms(50); }
+    }
+    for (int i = 1; i < s_nscan; i++)                   /* strongest first */
+        for (int j = i; j > 0 && s_scan[j].rssi > s_scan[j - 1].rssi; j--) { __typeof__(s_scan[0]) t = s_scan[j]; s_scan[j] = s_scan[j - 1]; s_scan[j - 1] = t; }
+    printf("net: %d WiFi network(s) nearby\n", s_nscan);
+
+    snprintf(s_ap_ssid, sizeof s_ap_ssid, "%s", ap_ssid);
+    cyw43_arch_enable_ap_mode(s_ap_ssid, NULL, CYW43_AUTH_OPEN);
+    ip_addr_t gw, mask;
+    IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);
+    IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
+    struct netif *nif = &cyw43_state.netif[CYW43_ITF_AP];
+    cyw43_arch_lwip_begin();
+    netif_set_addr(nif, ip_2_ip4(&gw), ip_2_ip4(&mask), ip_2_ip4(&gw));
+    dhcp_server_init(&s_dhcp, nif, &gw, &mask);
+    dns_server_init(&s_dnss, nif, &gw);
+    if (!s_listen) {
+        struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
+        if (pcb && tcp_bind(pcb, IP_ANY_TYPE, HTTP_PORT) == ERR_OK) { s_listen = tcp_listen_with_backlog(pcb, 4); tcp_accept(s_listen, on_accept); }
+    }
+    cyw43_arch_lwip_end();
+    snprintf(s_ip, sizeof s_ip, "192.168.4.1");
+    s_setup = true;
+    printf("net: setup mode: join \"%s\", then open http://192.168.4.1/\n", s_ap_ssid);
+    return s_listen != NULL;
 }
 
 bool net_init(const char *ssid, const char *pass)

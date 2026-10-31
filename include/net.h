@@ -42,6 +42,16 @@ void app_command(const char *name, const char *value);
 size_t app_state_json(char *buf, size_t cap);
 /* Called repeatedly while net_init() waits for the WiFi join. */
 void net_set_wait_hook(void (*fn)(void));
+
+/* Setup mode: scan, then the panel's own open WiFi network (ap_ssid) with a
+ * captive setup page at http://192.168.4.1/. */
+bool        net_start_setup(const char *ap_ssid);
+bool        net_setup_active(void);
+const char *net_setup_ssid(void);
+/* What the setup page shows as the current values (main.c). */
+const char *app_setup_ssid(void);
+const char *app_setup_server(void);
+const char *app_setup_name(void);
 /* The log (the web console): text from byte `from`; *next is where to read next. */
 size_t app_log_read(uint32_t from, char *dst, size_t cap, uint32_t *next);
 /* Render the preview at 1/scale into the app's buffer and return it; scale 0

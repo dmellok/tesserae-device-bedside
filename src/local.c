@@ -533,7 +533,7 @@ typedef enum {
     S_HOMESCR, S_NIGHTG, S_KEYS, S_KEY, S_TIMEG, S_DEVICE,
     C_OVERLAY, T_SHOW, C_ATNIGHT, I_VIEWPORT, C_NIGHTKEYS,
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
-    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE,
+    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, A_WIFISETUP,
 } item_t;
 
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
@@ -699,6 +699,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
+        r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", ICON_WIFI_HIGH, 0 };
         r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
         break;
@@ -1455,6 +1456,7 @@ static void build_list(layer_t *l)
     if (r->id == I_MENUKEY) { snprintf(big, sizeof big, "Menu"); snprintf(small, sizeof small, "Press: menu or back " DOT " hold: home"); }
     if ((r->id == V_TIME || r->id == V_DATE) && S.auto_time) snprintf(small, sizeof small, "Set automatically " DOT " switch it off to change");
     if (r->id == C_OVERLAY) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(small, sizeof small, "Dashboard %d x %d " DOT " press to change", w, h); }
+    if (r->id == A_WIFISETUP) snprintf(small, sizeof small, "Restarts into setup: join its WiFi from a phone");
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Partial, then a full refresh");
     if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) snprintf(small, sizeof small, "Key %d, %s " DOT " press to change", s_ki + 1, r->id == C_KEY_HOLD ? "held" : "pressed");
@@ -2207,6 +2209,8 @@ bool local_press(void)
                 s_req = LREQ_REFRESH;
             } else if (r.id == A_RESTART) {
                 s_req = LREQ_RESTART;
+            } else if (r.id == A_WIFISETUP) {
+                s_req = LREQ_SETUP;
             } else if (r.id == A_PREVIEW) {
                 chorus_preview(s_preview_len_ms ? 0 : 90);
                 rebuild(); { int sl = s_stack[s_depth - 1].sel; mark_rows(sl, sl); }

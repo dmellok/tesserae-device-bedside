@@ -95,7 +95,7 @@ bool local_tick(void);
  * a repaint is due). */
 bool local_live_active(void);
 /* Things only main.c can do, asked for from the settings: */
-typedef enum { LREQ_NONE, LREQ_REFRESH, LREQ_RESTART, LREQ_RESET } local_req_t;
+typedef enum { LREQ_NONE, LREQ_REFRESH, LREQ_RESTART, LREQ_RESET, LREQ_SETUP } local_req_t;
 local_req_t local_take_request(void);
 /* Palette names for the key colours (for the web app / HA). */
 int         local_palette_count(void);

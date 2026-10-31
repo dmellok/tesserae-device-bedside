@@ -44,6 +44,9 @@
 #include "epd_io.h"
 #include "ota.h"
 #include "boot_logo.h"
+#include "pico/unique_id.h"
+#include "hardware/structs/watchdog.h"
+#define SETUP_MAGIC 0x5E7A5E7Au          /* watchdog scratch 0: boot into WiFi setup */
 #include "patterns.h"
 #include "images.h"
 #include "psram.h"
@@ -96,7 +99,7 @@ static void handle_key(int ch);
 static void console_input(const char *text);
 static volatile const char *s_phase = "boot";   /* last main-loop phase passed (state JSON) */
 static volatile uint32_t    s_loops;
-typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE, CONTENT_BOOT } content_t;   /* BOOT: logo + the boot log */   /* LIVE: white, the live page is drawn over it */
+typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE, CONTENT_BOOT, CONTENT_SETUP } content_t;   /* BOOT: logo + the boot log; SETUP: WiFi setup steps */   /* LIVE: white, the live page is drawn over it */
 static content_t cur_content = CONTENT_CARD;
 
 static void frame_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
@@ -217,6 +220,44 @@ static void boot_row(int y, uint8_t out[IT8951_ROW_BYTES], const boot_text_t *t)
     }
 }
 
+/* ---- setup mode screen: the logo and how to connect ------------------------- */
+static char     s_setup_why[96];
+static uint32_t s_setup_until;          /* restart to try the saved WiFi again (0: stay) */
+typedef struct { int y; const bfont_t *f; uint8_t g; const char *t; } setup_line_t;
+static void setup_row(int y, uint8_t out[IT8951_ROW_BYTES])
+{
+    memset(out, 0xFF, IT8951_ROW_BYTES);
+    if (y >= BOOT_LOGO_Y && y < BOOT_LOGO_Y + boot_logo_h) {
+        memcpy(out + (BOOT_LOGO_X & ~1) / 2, boot_logo + (size_t)(y - BOOT_LOGO_Y) * (boot_logo_w / 2), boot_logo_w / 2);
+        return;
+    }
+    static char url[40];
+    snprintf(url, sizeof url, "or go to http://192.168.4.1");
+    const setup_line_t L[] = {
+        { 380,  &ui72, G_BLACK, "Set up this panel" },
+        { 520,  &ui46, G_DARK,  "1   On your phone, join the WiFi network" },
+        { 590,  &ui96, G_BLACK, net_setup_ssid() },
+        { 760,  &ui46, G_DARK,  "2   The setup page opens by itself" },
+        { 822,  &ui34, G_DARK,  url },
+        { 930,  &ui46, G_DARK,  "3   Choose your WiFi and your Tesserae server" },
+        { 1240, &ui34, G_DARK,  s_setup_why },
+    };
+    uint8_t *line = s_boot_line[get_core_num()];
+    for (size_t i = 0; i < sizeof L / sizeof L[0]; i++) {
+        if (y < L[i].y || y >= L[i].y + L[i].f->line_h || !L[i].t[0]) continue;
+        memset(line, 0xF, IT8951_W);
+        int x = BOOT_LOG_X + (L[i].f == &ui34 && i == 4 ? 62 : 0);
+        draw_font_row(L[i].f, line, IT8951_W, x, L[i].t, y - L[i].y, L[i].g);
+        draw_pack(out, 0, line, IT8951_W);
+        return;
+    }
+    if (y >= 1200 && y < 1202) { memset(line, 0xF, IT8951_W); memset(line + BOOT_LOG_X, G_LIGHT, IT8951_W - 2 * BOOT_LOG_X); draw_pack(out, 0, line, IT8951_W); }
+}
+
+const char *app_setup_ssid(void)   { return config_get()->wifi_ssid; }
+const char *app_setup_server(void) { return config_get()->server_url; }
+const char *app_setup_name(void)   { return config_get()->device_name; }
+
 /* Repaint the log when new lines have arrived (fast 2-level update). */
 static void boot_service(void)
 {
@@ -232,6 +273,7 @@ static void boot_service(void)
 static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
 {
     if (cur_content == CONTENT_BOOT) { boot_row(y, out, &s_boot); return; }
+    if (cur_content == CONTENT_SETUP) { setup_row(y, out); return; }
     const uint8_t *frame = tesserae_frame();
     if (cur_content == CONTENT_DASHBOARD && frame) dash_row(y, out, frame);
     else if (cur_content == CONTENT_WHITE || cur_content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
@@ -241,6 +283,7 @@ static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
 static const char *content_name(void)
 {
     if (cur_content == CONTENT_BOOT) return "boot screen";
+    if (cur_content == CONTENT_SETUP) return "WiFi setup";
     if (cur_content == CONTENT_LIVE) return "live";
     if (cur_content == CONTENT_DASHBOARD) return tesserae_frame() ? "dashboard" : "dashboard (none yet)";
     return cur_content == CONTENT_CARD ? "test card" : "white";
@@ -254,7 +297,7 @@ static void composite_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
     content_row(y, out);
-    if (cur_content == CONTENT_BOOT) return;          /* the boot screen stands alone */
+    if (cur_content == CONTENT_BOOT || cur_content == CONTENT_SETUP) return;   /* these screens stand alone */
     local_overlay_row(y, out);
     if (tune_banner && banner_text[0]) banner_overlay_row(banner_text, y, out);
 }
@@ -283,6 +326,7 @@ static void paint_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
     if (P.content == CONTENT_BOOT) { boot_row(y, out, &P.boot); return; }
+    if (P.content == CONTENT_SETUP) { setup_row(y, out); return; }
     if (P.content == CONTENT_DASHBOARD && P.frame) dash_row(y, out, P.frame);
     else if (P.content == CONTENT_WHITE || P.content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
     else                                           frame_row(y, out, (void *)sample_card);
@@ -794,6 +838,8 @@ static void exec_command(const char *name, const char *value)
         else printf("ota: expected <url>|<size>|<sha256>[|<version>]\n");
     }
     else if (!strcmp(name, "picks"))     tesserae_picks_fetch();          /* refresh the dashboard list */
+    else if (!strcmp(name, "wifisetup")) { printf("rebooting into WiFi setup\n"); watchdog_hw->scratch[0] = SETUP_MAGIC; sleep_ms(200); watchdog_reboot(0, 0, 0); }
+    else if (!strcmp(name, "showsetup")) { snprintf(s_setup_why, sizeof s_setup_why, "Preview of the setup screen."); show_content(CONTENT_SETUP); }   /* diagnostics */
     else if (!strcmp(name, "serial"))    console_input(value);
     else if (!strcmp(name, "enter"))     handle_key('\r');   /* the console's Enter: a knob press */
     else if (!strcmp(name, "spidrive"))  {     /* <mA>[f]: 2/4/8/12, 'f' = fast slew; re-inits the panel link */
@@ -1187,13 +1233,19 @@ static void ui_service(void)
         static int last_live = -1;
         int live = local_live_active() ? 1 : 0;
         bool booting = cur_content == CONTENT_BOOT && (int32_t)(to_ms_since_boot(get_absolute_time()) - s_boot_hold_until) < 0;
-        if (booting) boot_service();
+        if (cur_content == CONTENT_SETUP) {
+            if (s_setup_until && (int32_t)(to_ms_since_boot(get_absolute_time()) - s_setup_until) >= 0) {
+                printf("setup: nothing saved; restarting to try the WiFi again\n"); sleep_ms(200); watchdog_reboot(0, 0, 0);
+            }
+        }
+        else if (booting) boot_service();
         else if (live != last_live || cur_content == CONTENT_BOOT) { last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE)); }
     }
     if (local_live_tick()) local_flush();
     switch (local_take_request()) {               /* asked for from the panel's settings */
     case LREQ_REFRESH: printf("paint: full refresh (settings)\n"); local_set_dirty_full(); local_flush(); break;
     case LREQ_RESTART: printf("rebooting (settings)\n"); sleep_ms(200); watchdog_reboot(0, 0, 0); break;
+    case LREQ_SETUP:   printf("rebooting into WiFi setup\n"); watchdog_hw->scratch[0] = SETUP_MAGIC; sleep_ms(200); watchdog_reboot(0, 0, 0); break;
     case LREQ_RESET:   printf("master reset (settings)\n"); config_erase_all(); sleep_ms(200); watchdog_reboot(0, 0, 0); break;
     default: break;
     }
@@ -1245,7 +1297,25 @@ int main(void)
     net_set_wait_hook(boot_wait);
 
     const config_t *c = config_get();
-    bool up = net_init(c->wifi_ssid, c->wifi_pass);
+    /* WiFi setup when there is no network saved, when asked for (Settings >
+     * Device > Wi-Fi setup), or when the saved one can't be joined: then for 5
+     * minutes, after which the panel restarts and tries it again (a router
+     * outage must not strand it in setup). */
+    bool asked = watchdog_hw->scratch[0] == SETUP_MAGIC;
+    watchdog_hw->scratch[0] = 0;
+    bool up = false;
+    if (config_has_wifi() && !asked) up = net_init(c->wifi_ssid, c->wifi_pass);
+    if (!up) {
+        char ap[33], id[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
+        pico_get_unique_board_id_string(id, sizeof id);
+        snprintf(ap, sizeof ap, "Bedside-setup-%s", id + strlen(id) - 4);
+        if (!config_has_wifi()) snprintf(s_setup_why, sizeof s_setup_why, "No WiFi set up yet.");
+        else if (asked) snprintf(s_setup_why, sizeof s_setup_why, "Setup asked for from the menu. Restarts in 10 minutes if nothing is saved.");
+        else snprintf(s_setup_why, sizeof s_setup_why, "Couldn't join \"%s\". Trying it again in 5 minutes.", c->wifi_ssid);
+        if (config_has_wifi()) s_setup_until = to_ms_since_boot(get_absolute_time()) + (asked ? 600000u : 300000u);
+        net_start_setup(ap);
+        show_content(CONTENT_SETUP);
+    }
     net_set_wait_hook(NULL);
     s_boot_hold_until = to_ms_since_boot(get_absolute_time()) + 4000;   /* time to read the log */
     /* Two frame buffers: the one on screen, and one downloads land in. */
