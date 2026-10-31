@@ -1,0 +1,183 @@
+{
+ "sources": {
+  "magpie_song": {
+   "title": "Magpiesong.ogg",
+   "url": "https://commons.wikimedia.org/wiki/File:Magpiesong.ogg",
+   "author": "Meganesia",
+   "license": "CC BY-SA 4.0",
+   "wav": "magpie__Magpiesong.wav"
+  },
+  "magpie_carol": {
+   "title": "Magpie Caroling.ogg",
+   "url": "https://commons.wikimedia.org/wiki/File:Magpie_Caroling.ogg",
+   "author": "Hullwarren",
+   "license": "CC BY-SA 4.0",
+   "wav": "magpie__Magpie_Caroling.wav"
+  },
+  "butcher": {
+   "title": "Cracticus torquatus - Grey Butcherbird XC442754.mp3",
+   "url": "https://commons.wikimedia.org/wiki/File:Cracticus_torquatus_-_Grey_Butcherbird_XC442754.mp3",
+   "author": "James Ray",
+   "license": "CC BY-SA 4.0",
+   "wav": "butcherbird__Cracticus_torquatus_-_Grey_Butcherbird_XC442754.wav"
+  },
+  "wren": {
+   "title": "Bird song, grassy woodlands, central Victoria.ogg",
+   "url": "https://commons.wikimedia.org/wiki/File:Bird_song,_grassy_woodlands,_central_Victoria.ogg",
+   "author": "billinghurst",
+   "license": "CC BY-SA 4.0",
+   "wav": "fairywren__Bird_song__grassy_woodlands__central_Victoria.wav"
+  },
+  "whip": {
+   "title": "Eastern Whipbird.ogg",
+   "url": "https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg",
+   "author": "Wardie44",
+   "license": "Public domain",
+   "wav": "whipbird__Eastern_Whipbird.wav"
+  },
+  "wattle": {
+   "title": "Anthochaera carunculata - Red Wattlebird XC446154.mp3",
+   "url": "https://commons.wikimedia.org/wiki/File:Anthochaera_carunculata_-_Red_Wattlebird_XC446154.mp3",
+   "author": "James Ray",
+   "license": "CC BY-SA 4.0",
+   "wav": "wattlebird__Anthochaera_carunculata_-_Red_Wattlebird_XC44615.wav"
+  },
+  "kooka": {
+   "title": "LaughingKookaburra.ogg",
+   "url": "https://commons.wikimedia.org/wiki/File:LaughingKookaburra.ogg",
+   "author": "Kuco",
+   "license": "Public domain",
+   "wav": "kookaburra__LaughingKookaburra.wav"
+  }
+ },
+ "species": {
+  "magpie": {
+   "hp": 450,
+   "lp": 5000,
+   "clips": [
+    [
+     "magpie_song",
+     0.0,
+     3.8
+    ],
+    [
+     "magpie_song",
+     5.0,
+     9.0
+    ],
+    [
+     "magpie_song",
+     9.6,
+     12.1
+    ],
+    [
+     "magpie_carol",
+     0.0,
+     3.0
+    ]
+   ],
+   "nr": 14
+  },
+  "butcherbird": {
+   "hp": 600,
+   "lp": 9000,
+   "clips": [
+    [
+     "butcher",
+     0.8,
+     4.7
+    ],
+    [
+     "butcher",
+     13.1,
+     18.4
+    ],
+    [
+     "butcher",
+     74.9,
+     79.8
+    ]
+   ]
+  },
+  "fairywren": {
+   "hp": 4000,
+   "lp": 9800,
+   "clips": [
+    [
+     "wren",
+     118.9,
+     124.0
+    ],
+    [
+     "wren",
+     145.0,
+     147.0
+    ],
+    [
+     "wren",
+     182.9,
+     184.6
+    ]
+   ],
+   "nr": 16
+  },
+  "whipbird": {
+   "hp": 800,
+   "lp": 9800,
+   "clips": [
+    [
+     "whip",
+     0.0,
+     6.9
+    ],
+    [
+     "whip",
+     7.2,
+     10.4
+    ],
+    [
+     "whip",
+     14.4,
+     17.6
+    ]
+   ]
+  },
+  "wattlebird": {
+   "hp": 900,
+   "lp": 6800,
+   "clips": [
+    [
+     "wattle",
+     10.0,
+     15.0
+    ],
+    [
+     "wattle",
+     30.0,
+     34.5
+    ]
+   ]
+  },
+  "kookaburra": {
+   "hp": 300,
+   "lp": 4800,
+   "clips": [
+    [
+     "kooka",
+     9.5,
+     15.5
+    ],
+    [
+     "kooka",
+     25.5,
+     30.5
+    ],
+    [
+     "kooka",
+     31.0,
+     37.0
+    ]
+   ]
+  }
+ }
+}

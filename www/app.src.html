@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bedside">
+<meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M38 14a18 18 0 1 0 12 30A20 20 0 0 1 38 14z' fill='%23f4f2ee'/%3E%3C/svg%3E">
+<title>Bedside</title>
+<style>
+:root{
+  --bg:#f4f2ee; --card:#fff; --ink:#1b1b1a; --sub:#6d6a64; --line:#e4e0d8; --soft:#ece9e3;
+  --acc:#1b1b1a; --acc-ink:#fff; --on:#2f7d4f; --warn:#b4472f; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
+  --r:20px; --tab-h:64px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121212; --card:#1d1d1c; --ink:#f1efea; --sub:#9b978f; --line:#2c2b29; --soft:#262524;
+  --acc:#f1efea; --acc-ink:#121212; --on:#5fbf86; --warn:#e2785f; --shadow:none; color-scheme:dark;
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;-webkit-user-select:none;user-select:none}
+input,select,button{font:inherit;color:inherit}
+svg.i{width:22px;height:22px;fill:currentColor;flex:none}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+header h1{font-size:28px;letter-spacing:-.02em;margin:0;flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);background:var(--soft);border-radius:99px;padding:5px 10px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sub)}
+.dot.ok{background:var(--on)} .dot.bad{background:var(--warn)}
+main{padding:4px 16px calc(var(--tab-h) + env(safe-area-inset-bottom) + 24px);max-width:640px;margin:0 auto}
+section.tab{display:none} section.tab.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin:0 0 12px;box-shadow:var(--shadow)}
+.card.off .body{opacity:.45}
+.row{display:flex;align-items:center;gap:12px}
+.row+.row{margin-top:14px}
+.ttl{display:flex;align-items:center;gap:12px;font-weight:600;font-size:17px}
+.ttl .ic{width:40px;height:40px;border-radius:12px;background:var(--soft);display:grid;place-items:center}
+.ttl .ic.lit{background:var(--acc);color:var(--acc-ink)}
+.ttl .t{flex:1;min-width:0} .ttl small{display:block;font-weight:400;font-size:13px;color:var(--sub)}
+.body{margin-top:14px;transition:opacity .2s}
+.lbl{font-size:13px;color:var(--sub);margin:14px 0 8px}
+.lbl:first-child{margin-top:0}
+h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin:22px 4px 8px}
+h2:first-child{margin-top:6px}
+/* switch */
+.sw{position:relative;width:52px;height:32px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:background .2s}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.sw input:checked+span{background:var(--on)} .sw input:checked+span::after{transform:translateX(20px)}
+/* segmented */
+.seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;border:0;background:none;padding:9px 4px;border-radius:9px;font-size:14px;font-weight:500;color:var(--sub);min-height:38px}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* slider */
+.sl{display:flex;align-items:center;gap:10px}
+.sl output{min-width:42px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:36px;background:none;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:linear-gradient(90deg,var(--acc) var(--p,50%),var(--line) var(--p,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;margin-top:-10px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:8px;border-radius:99px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:99px;background:var(--acc)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.rb{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;flex:none}
+.rb:active,.btn:active,.key:active{transform:scale(.95)}
+/* stepper */
+.step{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.step .v{font-size:44px;font-weight:300;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.step .v small{font-size:20px;color:var(--sub)}
+/* buttons */
+.btn{border:0;border-radius:14px;background:var(--soft);padding:12px 16px;font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
+.btn.pri{background:var(--acc);color:var(--acc-ink)}
+.btn.dan{color:var(--warn)}
+.btn.w{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* fields */
+.fld{display:block;margin-top:12px}
+.fld span{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+.fld input,.fld select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px;font-size:16px;-webkit-user-select:text;user-select:text}
+.inl{display:flex;gap:8px;align-items:flex-end} .inl .fld{flex:1}
+/* alarms */
+.alarm .time{font-size:52px;font-weight:300;letter-spacing:-.03em;font-variant-numeric:tabular-nums;border:0;background:none;padding:0;width:100%;min-width:0;color:var(--ink)}
+.alarm .time::-webkit-calendar-picker-indicator{display:none}
+.days{display:flex;gap:6px;margin-top:12px}
+.days button{flex:1;aspect-ratio:1;max-width:46px;border-radius:50%;border:0;background:var(--soft);color:var(--sub);font-weight:600;font-size:14px}
+.days button.on{background:var(--acc);color:var(--acc-ink)}
+.presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.log{margin:0;height:min(58vh,520px);overflow:auto;background:#141413;color:#e8e6df;border-radius:12px;padding:12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+.conin{display:flex;gap:8px;align-items:center;margin-top:12px}
+.conin .pr{font:600 15px ui-monospace,Menlo,monospace;color:var(--sub)}
+.conin input{flex:1;min-width:0;font:14px ui-monospace,Menlo,monospace;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.chip code{font:11px ui-monospace,Menlo,monospace;opacity:.7;margin-left:2px}
+.chip{border:0;border-radius:99px;background:var(--soft);padding:7px 12px;font-size:13px;font-weight:500;color:var(--sub)}
+.alarm .foot{display:flex;align-items:center;gap:10px;margin-top:14px}
+.alarm .foot select{flex:1;border:0;background:var(--soft);border-radius:12px;padding:10px;font-size:14px}
+.empty{text-align:center;color:var(--sub);padding:30px 10px}
+/* remote */
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.key{border:0;border-radius:14px;background:var(--soft);height:60px;display:grid;place-items:center;position:relative;touch-action:none}
+.key small{position:absolute;bottom:5px;font-size:10px;color:var(--sub);font-weight:500}
+.key.held{background:var(--acc);color:var(--acc-ink)}
+.wheel{position:relative;width:min(72vw,260px);aspect-ratio:1;margin:18px auto 4px;border-radius:50%;background:var(--soft);touch-action:none}
+.wheel .hub{position:absolute;inset:32%;border-radius:50%;background:var(--card);border:0;box-shadow:var(--shadow),0 0 0 1px var(--line);font-weight:600;font-size:13px;color:var(--sub)}
+.wheel .hub.held{background:var(--acc);color:var(--acc-ink)}
+.wheel .tick{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--sub);left:calc(50% - 3px);top:8px;transform-origin:3px calc(min(72vw,260px)/2 - 8px)}
+.wheel .lt,.wheel .rt{position:absolute;top:50%;transform:translateY(-50%);color:var(--sub);pointer-events:none}
+.wheel .lt{left:12px} .wheel .rt{right:12px}
+.hint{text-align:center;font-size:12px;color:var(--sub);margin-top:6px}
+/* the keymap: four keys in a row, then the knob, as on the case */
+.kmap{display:grid;grid-template-columns:repeat(4,1fr) 1.15fr;gap:8px;margin:0 0 14px}
+.kc{border:1px solid var(--line);border-radius:12px;padding:10px 10px 9px;display:grid;gap:3px;background:var(--soft);min-width:0}
+.kc b{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub)}
+.kc .p{font-weight:600;font-size:14px;line-height:1.2} .kc .h{font-size:12px;color:var(--sub);line-height:1.25}
+.kc.menu{background:#df7436;border-color:#df7436;color:#fff} .kc.menu b,.kc.menu .h{color:rgba(255,255,255,.8)}
+.kc.knob{border-radius:22px}
+@media (max-width:520px){.kmap{grid-template-columns:repeat(2,1fr)}}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+/* stats */
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0;font-size:14px}
+dt{color:var(--sub)} dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+/* tab bar */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;
+  background:color-mix(in srgb,var(--card) 90%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav div{display:flex;width:100%;max-width:640px}
+nav button{flex:1;border:0;background:none;height:var(--tab-h);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--sub)}
+nav button.on{color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 14px);transform:translate(-50%,20px);opacity:0;
+  background:var(--acc);color:var(--acc-ink);padding:10px 16px;border-radius:99px;font-size:14px;transition:.2s;pointer-events:none;z-index:9;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.listen{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px;border-radius:14px;background:var(--soft)}
+.listen .t{flex:1;min-width:0;font-size:14px;font-weight:600} .listen .t small{display:block;font-weight:400;color:var(--sub);font-size:12px}
+.listen .rb{background:var(--acc);color:var(--acc-ink)}
+.meter{display:flex;gap:3px;align-items:flex-end;height:22px}
+.meter i{width:4px;border-radius:2px;background:var(--on);height:3px;transition:height .08s}
+details.more{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+details.more summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--sub);padding:8px 0}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(45deg);transition:transform .2s}
+details.more[open] summary::after{transform:rotate(-135deg)}
+.sl .k{min-width:62px;font-size:13px;color:var(--sub)}
+.ends{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin:-6px 52px 0 72px}
+.ringing{display:none;background:var(--acc);color:var(--acc-ink);border-radius:var(--r);padding:18px;margin-bottom:12px;text-align:center}
+.ringing.on{display:block} .ringing b{display:block;font-size:40px;font-weight:300;letter-spacing:-.02em;margin:2px 0 12px}
+.ringing .grid2 .btn{background:rgba(255,255,255,.15);color:inherit} .ringing .grid2 .btn.pri{background:var(--acc-ink);color:var(--acc)}
+.bird{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.bird:last-child{border-bottom:0} .bird .t{flex:1;min-width:0} .bird b{display:block;font-size:15px} .bird span{display:block;font-size:12px;color:var(--sub)}
+.bird .rb{width:38px;height:38px}
+.credits{font-size:11px;color:var(--sub);margin-top:10px} .credits ul{margin:6px 0 0;padding-left:16px} .credits a{color:inherit}
+.off-banner{display:none;background:var(--warn);color:#fff;border-radius:14px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+.offline .off-banner{display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Room</h1>
+  <span class="pill" id="conn"><i class="dot" id="dot"></i><span id="connt">…</span></span>
+</header>
+
+<main>
+<div class="off-banner">Can't reach the bedside panel. Retrying…</div>
+
+<!-- ROOM -->
+<section class="tab on" id="t-room">
+  <div class="card">
+    <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Volume<small id="vol-sub"></small></div></div>
+    <div class="body sl" style="margin-top:12px">
+      <button class="rb" data-step="vol" data-d="-1" aria-label="Quieter"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/></svg></button>
+      <input type="range" id="vol" min="0" max="10" step="1" data-set="vol">
+      <button class="rb" data-step="vol" data-d="1" aria-label="Louder"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/><rect x="120" y="56" width="16" height="144" rx="8"/></svg></button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;background:none;box-shadow:none">
+    <div class="listen" style="margin-top:0;background:var(--card);box-shadow:var(--shadow)">
+      <button class="rb" id="listen" aria-label="Listen on this device"><span data-i="play"></span></button>
+      <div class="t" id="listen-t">Listen on this phone<small>Streams the panel's sound until it has a speaker</small></div>
+      <div class="meter" id="meter"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+
+  <div class="card" id="c-rain">
+    <div class="ttl"><div class="ic" data-i="cloud-rain"></div><div class="t">Sleep sounds<small id="rain-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="rain_on" data-set="rain_on"><span></span></label></div>
+    <div class="body">
+      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise"></div>
+      <div class="lbl">Intensity</div><div class="seg" data-seg="rain_lvl" data-opts="1:1,2:2,3:3,4:4,5:5"></div>
+      <div class="lbl">Sleep timer</div><div class="seg" data-seg="sleep" data-opts="0:Off,15:15m,30:30m,60:60m"></div>
+      <details class="more" id="shape"><summary><span data-i="sliders-horizontal"></span>Shape the rain</summary>
+        <div class="lbl">Falling on</div><div class="seg" data-seg="surface" data-opts="0:Ground,1:Leaves,2:Roof,3:Window"></div>
+        <div class="lbl">Sound</div>
+        <div class="sl"><span class="k">Drops</span><input type="range" id="patter" min="0" max="100" step="5" data-set="patter"><output id="patter-o"></output></div>
+        <div class="sl"><span class="k">Hiss</span><input type="range" id="wash" min="0" max="100" step="5" data-set="wash"><output id="wash-o"></output></div>
+        <div class="sl"><span class="k">Tone</span><input type="range" id="tone" min="0" max="100" step="5" data-set="tone"><output id="tone-o"></output></div>
+        <div class="ends"><span>Darker</span><span>Brighter</span></div>
+        <div class="sl"><span class="k">Wind</span><input type="range" id="wind" min="0" max="100" step="5" data-set="wind"><output id="wind-o"></output></div>
+        <div class="lbl">Thunder</div>
+        <div class="sl"><span class="k">How often</span><input type="range" id="thunder" min="0" max="100" step="5" data-set="thunder"><output id="thunder-o"></output></div>
+        <div class="ends"><span>Never</span><span>Every ~30 s</span></div>
+        <div class="sl"><span class="k">Distance</span><input type="range" id="thunder_near" min="0" max="100" step="5" data-set="thunder_near"><output id="thunder_near-o"></output></div>
+        <div class="ends"><span>Far off</span><span>Overhead</span></div>
+        <button class="btn w" id="strike" style="margin-top:12px"><span data-i="cloud-lightning"></span>Roll thunder now</button>
+        <button class="btn w" id="shape-reset" style="margin-top:8px">Reset to defaults</button>
+      </details>
+    </div>
+  </div>
+
+  <div class="card" id="c-lights">
+    <div class="ttl"><div class="ic" data-i="lightbulb"></div><div class="t">Lights<small id="lights-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="lights_on" data-set="lights_on"><span></span></label></div>
+    <div class="body">
+      <div class="sl"><span data-i="sun" style="color:var(--sub)"></span><input type="range" id="bright" min="5" max="100" step="5" data-set="bright"><output id="bright-o"></output></div>
+      <div class="lbl">Colour</div><div class="seg" data-seg="colour" data-opts="0:Warm,1:Night"></div>
+    </div>
+  </div>
+
+  <div class="card" id="c-ac">
+    <div class="ttl"><div class="ic" data-i="snowflake"></div><div class="t">A/C<small id="ac-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="ac_on"><span></span></label></div>
+    <div class="body">
+      <div class="step" style="margin-top:4px">
+        <button class="rb" data-sp="-0.5" aria-label="Cooler"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/></svg></button>
+        <div class="v" id="sp">--</div>
+        <button class="rb" data-sp="0.5" aria-label="Warmer"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/><rect x="120" y="56" width="16" height="144" rx="8"/></svg></button>
+      </div>
+      <div class="lbl">Mode</div><div class="seg" data-seg="ac_mode" data-opts="3:Cool,1:Heat,2:Fan,4:Dry"></div>
+      <div class="lbl">Fan</div><div class="seg" data-seg="fan" data-opts="0:Auto,1:Low,2:Mid,3:High"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ttl"><div class="ic" data-i="moon"></div><div class="t">Night mode<small>Dims the key lights and panel UI</small></div>
+      <label class="sw"><input type="checkbox" id="night" data-set="night"><span></span></label></div>
+  </div>
+
+  <h2>Dashboard</h2>
+  <div class="card">
+    <div class="seg" id="dashes"></div>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn" data-cmd="fetch"><span data-i="arrow-clockwise"></span>Fetch now</button>
+      <button class="btn" data-cmd="action=refresh"><span data-i="monitor"></span>Re-render</button>
+    </div>
+  </div>
+</section>
+
+<!-- ALARMS -->
+<section class="tab" id="t-alarms">
+  <div class="ringing" id="ringing"><div id="ring-what">Alarm</div><b id="ring-time">--:--</b>
+    <div class="grid2"><button class="btn" id="ring-snooze">Snooze 9 min</button><button class="btn pri" id="ring-stop">Stop</button></div></div>
+  <div id="alarms"></div>
+  <button class="btn pri w" id="alarm-add" style="margin-bottom:12px"><span data-i="plus"></span>Add alarm</button>
+  <div class="card" id="c-chorus">
+    <div class="ttl"><div class="ic" data-i="bird"></div><div class="t">Dawn chorus<small id="chorus-sub">Builds through each alarm's wake-up window</small></div></div>
+    <div class="body">
+      <div style="font-size:14px;color:var(--sub)">Real recordings of Australian birds, with a few synthesised ones for variety, arranged fresh every morning. One magpie starts far off, more birds join as the alarm nears, and the rain fades out under them.</div>
+      <div id="birds" style="margin-top:6px"></div>
+      <div class="lbl">Alarm volume</div>
+      <div class="sl"><span data-i="speaker-high" style="color:var(--sub)"></span><input type="range" id="bird_vol" min="1" max="10" step="1" data-set="bird_vol"><output id="bird_vol-o"></output></div>
+      <button class="btn w" id="chorus-preview" style="margin-top:12px"><span data-i="play"></span>Preview the build-up</button>
+      <div class="hint" id="chorus-hint">Plays through this phone while Listen is on (Room tab).</div>
+      <details class="credits"><summary>Recording credits</summary><ul><li><a href="https://commons.wikimedia.org/wiki/File:Magpiesong.ogg" target="_blank" rel="noopener">Magpiesong.ogg</a> by Meganesia, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Magpie_Caroling.ogg" target="_blank" rel="noopener">Magpie Caroling.ogg</a> by Hullwarren, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Cracticus_torquatus_-_Grey_Butcherbird_XC442754.mp3" target="_blank" rel="noopener">Cracticus torquatus - Grey Butcherbird XC442754.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Bird_song,_grassy_woodlands,_central_Victoria.ogg" target="_blank" rel="noopener">Bird song, grassy woodlands, central Victoria.ogg</a> by billinghurst, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg" target="_blank" rel="noopener">Eastern Whipbird.ogg</a> by Wardie44, Public domain</li><li><a href="https://commons.wikimedia.org/wiki/File:Anthochaera_carunculata_-_Red_Wattlebird_XC446154.mp3" target="_blank" rel="noopener">Anthochaera carunculata - Red Wattlebird XC446154.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:LaughingKookaburra.ogg" target="_blank" rel="noopener">LaughingKookaburra.ogg</a> by Kuco, Public domain</li></ul></details>
+    </div>
+  </div>
+  <button class="btn pri w" id="alarm-add"><span data-i="plus"></span>Add alarm</button>
+</section>
+
+<!-- REMOTE -->
+<section class="tab" id="t-console">
+  <div class="card con">
+    <pre class="log" id="log" aria-live="off"></pre>
+    <form class="conin" id="f-con" autocomplete="off">
+      <span class="pr">&gt;</span><input id="con-in" name="c" placeholder="Command, e.g. ? or p or v1480" autocapitalize="off" spellcheck="false" enterkeyhint="send">
+      <button class="btn pri">Send</button>
+    </form>
+    <div class="chips" id="conkeys" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:14px">
+      <div style="flex:1">Follow new lines</div><label class="sw"><input type="checkbox" id="con-follow" checked><span></span></label>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn" id="con-copy" type="button">Copy log</button>
+      <button class="btn" id="con-clear" type="button">Clear view</button>
+    </div>
+    <div class="hint" style="text-align:left;margin-top:10px">The same commands as the USB serial port. Typed text runs as keys; Enter on its own is a knob press (the Enter chip). The panel keeps the last 16 KB of log.</div>
+  </div>
+</section>
+
+<!-- DEVICE -->
+<section class="tab" id="t-device">
+  <h2>Status</h2>
+  <div class="card"><dl id="stats"></dl></div>
+
+  <h2>Tesserae</h2>
+  <div class="card">
+    <div class="ttl"><div class="ic" data-i="monitor"></div><div class="t" id="ts-state">—<small id="ts-err"></small></div></div>
+    <form id="f-tess">
+      <label class="fld"><span>Server</span><input name="server" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="grid2">
+        <label class="fld"><span>Device ID</span><input name="device" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld"><span>Name</span><input name="name" autocomplete="off"></label>
+      </div>
+      <label class="fld"><span>Kind</span><input name="kind" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="btn pri w" style="margin-top:14px">Save connection</button>
+    </form>
+    <form id="f-pair" class="inl">
+      <label class="fld"><span>Pairing code</span><input name="pair" autocomplete="one-time-code" autocapitalize="characters"></label>
+      <button class="btn">Pair</button>
+    </form>
+    <button class="btn dan w" style="margin-top:12px" data-confirm="Forget the pairing? The panel will re-register." data-cmd="forget">Forget pairing</button>
+  </div>
+
+  <h2>Home Assistant</h2>
+  <div class="card">
+    <div class="ttl"><div class="ic" data-i="house"></div><div class="t" id="ha-state">MQTT<small id="ha-err"></small></div>
+      <label class="sw"><input type="checkbox" id="ha-on"><span></span></label></div>
+    <form id="f-ha">
+      <div class="inl"><label class="fld" style="flex:3"><span>Broker</span><input name="host" placeholder="homeassistant.local" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld" style="flex:1"><span>Port</span><input name="port" inputmode="numeric" placeholder="1883"></label></div>
+      <div class="grid2">
+        <label class="fld"><span>Username</span><input name="user" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password" placeholder="unchanged"></label>
+      </div>
+      <details class="credits"><summary>Topics</summary>
+        <div class="grid2">
+          <label class="fld"><span>Discovery prefix</span><input name="prefix" placeholder="homeassistant" autocapitalize="off" spellcheck="false"></label>
+          <label class="fld"><span>Base topic</span><input name="base" placeholder="bedside" autocapitalize="off" spellcheck="false"></label>
+        </div>
+      </details>
+      <button class="btn pri w" style="margin-top:14px">Save and connect</button>
+    </form>
+    <div class="hint" style="text-align:left;margin-top:10px">With the MQTT integration in Home Assistant, the panel appears as one device with every control here: sleep sounds, rain and thunder, the dawn chorus, alarms, lights and A/C, night mode, the dashboard, and an Events entity for automations.</div>
+  </div>
+
+  <h2>Controls</h2>
+  <div class="card">
+    <div class="lbl">Key lights</div>
+    <div class="sl"><span data-i="keyboard" style="color:var(--sub)"></span><input type="range" id="keylights" min="0" max="100" step="5" data-set="keylights"><output id="keylights-o"></output></div>
+    <div class="lbl">Keys</div>
+    <div class="kmap" id="kmap"></div>
+    <div class="grid2" id="kbinds"></div>
+    <div class="hint" style="text-align:left">A key with a hold action waits half a second to tell a press from a hold. MENU is fixed: press for the menu or back, hold for home.</div>
+    <div class="lbl">Hardware</div>
+    <dl id="hw"></dl>
+    <div class="lbl">BOOT button</div>
+    <label class="fld"><span>Short press</span><select data-bind="boot_short"></select></label>
+    <label class="fld"><span>Long press</span><select data-bind="boot_long"></select></label>
+  </div>
+
+  <h2>Home screen</h2>
+  <div class="card">
+    <div class="grid2">
+      <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
+      <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option></select></label>
+    </div>
+    <div class="lbl">Shows</div>
+    <div id="shows"></div>
+    <div class="hint" style="text-align:left;margin-top:12px" id="vp"></div>
+  </div>
+
+  <h2>Lights and clock</h2>
+  <div class="card">
+    <div class="grid2">
+      <label class="fld"><span>Key colour</span><select data-pset="key_col"></select></label>
+      <label class="fld"><span>Menu key colour</span><select data-pset="menu_col"></select></label>
+      <label class="fld"><span>Keys at night</span><select data-pset="night_keys"><option value="0">Dim</option><option value="1">Off</option></select></label>
+      <label class="fld"><span>Auto night</span><select data-pset="auto_night"><option value="0">Off</option><option value="1">21:00 to 07:00</option><option value="2">22:00 to 07:00</option><option value="3">23:00 to 07:00</option></select></label>
+      <label class="fld"><span>Clock</span><select data-pset="clock12"><option value="0">24-hour</option><option value="1">12-hour</option></select></label>
+      <label class="fld"><span>Snooze</span><select data-pset="snooze"><option value="5">5 min</option><option value="9">9 min</option><option value="10">10 min</option><option value="15">15 min</option></select></label>
+      <label class="fld"><span>Time zone</span><select data-pset="tz"></select></label>
+    </div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Set time automatically<small style="display:block;color:var(--sub);font-size:12px">Off: set the time and date on the panel, Settings → Time and clock</small></div><label class="sw"><input type="checkbox" id="auto_time" data-set="auto_time"><span></span></label></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Knob light</div><label class="sw"><input type="checkbox" id="knob_light" data-set="knob_light"><span></span></label></div>
+  </div>
+
+  <h2>Live dashboard</h2>
+  <div class="card">
+    <div style="font-size:14px;color:var(--sub)">Each tile reads a Home Assistant entity through MQTT Statestream (type its entity id, like <b>sensor.bedroom_temperature</b>), or any MQTT topic. Leave one empty to use <b>bedside/live/&lt;name&gt;</b>, which an automation can publish to.</div>
+    <div class="grid2">
+      <label class="fld"><span>Statestream base topic</span><input id="lv-base" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Location (lat, lon) for sunrise</span><input id="lv-loc" inputmode="decimal" autocapitalize="off" spellcheck="false"></label>
+    </div>
+    <div id="lv-slots"></div>
+  </div>
+
+  <h2>Panel</h2>
+  <div class="card">
+    <div class="row"><div style="flex:1">Mirror image</div><label class="sw"><input type="checkbox" id="mirror"><span></span></label></div>
+    <div class="row"><div style="flex:1">Status banner</div><label class="sw"><input type="checkbox" id="banner"><span></span></label></div>
+    <label class="fld" style="margin-top:14px"><span>Screen updates</span><select data-pset="refresh_mode">
+      <option value="0">Fast: partial, then a full refresh when you stop</option>
+      <option value="1">Clean: full quality, just the part that changed</option>
+      <option value="2">Full: the whole screen, every change</option></select></label>
+    <div class="grid2" style="margin-top:14px">
+      <button class="btn" data-cmd="white">Full refresh</button>
+      <button class="btn" data-cmd="card">Test card</button>
+      <button class="btn" data-cmd="dashboard">Dashboard</button>
+      <button class="btn" data-cmd="init">Re-init panel</button>
+    </div>
+  </div>
+
+  <h2>Reset</h2>
+  <div class="card">
+    <div style="font-size:14px;color:var(--sub)">Erases every setting on the panel: alarms, sounds, lights, Home Assistant, the live dashboard, pairing. It then restarts with the Wi-Fi and server built into its firmware and pairs itself again.</div>
+    <button class="btn dan w" id="factory-reset" style="margin-top:14px"><span data-i="trash"></span>Reset everything</button>
+  </div>
+
+  <h2>Wi-Fi</h2>
+  <div class="card">
+    <form id="f-wifi">
+      <label class="fld"><span>Network</span><input name="ssid" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password"></label>
+      <button class="btn w" style="margin-top:14px">Save, applies after restart</button>
+    </form>
+  </div>
+
+  <div class="grid2" style="margin-top:12px">
+    <button class="btn" data-confirm="Restart the bedside panel?" data-cmd="reboot"><span data-i="power"></span>Restart</button>
+    <button class="btn" data-confirm="Reboot into the USB bootloader? It stays there until flashed or power-cycled." data-cmd="bootsel">Bootloader</button>
+  </div>
+</section>
+</main>
+
+<nav><div>
+  <button data-tab="room" class="on"><span data-i="house"></span>Room</button>
+  <button data-tab="alarms"><span data-i="alarm"></span>Alarms</button>
+  <button data-tab="console"><span data-i="terminal"></span>Console</button>
+  <button data-tab="device"><span data-i="gear"></span>Device</button>
+</div></nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const ICONS={/*ICONS*/};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const svg=n=>`<svg class="i" viewBox="0 0 256 256">${ICONS[n]||''}</svg>`;
+$$('[data-i]').forEach(e=>e.innerHTML=svg(e.dataset.i));
+
+let st=null, ui=null, online=true, failN=0;
+const hold={};                       // field -> until (ms): ignore polled values while the user is driving them
+const touch=(k,ms=2500)=>hold[k]=Date.now()+ms;
+const held=k=>hold[k]&&hold[k]>Date.now();
+const enc=encodeURIComponent;
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1600)}
+async function cmd(q){
+  try{const r=await fetch('/api/cmd?'+q,{method:'POST',cache:'no-store'});if(!r.ok)throw 0;setTimeout(poll,350)}
+  catch(e){toast('Not sent: panel offline')}
+}
+const set=(k,v)=>{touch(k);cmd('set='+enc(k+'|'+v))};
+
+/* ---- tabs ---- */
+const TITLES={room:'Room',alarms:'Alarms',console:'Console',device:'Device'};
+function tab(t){
+  $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
+  $('#title').textContent=TITLES[t]; try{localStorage.tab=t}catch(e){}
+  scrollTo(0,0); if(t==='console')logPoll(true);
+}
+$$('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+try{if(localStorage.tab&&TITLES[localStorage.tab])tab(localStorage.tab)}catch(e){}
+
+/* ---- room controls ---- */
+$$('.seg[data-seg]').forEach(s=>{
+  s.innerHTML=s.dataset.opts.split(',').map(o=>{const[v,l]=o.split(':');return`<button data-v="${v}">${l}</button>`}).join('');
+  s.onclick=e=>{const b=e.target.closest('button');if(!b)return;
+    s.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));set(s.dataset.seg,b.dataset.v)};
+});
+function segVal(k,v){if(held(k))return;$$(`.seg[data-seg="${k}"] button`).forEach(b=>b.classList.toggle('on',+b.dataset.v===+v))}
+const fill=r=>r.style.setProperty('--p',((r.value-r.min)/(r.max-r.min)*100)+'%');
+$$('input[type=range][data-set]').forEach(r=>{
+  r.oninput=()=>{touch(r.dataset.set,4000);fill(r);const o=$('#'+r.id+'-o');if(o)o.textContent=r.value+(r.id==='bird_vol'?'':'%');if(r.id==='vol')$('#vol-sub').textContent=volTxt(+r.value)};
+  r.onchange=()=>set(r.dataset.set,r.value);
+});
+$$('input[type=checkbox][data-set]').forEach(c=>c.onchange=()=>{set(c.dataset.set,c.checked?1:0);paintCards()});
+$$('[data-step]').forEach(b=>b.onclick=()=>{const r=$('#'+b.dataset.step);r.value=+r.value+ +b.dataset.d;r.oninput();r.onchange()});
+$('#ac_on').onchange=e=>{set('ac_mode',e.target.checked?(lastMode||3):0);paintCards()};
+let lastMode=3, spLocal=null, spT;
+$$('[data-sp]').forEach(b=>b.onclick=()=>{
+  const cur=spLocal??(ui?ui.ac.sp:22);spLocal=Math.min(30,Math.max(16,cur+ +b.dataset.sp));
+  $('#sp').innerHTML=spTxt(spLocal);touch('setpoint',4000);
+  clearTimeout(spT);spT=setTimeout(()=>{set('setpoint',spLocal.toFixed(1));setTimeout(()=>spLocal=null,3000)},600);
+});
+const spTxt=v=>`${Math.floor(v)}<small>${v%1?'.5':''}°</small>`;
+const volTxt=v=>v===0?'Muted':`${v} of 10`;
+const KINDS=['Rain','Ocean','Noise'], MODES=['Off','Heat','Fan','Cool','Dry'];
+function paintCards(){
+  $('#c-rain').classList.toggle('off',!$('#rain_on').checked);
+  $('#c-lights').classList.toggle('off',!$('#lights_on').checked);
+  $('#c-ac').classList.toggle('off',!$('#ac_on').checked);
+  [['c-rain','rain_on'],['c-lights','lights_on'],['c-ac','ac_on']].forEach(([c,i])=>$('#'+c+' .ic').classList.toggle('lit',$('#'+i).checked));
+}
+function renderRoom(){
+  const u=ui;
+  const rng=(id,v)=>{if(held(id))return;const r=$('#'+id);r.value=v;fill(r);const o=$('#'+id+'-o');if(o)o.textContent=v+(id==='bird_vol'?'':'%')};
+  const chk=(id,v,k=id)=>{if(!held(k))$('#'+id).checked=!!v};
+  rng('vol',u.vol); if(!held('vol'))$('#vol-sub').textContent=volTxt(u.vol);
+  chk('rain_on',u.rain.on); segVal('rain_kind',u.rain.kind); segVal('rain_lvl',u.rain.lvl); segVal('sleep',u.rain.sleep);
+  const left=u.rain.sleep_left_s||0;
+  $('#rain-sub').textContent=u.rain.on?`${KINDS[u.rain.kind]}, level ${u.rain.lvl}${left?`, stops in ${Math.ceil(left/60)} min`:''}`:'Off';
+  chk('lights_on',u.lights.on); rng('bright',u.lights.bright); segVal('colour',u.lights.colour);
+  $('#lights-sub').textContent=u.lights.on?`${u.lights.bright}%, ${u.lights.colour?'night':'warm'}`:'Off';
+  chk('ac_on',u.ac.mode,'ac_mode'); if(u.ac.mode)lastMode=u.ac.mode; segVal('ac_mode',u.ac.mode); segVal('fan',u.ac.fan);
+  if(spLocal===null&&!held('setpoint'))$('#sp').innerHTML=spTxt(u.ac.sp);
+  $('#ac-sub').textContent=(u.ac.mode?`${MODES[u.ac.mode]} to ${u.ac.sp}°`:'Off')+` · room ${u.ac.room}°`;
+  chk('night',u.night); rng('keylights',u.keylights); if(u.chorus)rng('bird_vol',u.chorus.vol);
+  const sh=u.shape||{}; ['patter','wash','tone','wind','thunder','thunder_near'].forEach(k=>rng(k,sh[k]??0)); segVal('surface',sh.surface??0);
+
+  paintCards();
+}
+
+/* ---- listen: stream the panel's sound generator (GET /audio, s16le mono) ---- */
+const AUD={ctx:null,on:false,ctl:null,next:0,an:null,raf:0,retry:0};
+function listenUI(state,sub){
+  $('#listen').innerHTML=svg(AUD.on?'pause':'play');
+  $('#listen-t').innerHTML=state+`<small>${sub}</small>`;
+}
+async function listenStart(){
+  if(AUD.on)return; AUD.on=true;
+  try{navigator.audioSession&&(navigator.audioSession.type='playback')}catch(e){}   // iOS: play with the ringer off
+  if(!AUD.ctx){AUD.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    AUD.an=AUD.ctx.createAnalyser();AUD.an.fftSize=256;AUD.an.connect(AUD.ctx.destination)}
+  await AUD.ctx.resume();
+  meter();listenLoop();
+}
+function listenStop(){AUD.on=false;clearTimeout(AUD.retry);try{AUD.ctl&&AUD.ctl.abort()}catch(e){}
+  if(AUD.ctx)AUD.ctx.suspend();cancelAnimationFrame(AUD.raf);$$('#meter i').forEach(i=>i.style.height='3px');
+  listenUI('Listen on this phone',"Streams the panel's sound until it has a speaker")}
+async function listenLoop(){
+  const ctx=AUD.ctx;
+  while(AUD.on){
+    listenUI('Connecting…','Bedside panel');
+    AUD.ctl=new AbortController();
+    try{
+      const r=await fetch('/audio',{cache:'no-store',signal:AUD.ctl.signal});
+      const sr=+(r.headers.get('X-Audio-Rate')||22050), reader=r.body.getReader();
+      const CH=Math.round(sr*0.1);                  // schedule 100 ms buffers
+      let pend=new Int16Array(0), odd=null;
+      AUD.next=0; listenUI('Playing from the panel',`Live · ${(sr/1000).toFixed(1)} kHz`);
+      while(AUD.on){
+        const {value,done}=await reader.read(); if(done)break;
+        let bytes=value; if(odd!==null){const b=new Uint8Array(bytes.length+1);b[0]=odd;b.set(bytes,1);bytes=b;odd=null}
+        if(bytes.length&1){odd=bytes[bytes.length-1];bytes=bytes.subarray(0,bytes.length-1)}
+        const al=new Uint8Array(bytes);const samp=new Int16Array(al.buffer);
+        const m=new Int16Array(pend.length+samp.length);m.set(pend);m.set(samp,pend.length);pend=m;
+        while(pend.length>=CH){
+          const chunk=pend.subarray(0,CH);pend=pend.slice(CH);
+          const now=ctx.currentTime;
+          if(AUD.next<now+0.05)AUD.next=now+1.0;    // start, or recover from an underrun, with a 1 s cushion
+          if(AUD.next>now+5)continue;                // far too far ahead: drop (the panel holds ~4 s)
+          const buf=ctx.createBuffer(1,CH,sr),d=buf.getChannelData(0);
+          for(let i=0;i<CH;i++)d[i]=chunk[i]/32768;
+          const src=ctx.createBufferSource();src.buffer=buf;src.connect(AUD.an);src.start(AUD.next);AUD.next+=CH/sr;
+        }
+      }
+    }catch(e){if(!AUD.on)return}
+    if(AUD.on){listenUI('Reconnecting…','Lost the stream');await new Promise(r=>AUD.retry=setTimeout(r,1000))}
+  }
+}
+function meter(){const a=AUD.an,d=new Uint8Array(a.fftSize),bars=$$('#meter i');
+  const f=()=>{if(!AUD.on)return;a.getByteTimeDomainData(d);let s=0;for(const v of d){const x=(v-128)/128;s+=x*x}
+    const lv=Math.min(1,Math.sqrt(s/d.length)*5);bars.forEach((b,i)=>b.style.height=(3+19*Math.max(0,Math.min(1,lv*1.6-i*0.18)))+'px');
+    AUD.raf=requestAnimationFrame(f)};f()}
+$('#listen').onclick=()=>AUD.on?listenStop():listenStart();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AUD.on&&AUD.ctx)AUD.ctx.resume()});
+
+/* ---- rain shape + thunder ---- */
+$('#strike').onclick=()=>{cmd('set='+enc('strike|1'));toast('Thunder rolling…')};
+$('#shape-reset').onclick=()=>{const d={patter:60,wash:55,tone:50,wind:20,surface:0,thunder:0,thunder_near:35};
+  Object.entries(d).forEach(([k,v],i)=>setTimeout(()=>set(k,v),i*120));toast('Rain reset')};
+try{if(localStorage.shapeOpen==='1')$('#shape').open=true}catch(e){}
+$('#shape').addEventListener('toggle',()=>{try{localStorage.shapeOpen=$('#shape').open?'1':'0'}catch(e){}});
+
+/* ---- dawn chorus ---- */
+const BIRD_DESC=['Warbling carol, the first to sing','Rich piping phrases','A high, fast reel','Long whistle and a whip crack','Harsh "chock" coughs','The laugh, near the top',
+  'Synthesised · pure "tink" pings','Synthesised · soft "sleep-may-be"','Synthesised · rising whistles, a whip crack','Synthesised · bell-like whistles'];
+let birdSig='';
+function renderChorus(){
+  const c=ui.chorus; if(!c)return;
+  const sig=JSON.stringify([c.birds,c.names]);
+  if(sig!==birdSig&&!held('birds')){birdSig=sig;
+    $('#birds').innerHTML=c.names.map((n,i)=>`<div class="bird"><button class="rb" data-aud="${i}" aria-label="Play a ${n}">${svg('play')}</button>
+      <div class="t"><b>${n}</b><span>${BIRD_DESC[i]||''}</span></div>
+      <label class="sw"><input type="checkbox" data-bird="${i}" ${c.birds>>i&1?'checked':''}><span></span></label></div>`).join('');
+    $$('[data-bird]').forEach(x=>x.onchange=()=>{let m=0;$$('[data-bird]').forEach(y=>{if(y.checked)m|=1<<+y.dataset.bird});touch('birds',3000);cmd('set='+enc('birds|'+m))});
+    $$('[data-aud]').forEach(b=>b.onclick=()=>{cmd('set='+enc('audition|'+b.dataset.aud));if(!AUD.on)toast('Turn on Listen (Room tab) to hear it')});
+  }
+  const lvl=c.level, prev=c.preview_s>0;
+  $('#chorus-preview').innerHTML=svg(prev?'pause':'play')+(prev?`Stop preview (${c.preview_s}s)`:'Preview the build-up');
+  $('#chorus-sub').textContent=lvl>0?`Singing · ${lvl}%`:c.snooze_s>0?`Snoozed, back in ${Math.ceil(c.snooze_s/60)} min`:"Builds through each alarm's wake-up window";
+  const ringing=ui.phase===2; $('#ringing').classList.toggle('on',ringing);
+  if(ringing){const a=ui.alarms.find(a=>a.on)||{h:0,m:0};$('#ring-time').textContent=`${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}`;$('#ring-what').textContent='Good morning'}
+}
+$('#chorus-preview').onclick=()=>{const prev=ui&&ui.chorus&&ui.chorus.preview_s>0;cmd('set='+enc('chorus_preview|'+(prev?0:90)));
+  if(!prev&&!AUD.on)toast('Turn on Listen (Room tab) to hear it')};
+$('#ring-stop').onclick=()=>cmd('set='+enc('alarm_stop|1'));
+$('#ring-snooze').onclick=()=>cmd('set='+enc('alarm_snooze|1'));
+
+/* ---- alarms ---- */
+const DAYS=['M','T','W','T','F','S','S'], EARLY=[0,5,10,15,30];
+let alarmsLocal=null, alarmSig='';
+function dayTxt(m){if(m===127)return'Every day';if(m===31)return'Weekdays';if(m===96)return'Weekends';if(!m)return'Once';
+  return['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].filter((_,i)=>m>>i&1).join(' ')}
+function sendAlarm(i){const a=alarmsLocal[i];touch('alarms',3000);
+  cmd('set='+enc(`alarm|${i},${a.h},${a.m},${a.on?1:0},${a.days},${a.early}`));renderAlarms(true)}
+function renderAlarms(force){
+  if(!ui)return;
+  if(!held('alarms')||!alarmsLocal)alarmsLocal=ui.alarms.map(a=>({...a}));
+  const sig=JSON.stringify(alarmsLocal);
+  if(!force&&sig===alarmSig)return; alarmSig=sig;
+  const box=$('#alarms');
+  if(document.activeElement&&box.contains(document.activeElement)&&!force)return;
+  box.innerHTML=alarmsLocal.length?'':`<div class="empty">${svg('bell-ringing')}<p>No alarms yet.</p></div>`;
+  alarmsLocal.forEach((a,i)=>{
+    const A=()=>alarmsLocal[i];const c=document.createElement('div');c.className='card alarm'+(a.on?'':' off');
+    c.innerHTML=`<div class="row"><input class="time" type="time" value="${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}">
+      <label class="sw"><input type="checkbox" ${a.on?'checked':''}><span></span></label></div>
+      <div class="body" style="margin-top:4px"><div style="color:var(--sub);font-size:14px">${dayTxt(a.days)}${a.early?` · lights from ${a.early} min early`:''}</div>
+      <div class="days">${DAYS.map((d,k)=>`<button data-d="${k}" class="${a.days>>k&1?'on':''}">${d}</button>`).join('')}</div>
+      <div class="presets"><button class="chip" data-m="31">Weekdays</button><button class="chip" data-m="96">Weekends</button><button class="chip" data-m="127">Every day</button></div>
+      <div class="foot"><select aria-label="Wake light">${EARLY.map(e=>`<option value="${e}" ${e===a.early?'selected':''}>${e?`Wake light ${e} min early`:'No wake light'}</option>`).join('')}</select>
+      <button class="rb" data-del aria-label="Delete alarm" style="color:var(--warn)">${svg('trash')}</button></div></div>`;
+    c.querySelector('.time').onchange=e=>{const[h,m]=e.target.value.split(':').map(Number);if(isNaN(h))return;A().h=h;A().m=m;sendAlarm(i)};
+    c.querySelector('.sw input').onchange=e=>{A().on=e.target.checked?1:0;sendAlarm(i)};
+    c.querySelectorAll('.days button').forEach(b=>b.onclick=()=>{A().days^=1<<+b.dataset.d;sendAlarm(i)});
+    c.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{A().days=+b.dataset.m;sendAlarm(i)});
+    c.querySelector('select').onchange=e=>{A().early=+e.target.value;sendAlarm(i)};
+    c.querySelector('[data-del]').onclick=()=>{if(!confirm(`Delete the ${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')} alarm?`))return;
+      alarmsLocal.splice(i,1);touch('alarms',3000);cmd('set='+enc('alarm_del|'+i));renderAlarms(true)};
+    box.appendChild(c);
+  });
+  const add=$('#alarm-add');add.disabled=alarmsLocal.length>=(ui.max_alarms||4);
+  add.style.display=add.disabled?'none':'';
+}
+$('#alarm-add').onclick=()=>{alarmsLocal.push({h:7,m:0,on:1,days:31,early:15});touch('alarms',3000);cmd('set='+enc('alarm_add|1'));renderAlarms(true)};
+
+/* ---- dashboard picker (Room tab) ---- */
+$('#dashes').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#dashes button').forEach(x=>x.classList.toggle('on',x===b));set('dash',b.dataset.v)};
+
+/* ---- console: the panel's log, and the serial commands ---- */
+let logPos=0, logT=0, logBusy=false;
+const LOGMAX=60000;
+async function logPoll(now){
+  clearTimeout(logT);
+  if(!$('#t-console').classList.contains('on')||document.hidden)return;
+  if(!logBusy){logBusy=true;
+    try{
+      const t=await(await fetch('/api/log?from='+logPos,{cache:'no-store'})).text();
+      const nl=t.indexOf('\n'), next=parseInt(t.slice(0,nl),10), body=t.slice(nl+1);
+      if(!isNaN(next)){logPos=next;
+        if(body){const el=$('#log'),stick=$('#con-follow').checked;
+          el.textContent=(el.textContent+body).slice(-LOGMAX);
+          if(stick)el.scrollTop=el.scrollHeight}}
+    }catch(e){}
+    logBusy=false}
+  logT=setTimeout(logPoll,1000);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)logPoll()});
+const CONKEYS=[['?','Help'],['p','Pairing'],['f','Fetch now'],['V','Read VCOM'],['t','Test card'],['g','Dashboard'],['m','Menu'],['k','Turn ↺'],['j','Turn ↻'],['ENTER','Enter (press)'],['q','Back (hold)'],['i','Re-init panel']];
+$('#conkeys').innerHTML=CONKEYS.map(([k,l])=>`<button class="chip" type="button" data-ck="${k}">${l} <code>${k==='ENTER'?'⏎':k}</code></button>`).join('');
+$('#conkeys').onclick=e=>{const b=e.target.closest('[data-ck]');if(!b)return;
+  b.dataset.ck==='ENTER'?cmd('enter=1'):cmd('serial='+enc(b.dataset.ck));setTimeout(()=>logPoll(true),250)};
+$('#f-con').onsubmit=e=>{e.preventDefault();const i=$('#con-in'),v=i.value;if(!v.trim()){cmd('enter=1');return}
+  cmd('serial='+enc(v));i.value='';setTimeout(()=>logPoll(true),250)};
+$('#con-clear').onclick=()=>{$('#log').textContent=''};
+$('#con-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#log').textContent);toast('Copied')}catch(e){const r=document.createRange();r.selectNodeContents($('#log'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast('Selected: copy it')}};
+
+/* ---- device ---- */
+$$('[data-cmd]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.confirm&&!confirm(b.dataset.confirm))return;cmd(b.dataset.cmd);
+  if(!b.closest('#pages'))toast('Sent')}));
+$('#f-tess').onsubmit=async e=>{e.preventDefault();const f=e.target;touch('tess',8000);
+  for(const k of['server','device','name','kind']){const v=f[k].value.trim(),cur={server:st.tesserae.server,device:st.tesserae.device_id,name:st.tesserae.name,kind:st.tesserae.kind}[k];
+    if(v&&v!==cur){await cmd(k+'='+enc(v));await new Promise(r=>setTimeout(r,150))}}
+  toast('Connection saved')};
+$('#f-pair').onsubmit=e=>{e.preventDefault();const v=e.target.pair.value.trim();if(!v)return;cmd('pair='+enc(v));e.target.reset();toast('Pairing…')};
+$('#f-wifi').onsubmit=e=>{e.preventDefault();const f=e.target;if(!f.ssid.value.trim())return;
+  cmd('wifi='+enc(f.ssid.value.trim()+'|'+f.pass.value));f.pass.value='';toast('Saved. Restart to join')};
+$('#mirror').onchange=e=>{touch('mirror');cmd('mirror='+(e.target.checked?1:0))};
+$('#banner').onchange=e=>{touch('banner');cmd('banner='+(e.target.checked?1:0))};
+let actSig='';
+function haSave(on){const f=$('#f-ha');touch('ha',6000);
+  const v=[on?1:0,f.host.value.trim(),f.port.value.trim()||'1883',f.user.value.trim(),f.prefix.value.trim(),f.base.value.trim(),f.pass.value||'*'].join('|');
+  cmd('mqtt='+enc(v));f.pass.value='';toast(on?'Connecting to the broker…':'Home Assistant off')}
+$('#f-ha').onsubmit=e=>{e.preventDefault();$('#ha-on').checked=true;haSave(true)};
+$('#ha-on').onchange=e=>haSave(e.target.checked);
+function renderHA(){const m=st.mqtt;if(!m)return;
+  $('#ha-state').firstChild.textContent='MQTT · '+m.state+(m.state==='announcing'?` ${m.announced}/${m.entities}`:'');
+  $('#ha-err').textContent=m.error||(m.host?`${m.user||'anonymous'} @ ${m.host}:${m.port}`:'Set the broker to connect');
+  const f=$('#f-ha');
+  if(!held('ha')&&!f.contains(document.activeElement)){$('#ha-on').checked=!!m.enabled;f.host.value=m.host;f.port.value=m.port;f.user.value=m.user;f.prefix.value=m.prefix;f.base.value=m.base;
+    f.pass.placeholder=m.has_pass?'unchanged':'none'}}
+/* ---- keymap: what each key does, pressed and held ---- */
+const KEYS=[['key1','key1_hold','Key 1'],['key2','key2_hold','Key 2'],['key3','key3_hold','Key 3']];
+let kmSig='';
+function actLabel(id,list){const a=(list||[]).find(x=>x.id===id)||(st.inputs.actions||[]).find(x=>x.id===id);return a?a.label:(id&&id!=='none'?id:'Nothing')}
+function renderKeymap(){
+  const b=st.inputs&&st.inputs.bindings, p=ui&&ui.panel; if(!b||!p||!p.keyacts)return;
+  const k=n=>`<div class="kc"><b>${n[2]}</b><span class="p">${actLabel(b[n[0]],p.keyacts)}</span><span class="h">Hold: ${actLabel(b[n[1]],p.keyacts).toLowerCase()}</span></div>`;
+  const html=KEYS.map(k).join('')+`<div class="kc menu"><b>MENU</b><span class="p">Menu or back</span><span class="h">Hold: home</span></div>`
+    +`<div class="kc knob"><b>Knob</b><span class="p">Turn, press</span><span class="h">Hold: ${actLabel(b.knob_hold||'back',p.knobacts).toLowerCase()}</span></div>`;
+  if($('#kmap').innerHTML!==html)$('#kmap').innerHTML=html;
+  const sig=JSON.stringify([b,p.keyacts.length]); if(sig===kmSig||$('#kbinds').contains(document.activeElement))return; kmSig=sig;
+  const opts=(list,cur)=>list.map(a=>`<option value="${a.id}" ${a.id===cur?'selected':''}>${a.label}</option>`).join('')+(list.some(a=>a.id===cur)?'':`<option selected value="${cur}">${actLabel(cur)}</option>`);
+  $('#kbinds').innerHTML=KEYS.map(n=>`<label class="fld"><span>${n[2]} press</span><select data-kb="${n[0]}">${opts(p.keyacts,b[n[0]])}</select></label>`
+    +`<label class="fld"><span>${n[2]} hold</span><select data-kb="${n[1]}">${opts(p.keyacts,b[n[1]])}</select></label>`).join('')
+    +`<label class="fld"><span>Knob hold</span><select data-kb="knob_hold">${opts(p.knobacts,b.knob_hold||'back')}</select></label>`;
+  $$('[data-kb]').forEach(sel=>sel.onchange=()=>{st.inputs.bindings[sel.dataset.kb]=sel.value;cmd('bind='+enc(sel.dataset.kb+'|'+sel.value));toast('Saved');renderKeymap()});
+}
+/* ---- home screen: the overlay and what it shows ---- */
+const SHOWS=['Clock','Alarm','Sound','Room','Connection'];
+let showMask=-1;
+function renderHome(p){
+  if(p.show===undefined)return;
+  if(!held('show')&&p.show!==showMask){showMask=p.show;
+    $('#shows').innerHTML=SHOWS.map((n,i)=>`<div class="row"><div style="flex:1">${n}</div><label class="sw"><input type="checkbox" data-show="${i}" ${p.show>>i&1?'checked':''}><span></span></label></div>`).join('');
+    $$('[data-show]').forEach(c=>c.onchange=()=>{touch('show',4000);let m=0;$$('[data-show]').forEach(x=>{if(x.checked)m|=1<<+x.dataset.show});showMask=m;set('show',m)})}
+  const v=p.vp||[0,0,1872,1404], none=!(p.show&31)||+p.overlay===3;
+  $('#vp').textContent=none?'No overlay: the dashboard gets the whole panel, 1872 × 1404.':`Tesserae is told the dashboard is ${v[2]} × ${v[3]} at x ${v[0]}, y ${v[1]}, and renders frames at that size.`;
+  renderKeymap();
+}
+
+/* ---- lights and clock, live dashboard, reset ---- */
+let palSig='';
+$$('[data-pset]').forEach(sel=>sel.onchange=()=>{touch('pset_'+sel.dataset.pset,4000);set(sel.dataset.pset,sel.value)});
+$('#factory-reset').onclick=()=>{
+  if(!confirm('Reset everything on the bedside panel? Alarms, sounds, lights, Home Assistant and pairing are all erased.'))return;
+  if(!confirm('Really reset? This cannot be undone.'))return;
+  cmd('factory_reset=yes');toast('Resetting… the panel restarts')};
+$('#lv-base').onchange=e=>{cmd('live_base='+enc(e.target.value.trim()));toast('Saved')};
+$('#lv-loc').onchange=e=>{cmd('live_loc='+enc(e.target.value.replace(/\s/g,'')));toast('Saved')};
+let lvSig='';
+function renderPanelSettings(){
+  const p=ui&&ui.panel; if(!p)return;
+  const ps=JSON.stringify(p.palette);
+  if(ps!==palSig){palSig=ps;['key_col','menu_col'].forEach(k=>{$(`[data-pset="${k}"]`).innerHTML=p.palette.map((n,i)=>`<option value="${i}">${n}</option>`).join('')});
+    if(p.tzs)$('[data-pset="tz"]').innerHTML=p.tzs.map((n,i)=>`<option value="${i}">${i?n:'Automatic (from Tesserae)'}</option>`).join('')}
+  $$('[data-pset]').forEach(sel=>{const k=sel.dataset.pset;if(held('pset_'+k)||sel===document.activeElement)return;sel.value=String(+p[k])});
+  if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
+  if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
+  renderHome(p);
+  const lv=st.live; if(!lv)return;
+  if(document.activeElement!==$('#lv-base'))$('#lv-base').value=lv.ss_base;
+  if(document.activeElement!==$('#lv-loc'))$('#lv-loc').value=lv.lat+', '+lv.lon;
+  const box=$('#lv-slots');
+  if(box.contains(document.activeElement)){ lv.slots.forEach(s=>{const v=box.querySelector(`[data-v="${s.key}"]`);if(v)v.textContent=s.known?s.value:'no value yet'});return }
+  const sig=JSON.stringify(lv.slots.map(s=>[s.key,s.src,s.value,s.known]));
+  if(sig===lvSig)return; lvSig=sig;
+  box.innerHTML=lv.slots.map(s=>`<label class="fld"><span>${s.name} · <i data-v="${s.key}" style="font-style:normal;color:var(--ink)">${s.known?s.value.replace(/</g,'&lt;'):'no value yet'}</i></span>
+    <input data-lv="${s.key}" value="${s.src.replace(/"/g,'&quot;')}" placeholder="bedside/live/${s.key}" autocapitalize="off" spellcheck="false"></label>`).join('');
+  box.querySelectorAll('[data-lv]').forEach(i=>i.onchange=()=>{cmd('live_src='+enc(i.dataset.lv+'|'+i.value.trim()));toast('Saved');lvSig=''});
+}
+
+function renderDevice(){
+  const s=st,t=s.tesserae,up=s.uptime_s;
+  const upt=up>86400?`${Math.floor(up/86400)}d ${Math.floor(up%86400/3600)}h`:up>3600?`${Math.floor(up/3600)}h ${Math.floor(up%3600/60)}m`:`${Math.floor(up/60)}m`;
+  const rows=[['Firmware',s.fw],['Address',s.ip],['Signal',`${s.rssi} dBm`],['Up',upt],['Showing',`${s.content}, ${s.screen}`],
+    ['Panel',`${s.panel.w}×${s.panel.h}, VCOM −${(s.vcom_mv/1000).toFixed(2)} V`],['Paints',s.paints],['Last refresh',`${s.last_refresh_ms} ms`],
+    ['Frames',`${t.frames}, next poll in ${t.next_in_s}s`],['Server time',t.local_time?t.local_time.replace(/^(\d{4}-\d\d-\d\d)T(\d\d:\d\d).*$/,'$1 $2'):'—'],['PSRAM',s.psram?'Yes':'No']];
+  $('#stats').innerHTML=rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('');
+  $('#hw').innerHTML=`<dt>Rotary encoder</dt><dd>${s.inputs.encoder?'Connected':'Not found'}</dd><dt>NeoKey 1×4</dt><dd>${s.inputs.keys?'Connected':'Not found'}</dd>`;
+  $('#ts-state').firstChild.textContent=(t.paired?'Paired':'Not paired')+' · '+t.state;
+  $('#ts-err').textContent=t.error||`${t.device_id} on ${t.server.replace(/^https?:\/\//,'')}`;
+  const f=$('#f-tess');
+  if(!held('tess')&&!f.contains(document.activeElement)){f.server.value=t.server;f.device.value=t.device_id;f.name.value=t.name;f.kind.value=t.kind}
+  if(!held('mirror'))$('#mirror').checked=!!s.mirror; if(!held('banner'))$('#banner').checked=!!s.banner;
+  const sig=JSON.stringify([s.inputs.actions.length,s.inputs.bindings.boot_short,s.inputs.bindings.boot_long]);
+  if(sig!==actSig&&!$$('[data-bind]').includes(document.activeElement)){actSig=sig;
+    $$('[data-bind]').forEach(sel=>{const cur=s.inputs.bindings[sel.dataset.bind]||'none';
+      sel.innerHTML=s.inputs.actions.map(a=>`<option value="${a.id}" ${a.id===cur?'selected':''}>${a.label}</option>`).join('')
+        +(s.inputs.actions.some(a=>a.id===cur)?'':`<option selected value="${cur}">${cur}</option>`);
+      sel.onchange=()=>{cmd('bind='+enc(sel.dataset.bind+'|'+sel.value));toast('Saved')}})}
+}
+
+/* ---- polling ---- */
+function setConn(ok,txt){document.body.classList.toggle('offline',!ok);$('#dot').className='dot '+(ok?'ok':'bad');$('#connt').textContent=txt}
+let pollT=0, inflight=false;
+async function poll(){
+  clearTimeout(pollT);
+  if(inflight){pollT=setTimeout(poll,300);return}
+  inflight=true;
+  try{
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),4000);
+    st=await(await fetch('/api/state',{cache:'no-store',signal:ctl.signal})).json();clearTimeout(to);
+    ui=st.ui;failN=0;
+    setConn(true,st.busy?'Refreshing':(st.tesserae.local_time||'Online').replace(/^.*T(\d\d:\d\d).*$/,'$1'));
+    renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();
+    if(!held('dash')){const ds=ui.dashes.map((n,i)=>`<button data-v="${i}" class="${i===ui.dash?'on':''}">${n}</button>`).join('');if($('#dashes').innerHTML!==ds)$('#dashes').innerHTML=ds}
+  }catch(e){if(++failN>1)setConn(false,'Offline')}
+  inflight=false;
+  if(!document.hidden)pollT=setTimeout(poll,failN?3000:1500);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+poll();
+</script>
+</body>
+</html>

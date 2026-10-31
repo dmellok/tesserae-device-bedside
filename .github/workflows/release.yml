@@ -1,0 +1,71 @@
+# Push a tag like v0.2.0 to publish a release. The firmware reports the tag
+# (without the v) as its version, and the release carries:
+#   bedside-<version>.uf2   drag-and-drop install over USB (BOOTSEL)
+#   bedside-<version>.bin   the raw image, for over-the-air updates
+#   bedside-<version>.bin.sha256
+#   manifest.json           version, file, size and sha256, read by the OTA check
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      # No include/secrets.h: a release must never overwrite the panel's stored
+      # WiFi or server settings after an update.
+      - name: Build
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"$VERSION\\\"" pio run
+
+      - name: Package
+        run: |
+          B=.pio/build/pimoroni_pico_plus_2w
+          mkdir dist
+          cp "$B/firmware.uf2" "dist/bedside-$VERSION.uf2"
+          cp "$B/firmware.bin" "dist/bedside-$VERSION.bin"
+          cd dist
+          SHA=$(sha256sum "bedside-$VERSION.bin" | cut -d' ' -f1)
+          echo "$SHA  bedside-$VERSION.bin" > "bedside-$VERSION.bin.sha256"
+          SIZE=$(stat -c %s "bedside-$VERSION.bin")
+          cat > manifest.json <<JSON
+          {
+            "version": "$VERSION",
+            "board": "pimoroni_pico_plus_2w",
+            "bin": "bedside-$VERSION.bin",
+            "size": $SIZE,
+            "sha256": "$SHA",
+            "uf2": "bedside-$VERSION.uf2"
+          }
+          JSON
+          cat manifest.json
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Bedside $VERSION" \
+            --generate-notes

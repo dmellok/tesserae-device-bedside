@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Wiring Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#edf0f3; --surface:#ffffff; --ink:#1a2028; --muted:#5b6672; --line:#cfd6dd; --line-strong:#9aa6b2;
+  --p5:#c0392b; --p3:#d35400; --gnd:#3a4149; --sig:#1f5fa8; --i2c:#0e7c86; --adc:#1f8a4c; --warn:#8a6a00; --warn-bg:#fbf0c4; --spk:#7a3fa8;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ color-scheme:dark;
+    --bg:#121619; --surface:#1b2126; --ink:#e6eaee; --muted:#9aa5b1; --line:#2d363e; --line-strong:#4b5762;
+    --p5:#f07a6d; --p3:#f29a58; --gnd:#c2c9d0; --sig:#7fb3f2; --i2c:#6fd2db; --adc:#5fd38d; --warn:#e6c35c; --warn-bg:#3d3312; --spk:#c99af0; }
+}
+:root[data-theme="dark"]{ color-scheme:dark;
+  --bg:#121619; --surface:#1b2126; --ink:#e6eaee; --muted:#9aa5b1; --line:#2d363e; --line-strong:#4b5762;
+  --p5:#f07a6d; --p3:#f29a58; --gnd:#c2c9d0; --sig:#7fb3f2; --i2c:#6fd2db; --adc:#5fd38d; --warn:#e6c35c; --warn-bg:#3d3312; --spk:#c99af0; }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;margin:0;padding-block:28px 56px;padding-inline:16px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:clamp(26px,4vw,36px);line-height:1.1;margin:0 0 6px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:21px;margin:40px 0 10px;font-weight:600}
+h3{font-size:15px;margin:14px 0 6px;font-weight:600}
+p{max-width:70ch;margin:0 0 10px}
+.lede{color:var(--muted);font-size:16px;max-width:74ch}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+.card h2{margin:0 0 4px;font-size:19px}
+.card .sub{color:var(--muted);font-size:13.5px;margin-bottom:10px}
+.split{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:820px){.split{grid-template-columns:1fr}}
+.diag{overflow-x:auto}
+.diag svg{display:block;max-width:100%;height:auto;font-family:var(--mono)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.m,th.m{font-family:var(--mono);white-space:nowrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.note{border-left:4px solid var(--warn);background:var(--warn-bg);border-radius:6px;padding:10px 12px;margin:10px 0;font-size:14px}
+.note p{max-width:none;margin:0 0 6px}.note p:last-child{margin:0}
+ul,ol{padding-left:20px;margin:6px 0}
+li{margin-bottom:5px}
+code{font-family:var(--mono);font-size:.92em;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;margin:8px 0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0 4px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:18px;height:4px;border-radius:2px;display:inline-block}
+.src{font-size:13px;color:var(--muted)} .src a{color:inherit} a{color:var(--sig)}
+a:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px}
+.kv dt{font-family:var(--mono);color:var(--muted)} .kv dd{margin:0}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">Bedside Dashboard · wiring companion to the pin map</div>
+  <h1>Wiring guide for everything that hangs off the Pico</h1>
+  <p class="lede">One card per module. Every wire names the Pi header pin on the GPIO Double Expansion Board (the splitter) and the Pico GP it reaches, matching the pin map. Pins in the amber tier of the pin map (GP18, GP19, GP21) still want a continuity check before you solder.</p>
+
+  <div class="legend">
+    <span><i class="sw" style="background:var(--p5)"></i>5 V</span>
+    <span><i class="sw" style="background:var(--p3)"></i>3.3 V</span>
+    <span><i class="sw" style="background:var(--gnd)"></i>GND</span>
+    <span><i class="sw" style="background:var(--sig)"></i>digital signal</span>
+    <span><i class="sw" style="background:var(--i2c)"></i>I2C (Qw/ST)</span>
+    <span><i class="sw" style="background:var(--adc)"></i>analogue sense</span>
+    <span><i class="sw" style="background:var(--spk)"></i>speaker</span>
+  </div>
+
+  <div class="card">
+    <h2>System overview</h2>
+    <div class="sub">Where power comes from and which bus each module sits on.</div>
+    <div class="diag" id="overview"></div>
+  </div>
+
+  <div class="card">
+    <h2>1 · PowerBoost 1000C (mains, battery, 5 V rail, sensing)</h2>
+    <div class="sub">Adafruit 2465. Wall USB in, LiPo on the JST-PH, 5.2 V out to the splitter's 5 V pins. Three sense lines come back to the Pico.</div>
+    <div class="split">
+      <div class="diag" id="pb"></div>
+      <div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>PowerBoost</th><th>Wire to</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="m">micro-USB in</td><td>wall adapter (5 V, 2 A)</td><td>charges the LiPo and feeds the load share</td></tr>
+            <tr><td class="m">JST-PH</td><td>4400 mAh LiPo</td><td>check polarity on the cell's plug before the first connect</td></tr>
+            <tr><td class="m">5V</td><td>splitter pin 2 (5 V)</td><td>via a Schottky diode if the PowerBoost stays connected while you flash over USB-C (see bench note)</td></tr>
+            <tr><td class="m">GND</td><td>splitter pin 6 (GND)</td><td>one common ground for everything</td></tr>
+            <tr><td class="m">Bat</td><td>100 k / 100 k divider → pin 37 (GP26, ADC0)</td><td>3.0 to 4.2 V becomes 1.5 to 2.1 V at the ADC</td></tr>
+            <tr><td class="m">USB</td><td>100 k / 100 k divider → pin 13 (GP27, ADC1)</td><td>about 2.5 V when mains is present, 0 V when not. This is the "on battery" badge</td></tr>
+            <tr><td class="m">LBO</td><td>100 k / 100 k divider → pin 22 (GP28, ADC2)</td><td>optional. Sits at Bat voltage when fine, 0 V under 3.2 V. The Bat reading already tells you this</td></tr>
+            <tr><td class="m">EN, Vs</td><td>leave unconnected</td><td>EN to GND would switch the whole device off; a future power switch could use it</td></tr>
+          </tbody>
+        </table></div>
+        <div class="note">
+          <p><strong>Why the dividers.</strong> Bat and LBO reach 4.2 V and USB reaches 5 V. RP2350 GPIOs are 3.3 V only, so every sense line gets a 2:1 divider (two 100 kΩ). Each divider draws about 20 µA, which the battery will not notice. A 100 nF cap from the ADC node to GND quietens the reading.</p>
+          <p><strong>Current.</strong> The HAT draws about 1.2 W during a refresh and the amp up to 0.8 A at full volume; the Pico and radio add about 0.3 A. The PowerBoost delivers 1 A from battery and more on mains, so keep the amp gain modest and expect a battery-only session to dim the keys.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · MAX98357A I2S amplifier and the FRS 5 X speaker</h2>
+    <div class="sub">Adafruit 3006. Powered from the 5 V rail, clocked by the Pico over the Pi header's PCM pins, muted by GP16.</div>
+    <div class="split">
+      <div class="diag" id="amp"></div>
+      <div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Amp pin</th><th>Wire to</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="m">Vin</td><td class="m">splitter pin 4 (5 V)</td><td>5 V is recommended by Adafruit even with 3.3 V logic</td></tr>
+            <tr><td class="m">GND</td><td class="m">splitter pin 9 (GND)</td><td></td></tr>
+            <tr><td class="m">BCLK</td><td class="m">pin 12 · BCM18 PCM_CLK → GP18</td><td><code>clock_pin_base = 18</code></td></tr>
+            <tr><td class="m">LRC</td><td class="m">pin 35 · BCM19 PCM_FS → GP19</td><td>must be <code>clock_pin_base + 1</code></td></tr>
+            <tr><td class="m">DIN</td><td class="m">pin 40 · BCM21 PCM_DOUT → GP21</td><td><code>data_pin = 21</code></td></tr>
+            <tr><td class="m">SD</td><td class="m">pin 36 · BCM16 → GP16</td><td>GP16 low = amp shut down (silent, near-zero draw); GP16 high = plays the left channel. Send mono on the left</td></tr>
+            <tr><td class="m">GAIN</td><td>leave floating</td><td>9 dB default. Tie to Vin for 6 dB if it is too loud for a bedside</td></tr>
+            <tr><td class="m">+ / −</td><td>Visaton FRS 5 X, 8 Ω</td><td>screw terminal, keep the speaker leads short and twisted</td></tr>
+          </tbody>
+        </table></div>
+        <div class="note">
+          <p><strong>Driving SD instead of leaving it alone.</strong> The breakout pulls SD to Vin through 1 MΩ against an internal 100 kΩ pull-down, which parks it in the (L+R)/2 window. Driving it from GP16 gives you the "fully shut off when silent" behaviour the proposal promised, and 3.3 V on SD selects left-only, so put the mono stream on the left channel (or send it on both).</p>
+          <p><strong>Firmware.</strong> pico-extras <code>audio_i2s</code> with <code>PICO_AUDIO_I2S_DATA_PIN=21</code> and <code>PICO_AUDIO_I2S_CLOCK_PIN_BASE=18</code>. The PIO SPI for the panel already takes one state machine; I2S takes one more on the other PIO block.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Qw/ST chain: encoder, NeoKey 1x4, APDS-9960</h2>
+    <div class="sub">Three STEMMA QT cables, daisy-chained from the Pico Plus 2 W's Qw/ST socket. Nothing on the splitter is used.</div>
+    <div class="split">
+      <div class="diag" id="qt"></div>
+      <div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Hop</th><th>From</th><th>To</th><th>I2C address</th></tr></thead>
+          <tbody>
+            <tr><td class="m">1</td><td>Pico Qw/ST (GP4 SDA, GP5 SCL, 3V3, GND)</td><td>I2C rotary encoder, either QT socket</td><td class="m">0x36</td></tr>
+            <tr><td class="m">2</td><td>encoder, other QT socket</td><td>NeoKey 1x4, either QT socket</td><td class="m">0x30</td></tr>
+            <tr><td class="m">3</td><td>NeoKey, other QT socket</td><td>APDS-9960</td><td class="m">0x39 (fixed)</td></tr>
+          </tbody>
+        </table></div>
+        <dl class="kv" style="margin-top:10px">
+          <dt>cable colours</dt><dd>black GND, red 3.3 V, blue SDA, yellow SCL (same on every QT cable)</dd>
+          <dt>address jumpers</dt><dd>leave all unbridged on the encoder and NeoKey; the three addresses do not collide</dd>
+          <dt>INT pins</dt><dd>unused; the firmware polls over I2C</dd>
+          <dt>pull-ups</dt><dd>each board carries its own 10 kΩ pair; three boards on 300 mm total is fine at 400 kHz</dd>
+          <dt>order</dt><dd>any; chain in whatever order suits the enclosure</dd>
+        </dl>
+        <div class="note"><p><strong>Also appears on the splitter.</strong> If the adapter is 1:1 for BCM4 and BCM5, pins 7 and 29 on the splitter are this same bus. Do not put anything but I2C devices on them.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4 · Waveshare 10.3" e-Paper HAT (already working)</h2>
+    <div class="sub">Seats on one side of the splitter. Listed so the whole picture is in one place.</div>
+    <div class="split">
+      <div class="diag" id="hat"></div>
+      <div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>HAT</th><th>Pi pin</th><th>Pico GP</th></tr></thead>
+          <tbody>
+            <tr><td class="m">5V</td><td class="m">2, 4</td><td class="m">VBUS net</td></tr>
+            <tr><td class="m">GND</td><td class="m">6, 9, 14, 20, 25, 30, 34, 39</td><td class="m">GND</td></tr>
+            <tr><td class="m">SCK</td><td class="m">23 · BCM11</td><td class="m">GP10</td></tr>
+            <tr><td class="m">MOSI</td><td class="m">19 · BCM10</td><td class="m">GP11</td></tr>
+            <tr><td class="m">MISO</td><td class="m">21 · BCM9</td><td class="m">GP12</td></tr>
+            <tr><td class="m">CS</td><td class="m">24 · BCM8</td><td class="m">GP8</td></tr>
+            <tr><td class="m">RST</td><td class="m">11 · BCM17</td><td class="m">GP17</td></tr>
+            <tr><td class="m">HRDY</td><td class="m">18 · BCM24</td><td class="m">GP1</td></tr>
+          </tbody>
+        </table></div>
+        <ul style="margin-top:10px">
+          <li>DIP switch on the driver board set to SPI, not USB or I80.</li>
+          <li>Nothing else needed: VCOM is a firmware build flag (-1.48 V).</li>
+          <li>The HAT's own micro-USB is for Waveshare's PC tool only; leave it empty.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>5 · Bench note: flashing while the PowerBoost is connected</h2>
+    <p>The HAT takes its 5 V from the Pi header, which the adapter ties to the Pico's VBUS. That is the same net as the USB-C connector. When you plug the laptop in to flash, the host's 5 V and the PowerBoost's 5.2 V would meet on that net.</p>
+    <div class="split">
+      <div class="diag" id="diode"></div>
+      <div>
+        <ul>
+          <li><strong>Simplest:</strong> pull the PowerBoost 5V wire before plugging USB-C in. Fine for the bench, annoying in the enclosure.</li>
+          <li><strong>Better:</strong> a Schottky diode (SS14 or 1N5817, 1 A) in the PowerBoost 5V wire, anode on the PowerBoost side. The rail then sits at about 4.9 V from the PowerBoost and the laptop can never back-feed it. The IT8951 and the amp are fine at 4.9 V.</li>
+          <li>Do not feed the PowerBoost into VSYS instead: VSYS does not power the Pi header 5 V pins, so the panel would never come up.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Small parts list</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Qty</th><th>Part</th><th>For</th></tr></thead>
+      <tbody>
+        <tr><td class="m">6</td><td>100 kΩ resistors</td><td>three 2:1 sense dividers (Bat, USB, LBO)</td></tr>
+        <tr><td class="m">3</td><td>100 nF ceramic caps (optional)</td><td>ADC node filtering</td></tr>
+        <tr><td class="m">1</td><td>Schottky diode SS14 / 1N5817</td><td>PowerBoost 5V into the header rail</td></tr>
+        <tr><td class="m">3</td><td>STEMMA QT cables, 100 mm</td><td>the I2C chain</td></tr>
+        <tr><td class="m">~10</td><td>female-to-bare jumpers or 22 AWG hookup wire</td><td>splitter to amp and PowerBoost</td></tr>
+        <tr><td class="m">1</td><td>twisted pair, 24 AWG</td><td>amp to speaker</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <h2>Sources</h2>
+  <p class="src">
+    Pin behaviours from Adafruit's guides for the <a href="https://learn.adafruit.com/adafruit-max98357-i2s-class-d-mono-amp/pinouts">MAX98357A</a> and <a href="https://learn.adafruit.com/adafruit-powerboost-1000c-load-share-usb-charge-boost/pinouts">PowerBoost 1000C</a>; clock ordering from pico-extras <code>audio_i2s.h</code> (BCLK = clock_pin_base, LRCLK = base + 1); HAT header from the <a href="https://www.waveshare.com/wiki/10.3inch_e-Paper_HAT">Waveshare wiki</a>; GP mapping and seesaw addresses from this repo's <code>HANDOVER.md</code> and <code>src/inputs.c</code>. Checked 30 October 2026.
+  </p>
+</div>
+
+<script>
+const C = getComputedStyle(document.documentElement);
+const col = n => C.getPropertyValue('--'+n).trim();
+const ink=()=>col('ink'), muted=()=>col('muted'), line=()=>col('line-strong'), surf=()=>col('surface');
+
+// Generic "module strip" diagram: module box on the left with pins, destinations on the right.
+function strip(id, title, pins, opts={}){
+  const W=560, rowH=34, top=44, H=top+pins.length*rowH+20;
+  const bx=20, bw=opts.boxW||150;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${title} wiring">`;
+  s+=`<rect x="${bx}" y="${top-26}" width="${bw}" height="${pins.length*rowH+36}" rx="8" fill="${surf()}" stroke="${line()}" stroke-width="1.5"/>`;
+  s+=`<text x="${bx+bw/2}" y="${top-8}" text-anchor="middle" font-size="12" font-weight="600" fill="${ink()}">${title}</text>`;
+  pins.forEach((p,i)=>{
+    const y=top+i*rowH+16, c=col(p.c||'sig');
+    s+=`<text x="${bx+bw-10}" y="${y+4}" text-anchor="end" font-size="12" font-weight="600" fill="${ink()}">${p.pin}</text>`;
+    s+=`<circle cx="${bx+bw}" cy="${y}" r="4" fill="${c}"/>`;
+    if(p.dest){
+      const x2=bx+bw+70;
+      s+=`<line x1="${bx+bw+4}" y1="${y}" x2="${x2}" y2="${y}" stroke="${c}" stroke-width="3" stroke-linecap="round"/>`;
+      if(p.mid){ s+=`<rect x="${x2-40}" y="${y-9}" width="80" height="18" rx="3" fill="${surf()}" stroke="${c}"/><text x="${x2}" y="${y+4}" text-anchor="middle" font-size="10" fill="${ink()}">${p.mid}</text>`; s+=`<line x1="${x2+40}" y1="${y}" x2="${x2+56}" y2="${y}" stroke="${c}" stroke-width="3" stroke-linecap="round"/>`; }
+      s+=`<text x="${x2+(p.mid?64:12)}" y="${y+4}" font-size="12" fill="${ink()}">${p.dest}</text>`;
+      if(p.sub) s+=`<text x="${x2+(p.mid?64:12)}" y="${y+16}" font-size="10" fill="${muted()}">${p.sub}</text>`;
+    } else {
+      s+=`<text x="${bx+bw+12}" y="${y+4}" font-size="11" fill="${muted()}">${p.sub||'no connection'}</text>`;
+    }
+  });
+  s+='</svg>'; document.getElementById(id).innerHTML=s;
+}
+
+strip('pb','PowerBoost 1000C',[
+  {pin:'5V',  c:'p5', dest:'splitter pin 2 · 5 V', sub:'via Schottky, anode on this side', mid:'SS14 ▶'},
+  {pin:'GND', c:'gnd',dest:'splitter pin 6 · GND'},
+  {pin:'Bat', c:'adc',dest:'pin 37 · BCM26 → GP26 ADC0', sub:'2:1 divider, 100 k / 100 k', mid:'100k ┬ 100k'},
+  {pin:'USB', c:'adc',dest:'pin 13 · BCM27 → GP27 ADC1', sub:'2:1 divider · mains present', mid:'100k ┬ 100k'},
+  {pin:'LBO', c:'adc',dest:'pin 22 · BCM25 → GP28 ADC2', sub:'2:1 divider · optional', mid:'100k ┬ 100k'},
+  {pin:'EN',  sub:'leave open (pulled high)'},
+  {pin:'Vs',  sub:'leave open'},
+  {pin:'USB in', c:'p5', dest:'wall adapter 5 V / 2 A', sub:'micro-USB socket'},
+  {pin:'JST-PH', c:'p3', dest:'LiPo 4400 mAh', sub:'red to +, check the plug'},
+]);
+
+strip('amp','MAX98357A',[
+  {pin:'Vin',  c:'p5', dest:'splitter pin 4 · 5 V'},
+  {pin:'GND',  c:'gnd',dest:'splitter pin 9 · GND'},
+  {pin:'BCLK', c:'sig',dest:'pin 12 · BCM18 → GP18', sub:'clock_pin_base'},
+  {pin:'LRC',  c:'sig',dest:'pin 35 · BCM19 → GP19', sub:'clock_pin_base + 1'},
+  {pin:'DIN',  c:'sig',dest:'pin 40 · BCM21 → GP21', sub:'data_pin'},
+  {pin:'SD',   c:'sig',dest:'pin 36 · BCM16 → GP16', sub:'low = shutdown · high = play'},
+  {pin:'GAIN', sub:'floating · 9 dB'},
+  {pin:'+',    c:'spk',dest:'FRS 5 X speaker +', sub:'8 Ω, twisted pair'},
+  {pin:'−',    c:'spk',dest:'FRS 5 X speaker −'},
+]);
+
+strip('hat','IT8951 HAT (via splitter)',[
+  {pin:'5V',   c:'p5', dest:'pins 2, 4 · VBUS net'},
+  {pin:'GND',  c:'gnd',dest:'pins 6, 9, 14, 20, 25 …'},
+  {pin:'SCK',  c:'sig',dest:'pin 23 · BCM11 → GP10'},
+  {pin:'MOSI', c:'sig',dest:'pin 19 · BCM10 → GP11'},
+  {pin:'MISO', c:'sig',dest:'pin 21 · BCM9 → GP12'},
+  {pin:'CS',   c:'sig',dest:'pin 24 · BCM8 → GP8'},
+  {pin:'RST',  c:'sig',dest:'pin 11 · BCM17 → GP17'},
+  {pin:'HRDY', c:'sig',dest:'pin 18 · BCM24 → GP1'},
+],{boxW:190});
+
+// Qw/ST chain
+(function(){
+  const W=560,H=150; const boxes=[['Pico Plus 2 W','Qw/ST socket'],['Rotary encoder','0x36'],['NeoKey 1x4','0x30'],['APDS-9960','0x39']];
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="I2C chain">`;
+  const bw=112, gap=30, y=40;
+  boxes.forEach((b,i)=>{const x=14+i*(bw+gap);
+    s+=`<rect x="${x}" y="${y}" width="${bw}" height="58" rx="8" fill="${surf()}" stroke="${line()}" stroke-width="1.5"/>`;
+    s+=`<text x="${x+bw/2}" y="${y+24}" text-anchor="middle" font-size="12" font-weight="600" fill="${ink()}">${b[0]}</text>`;
+    s+=`<text x="${x+bw/2}" y="${y+42}" text-anchor="middle" font-size="11" fill="${muted()}">${b[1]}</text>`;
+    if(i<boxes.length-1){ const x1=x+bw, x2=x+bw+gap; ['gnd','p3','i2c','i2c'].forEach((c,k)=>{const yy=y+14+k*10; s+=`<line x1="${x1}" y1="${yy}" x2="${x2}" y2="${yy}" stroke="${col(c)}" stroke-width="2.5"/>`;}); }
+  });
+  s+=`<text x="14" y="${y+90}" font-size="11" fill="${muted()}">Each hop is one 100 mm STEMMA QT cable: GND, 3.3 V, SDA (GP4), SCL (GP5). Either socket on each board works.</text>`;
+  s+='</svg>'; document.getElementById('qt').innerHTML=s;
+})();
+
+// Diode OR
+(function(){
+  const W=560,H=170;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Schottky diode feed">`;
+  const box=(x,y,w,t,t2)=>{s+=`<rect x="${x}" y="${y}" width="${w}" height="46" rx="8" fill="${surf()}" stroke="${line()}" stroke-width="1.5"/><text x="${x+w/2}" y="${y+20}" text-anchor="middle" font-size="12" font-weight="600" fill="${ink()}">${t}</text><text x="${x+w/2}" y="${y+36}" text-anchor="middle" font-size="10.5" fill="${muted()}">${t2}</text>`;};
+  box(14,20,130,'PowerBoost 5V','5.2 V'); box(14,100,130,'Laptop USB-C','5.0 V, flashing only');
+  box(400,60,146,'5 V rail','Pi pins 2 / 4 = Pico VBUS');
+  s+=`<line x1="144" y1="43" x2="230" y2="43" stroke="${col('p5')}" stroke-width="3"/>`;
+  // diode symbol
+  s+=`<polygon points="230,33 250,43 230,53" fill="${col('p5')}"/><line x1="250" y1="33" x2="250" y2="53" stroke="${col('p5')}" stroke-width="3"/>`;
+  s+=`<text x="240" y="26" text-anchor="middle" font-size="10.5" fill="${muted()}">SS14</text>`;
+  s+=`<line x1="250" y1="43" x2="340" y2="43" stroke="${col('p5')}" stroke-width="3"/><line x1="340" y1="43" x2="340" y2="83" stroke="${col('p5')}" stroke-width="3"/><line x1="340" y1="83" x2="400" y2="83" stroke="${col('p5')}" stroke-width="3"/>`;
+  s+=`<line x1="144" y1="123" x2="340" y2="123" stroke="${col('p5')}" stroke-width="3"/><line x1="340" y1="123" x2="340" y2="83" stroke="${col('p5')}" stroke-width="3"/>`;
+  s+=`<text x="200" y="140" font-size="10.5" fill="${muted()}">USB-C VBUS is wired straight to the Pico's VBUS pin</text>`;
+  s+=`<text x="300" y="70" font-size="10.5" fill="${muted()}">≈ 4.9 V</text>`;
+  s+='</svg>'; document.getElementById('diode').innerHTML=s;
+})();
+
+// Overview
+(function(){
+  const W=900,H=330;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="System overview">`;
+  const box=(x,y,w,h,t,t2)=>{s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="9" fill="${surf()}" stroke="${line()}" stroke-width="1.5"/><text x="${x+w/2}" y="${y+22}" text-anchor="middle" font-size="12.5" font-weight="600" fill="${ink()}">${t}</text>`; if(t2) s+=`<text x="${x+w/2}" y="${y+39}" text-anchor="middle" font-size="10.5" fill="${muted()}">${t2}</text>`;};
+  const wire=(pts,c,w=3)=>{s+=`<polyline points="${pts}" fill="none" stroke="${col(c)}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`;};
+  const lbl=(x,y,t,c)=>{s+=`<text x="${x}" y="${y}" font-size="10.5" fill="${c?col(c):muted()}">${t}</text>`;};
+  box(20,20,120,50,'Wall adapter','5 V USB');
+  box(20,110,120,50,'LiPo 4400 mAh','JST-PH');
+  box(180,60,150,60,'PowerBoost 1000C','charge + load share');
+  box(380,20,150,60,'Splitter','GPIO Double Expansion');
+  box(380,130,150,60,'Pico Plus 2 W','via Pico-to-Pi adapter');
+  box(580,20,150,60,'10.3" e-Paper HAT','IT8951 · SPI');
+  box(580,130,150,60,'MAX98357A','I2S amp');
+  box(770,130,110,60,'FRS 5 X','8 Ω speaker');
+  box(580,250,100,50,'Encoder','0x36');
+  box(700,250,100,50,'NeoKey 1x4','0x30');
+  box(820,250,70,50,'APDS','0x39');
+  wire('140,45 160,45 160,80 180,80','p5'); lbl(145,38,'5 V in');
+  wire('140,135 160,135 160,100 180,100','p3'); lbl(145,128,'Bat');
+  wire('330,90 355,90 355,50 380,50','p5'); lbl(335,82,'5.2 V ▶ SS14');
+  wire('455,80 455,130','p5',2); lbl(462,110,'VBUS');
+  wire('530,50 580,50','sig'); lbl(540,42,'SPI');
+  wire('530,160 580,160','sig'); lbl(537,152,'I2S');
+  wire('530,170 560,170 560,60 580,60','p5',2);
+  wire('730,160 770,160','spk'); lbl(738,152,'audio');
+  wire('455,190 455,275 580,275','i2c'); lbl(462,268,'Qw/ST · I2C0 (GP4/GP5)');
+  wire('680,275 700,275','i2c'); wire('800,275 820,275','i2c');
+  wire('330,100 350,100 350,230 380,230','adc',2); lbl(236,250,'Bat / USB / LBO sense');
+  wire('380,230 410,230 410,190','adc',2); lbl(415,215,'ADC0/1/2');
+  s+='</svg>'; document.getElementById('overview').innerHTML=s;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# Build the firmware on every push and pull request; the image is kept as a
+# workflow artifact. Releases come from release.yml (push a v* tag).
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      # No include/secrets.h here on purpose: it is a first-boot seed that
+      # overrides the panel's stored WiFi and server when present.
+      - name: Build
+        run: |
+          VERSION="dev-${GITHUB_SHA::7}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"$VERSION\\\"" pio run
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedside-${{ env.VERSION }}
+          path: |
+            .pio/build/pimoroni_pico_plus_2w/firmware.uf2
+            .pio/build/pimoroni_pico_plus_2w/firmware.bin
+          if-no-files-found: error

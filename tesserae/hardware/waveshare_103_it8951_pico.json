@@ -1,0 +1,24 @@
+{
+  "tesserae_compat": "1.x",
+  "id": "waveshare_103_it8951_pico",
+  "name": "Waveshare 10.3\" IT8951 on Pico Plus 2 W (Bedside)",
+  "vendor": "Waveshare",
+  "url": "https://www.waveshare.com/10.3inch-e-paper-hat.htm",
+  "icon": "device-tablet",
+  "description": "Waveshare 10.3 inch e-Paper HAT (IT8951 controller, ED103TC2 glass, 1872x1404, 16-level greyscale) driven by a Pimoroni Pico Plus 2 W over the Hard Stuff Pico-to-Pi-HAT adapter, running tesserae-device-bedside. Mains powered (PowerBoost load-sharing), always on: advertises can_stay_awake and polls /frame on awake_poll_s. Same glass and controller as the Seeed reTerminal E1003, so the frame is the esp32_gray_bin 4-bpp buffer (1314144 bytes).",
+  "protocol": "esp32_client",
+  "renderers": ["esp32_gray_bin"],
+  "panel": {
+    "w": 1872,
+    "h": 1404,
+    "orientation": "landscape",
+    "name": "10.3 inch ED103TC2 (16-level greyscale, 1872x1404)",
+    "gamut": "gray_16",
+    "native_w": 1872,
+    "native_h": 1404
+  },
+  "refresh_floor_s": 5,
+  "image_format": "bin",
+  "touch": false,
+  "notes_md": "Wire format is exactly 1314144 bytes (1872*1404/2), row-major, top-left origin, no mirror; high nibble = LEFT pixel, 0x0 black .. 0xF white. The firmware un-mirrors the ED103TC2 glass itself. Buttons: the device reports `left`, `right` and `refresh` (knob and keys arrive in a later firmware phase, with their names set in Controls). Firmware: https://github.com/dmellok/tesserae-device-bedside"
+}

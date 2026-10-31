@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bedside panel</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: #181818; color: #ddd;
+         display: flex; flex-wrap: wrap; gap: 20px; padding: 20px; box-sizing: border-box; }
+  .screen { flex: 1 1 560px; min-width: 300px; }
+  canvas { width: 100%; height: auto; background: #e9e9e9; border: 10px solid #2b2b2b;
+           border-radius: 6px; box-sizing: border-box; display: block; image-rendering: pixelated; }
+  .side { flex: 0 1 380px; display: flex; flex-direction: column; gap: 12px; }
+  fieldset { border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 12px; margin: 0; }
+  legend { color: #9a9; padding: 0 6px; font-size: .9em; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  button { background: #2e2e2e; color: #eee; border: 1px solid #555; border-radius: 6px;
+           padding: 7px 11px; cursor: pointer; font: inherit; }
+  button:hover { background: #3a3a3a; }
+  button.cur { background: #3d6b4f; border-color: #6c9; }
+  button.sel { outline: 2px solid #fc6; }
+  button.danger { border-color: #a55; }
+  button:disabled { opacity: .45; cursor: default; }
+  input, select { background: #222; color: #eee; border: 1px solid #555; border-radius: 6px;
+                  padding: 6px 8px; font: inherit; width: 7em; }
+  input.wide { width: 15em; }
+  label { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .status { font: 12px/1.5 ui-monospace, monospace; color: #9a9; margin-top: 8px; white-space: pre-wrap; }
+  .warn { color: #f96; }
+  .ok { color: #6c9; }
+  .ctl { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start; }
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .key { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .key button { width: 100%; height: 54px; border-radius: 9px; border: 2px solid #444; background: #262626;
+                box-shadow: inset 0 -4px 0 #111; font-weight: 600; transition: box-shadow .05s, transform .05s; }
+  .key button:active { transform: translateY(3px); box-shadow: inset 0 -1px 0 #111; }
+  .key .led { height: 6px; width: 70%; border-radius: 3px; background: #333; margin-top: 2px; }
+  .key small { color: #888; font: 11px ui-monospace, monospace; }
+  .knob { display: flex; flex-direction: column; align-items: center; gap: 6px; user-select: none; }
+  .dial { width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #777, #2a2a2a 70%);
+          border: 3px solid #555; position: relative; cursor: grab; box-shadow: 0 4px 10px #000a; }
+  .dial:active { cursor: grabbing; }
+  .dial .mark { position: absolute; left: 50%; top: 8px; width: 6px; height: 22px; margin-left: -3px; background: #eee; border-radius: 3px; transform-origin: 50% 47px; }
+  .dial .ring { position: absolute; inset: -9px; border-radius: 50%; border: 3px solid #333; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; background: #333; color: #aaa; }
+  .badge.on { background: #2f5a3f; color: #cfe; }
+  input[type=range] { width: 10em; }
+  table.map { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  table.map td { padding: 3px 4px; border-top: 1px solid #2c2c2c; }
+  table.map td:first-child { color: #9a9; white-space: nowrap; font: 12px ui-monospace, monospace; }
+  table.map select { width: 100%; }
+  table.map input { width: 7em; }
+  table.map tr.group td { color: #6c9; padding-top: 10px; border-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <canvas id="c" width="468" height="351"></canvas>
+  <div class="status" id="status">connecting…</div>
+</div>
+<div class="side">
+  <fieldset><legend>Tesserae</legend>
+    <div class="status" id="tess"></div>
+    <label>Server URL<span><input id="server" class="wide" placeholder="http://192.168.1.50:8765"> <button id="setserver">Set</button></span></label>
+    <label>Device id<span><input id="device" placeholder="bedside"> <button id="setdevice">Set</button></span></label>
+    <label>Display name<span><input id="name" placeholder="Bedside"> <button id="setname">Set</button></span></label>
+    <label title="server device kind; changing it forgets the token and re-pairs">Kind<span><input id="kind" class="wide" placeholder="seeed_reterminal_e1003"> <button id="setkind">Set</button></span></label>
+    <label>Pairing code (optional)<span><input id="pair" placeholder="482917"> <button id="setpair">Pair</button></span></label>
+    <div class="row" style="margin-top:8px">
+      <button data-c="fetch">Fetch frame now</button>
+      <button data-c="dashboard">Show dashboard</button>
+      <button data-c="forget" class="danger">Forget token (re-pair)</button>
+    </div>
+  </fieldset>
+  <fieldset><legend>Controller <span class="badge" id="b_enc">knob</span> <span class="badge" id="b_keys">keys</span></legend>
+    <div class="ctl">
+      <div>
+        <div class="keys" id="keys"></div>
+        <div class="row" style="margin-top:10px">
+          <label style="flex:1">Backlight <input id="backlight" type="range" min="0" max="255" step="5"></label>
+          <label>Night (red)<input id="night" type="checkbox" style="width:auto"></label>
+        </div>
+        <div class="status">click a key = press · hold the mouse = hold · 1-4 on the keyboard = press</div>
+      </div>
+      <div class="knob">
+        <div class="dial" id="dial" title="scroll or drag to turn; click = press; hold = back"><div class="ring"></div><div class="mark" id="mark"></div></div>
+        <div class="row"><button data-c="knob=ccw">↺</button><button data-c="knob=press">press</button><button data-c="knob=hold">hold</button><button data-c="knob=cw">↻</button></div>
+        <small class="status" id="knobpos"></small>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset><legend>Device pages <span class="badge" id="b_screen">home</span></legend>
+    <div class="row"><button data-c="page=menu">Menu</button><button data-c="page=rain">Rain</button><button data-c="page=lights">Lights</button><button data-c="page=ac">A/C</button><button data-c="page=alarm">Alarm</button><button data-c="page=settings">Settings</button><button data-c="page=home">Home</button></div>
+    <div class="row" style="margin-top:8px">scenarios: <button data-c="scenario=prewake">15 min before alarm</button><button data-c="scenario=ring">Alarm rings</button><button data-c="scenario=stop">Stop</button><button data-c="scenario=power">Power cut</button><button data-c="scenario=mains">Mains back</button></div>
+    <div class="status" id="localstate"></div>
+  </fieldset>
+  <fieldset><legend>Mapping</legend>
+    <div class="status">Every input runs one action. "Server button" sends a named button wake that Tesserae's Controls map turns into a page, a rotation step or a Home Assistant action. Changes save to flash immediately.</div>
+    <table id="map" class="map"></table>
+    <div class="row" style="margin-top:8px"><button id="resetmap" class="danger">Restore defaults</button></div>
+  </fieldset>
+  <fieldset><legend>Menu overlay</legend>
+    <div class="row">
+      <button data-c="menu=open">Open</button><button data-c="menu=up">▲ Up</button>
+      <button data-c="menu=down">▼ Down</button><button data-c="menu=select">Select</button>
+      <button data-c="menu=close">Close</button>
+    </div>
+  </fieldset>
+  <fieldset><legend>Panel</legend>
+    <div class="row">
+      <button data-c="card">Test card</button><button data-c="clear">INIT clear</button>
+      <button data-c="white">White</button><button data-c="sleep">Sleep</button>
+      <button data-c="init">Re-init</button><button data-c="enhance">Enhance driving</button>
+    </div>
+  </fieldset>
+  <fieldset><legend>Tuning</legend>
+    <label>VCOM (mV; label says -1.48 V)<span><input id="vcom" type="number" min="500" max="5000" step="10"> <button id="setvcom">Set</button></span></label>
+    <label>Mirror horizontally<input id="mirror" type="checkbox" style="width:auto"></label>
+    <label>Menu move waveform<select id="movemode"><option value="6">A2 (fast, B/W)</option><option value="2">GC16 (clean)</option></select></label>
+    <label>SPI clock<select id="spihz"><option value="18750000">18.75 MHz</option><option value="12500000">12.5 MHz</option><option value="9375000">9.375 MHz</option><option value="7500000">7.5 MHz</option></select></label>
+    <label>Long press (ms)<span><input id="longpress" type="number" min="150" max="3000" step="50"> <button id="setlp">Set</button></span></label>
+    <label>Show status banner on panel<input id="banner" type="checkbox" style="width:auto"></label>
+    <label>Preview scale<select id="scale"><option value="2">1/2</option><option value="3">1/3</option><option value="4" selected>1/4</option><option value="6">1/6</option></select></label>
+  </fieldset>
+  <fieldset><legend>WiFi (applies at next boot)</legend>
+    <label>SSID<input id="ssid" class="wide"></label>
+    <label>Password<input id="pass" class="wide" type="password"></label>
+    <div class="row" style="margin-top:8px"><button id="setwifi">Store</button><button data-c="reboot" class="danger">Reboot</button></div>
+  </fieldset>
+  <fieldset><legend>Controller</legend><div class="status" id="info"></div></fieldset>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+let seq = -1, st = null, loading = false, built = false;
+
+async function cmd(q) {
+  try { await fetch('/api/cmd?' + q, { method: 'POST' }); } catch (e) {}
+  setTimeout(poll, 400);
+}
+const enc = v => encodeURIComponent(v);
+document.querySelectorAll('button[data-c]').forEach(b => b.onclick = () => cmd(b.dataset.c));
+$('#setvcom').onclick   = () => cmd('vcom=' + $('#vcom').value);
+$('#setlp').onclick     = () => cmd('longpress=' + $('#longpress').value);
+$('#setserver').onclick = () => cmd('server=' + enc($('#server').value.trim().replace(/\/+$/, '')));
+$('#setdevice').onclick = () => cmd('device=' + enc($('#device').value.trim()));
+$('#setname').onclick   = () => cmd('name=' + enc($('#name').value.trim()));
+$('#setkind').onclick   = () => cmd('kind=' + enc($('#kind').value.trim()));
+$('#setpair').onclick   = () => cmd('pair=' + enc($('#pair').value.trim()));
+$('#setwifi').onclick   = () => cmd('wifi=' + enc($('#ssid').value + '|' + $('#pass').value));
+$('#mirror').onchange   = e => cmd('mirror=' + (e.target.checked ? 1 : 0));
+$('#banner').onchange   = e => cmd('banner=' + (e.target.checked ? 1 : 0));
+$('#movemode').onchange = e => cmd('movemode=' + e.target.value);
+$('#spihz').onchange    = e => cmd('spihz=' + e.target.value);
+$('#scale').onchange    = () => { seq = -1; poll(); };
+
+/* ---- virtual controller ---- */
+let angle = 0, dragging = false, dragLast = 0, holdTimer = null, held = false;
+const dial = $('#dial');
+function turn(dir) { angle += dir * 18; $('#mark').style.transform = `rotate(${angle}deg)`; cmd('knob=' + (dir > 0 ? 'cw' : 'ccw')); }
+dial.addEventListener('wheel', e => { e.preventDefault(); turn(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+dial.addEventListener('pointerdown', e => {
+  dragging = true; dragLast = e.clientY; held = false; dial.setPointerCapture(e.pointerId);
+  holdTimer = setTimeout(() => { held = true; cmd('knob=hold'); }, 600);
+});
+dial.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const dy = e.clientY - dragLast;
+  if (Math.abs(dy) >= 14) { clearTimeout(holdTimer); holdTimer = null; held = true; turn(dy > 0 ? 1 : -1); dragLast = e.clientY; }
+});
+dial.addEventListener('pointerup', () => {
+  if (!dragging) return; dragging = false;
+  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; if (!held) cmd('knob=press'); }
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { turn(1); e.preventDefault(); }
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { turn(-1); e.preventDefault(); }
+  else if (e.key === 'Enter' || e.key === ' ') { cmd('knob=press'); e.preventDefault(); }
+  else if (e.key === 'Escape' || e.key === 'Backspace') { cmd('knob=hold'); e.preventDefault(); }
+  else if (e.key >= '1' && e.key <= '4') cmd('key=' + e.key);
+});
+$('#backlight').oninput = e => cmd('backlight=' + e.target.value);
+$('#night').onchange   = e => cmd('night=' + (e.target.checked ? 1 : 0));
+
+function keyColour(i, night, level) {
+  const base = night ? [255, 0, 0] : (i === 3 ? [255, 110, 10] : [255, 200, 150]);
+  const l = Math.max(level, 25) / 255;
+  return `rgb(${base.map(v => Math.round(v * l)).join(',')})`;
+}
+
+const DEFAULT_BINDINGS = {
+  key1: 'rain.toggle', key2: 'lights.toggle', key3: 'ac.toggle',
+  key1_hold: 'open.sound', key2_hold: 'open.lights', key3_hold: 'open.ac',
+  boot_short: 'menu', boot_long: 'back',
+};
+const DEFAULT_LABELS = ['', '', '', ''];
+/* The knob and the orange key are fixed by the interface (volume / menu /
+ * back); the three grey keys on the dashboard are yours. */
+/* The knob and the four keys are fixed by the click-wheel layout
+ * (<< >|| >> MENU); only the BOOT button is free. */
+const INPUT_GROUPS = [
+  ['BOOT button', ['boot_short', 'boot_long']],
+];
+const INPUT_NAMES = { key1: 'key 1', key2: 'key 2', key3: 'key 3', key4: 'key 4',
+  key1_hold: 'key 1 hold', key2_hold: 'key 2 hold', key3_hold: 'key 3 hold', key4_hold: 'key 4 hold',
+  knob_cw: 'knob turn ↻', knob_ccw: 'knob turn ↺', knob_press: 'knob press', knob_hold: 'knob hold',
+  boot_short: 'BOOT short', boot_long: 'BOOT long' };
+
+function describe(spec, actions) {
+  if (spec.startsWith('button:')) return `server button "${spec.slice(7)}"`;
+  const a = actions.find(a => a.id === spec); return a ? a.label : spec;
+}
+
+function buildKeys(s) {
+  const k = $('#keys'); k.innerHTML = '';
+  s.inputs.labels.forEach((label, i) => {
+    const w = document.createElement('div'); w.className = 'key';
+    const b = document.createElement('button'); b.textContent = label || '·';
+    let t = null, didHold = false;
+    b.onpointerdown = e => { didHold = false; b.setPointerCapture(e.pointerId); t = setTimeout(() => { didHold = true; cmd('keyhold=' + (i + 1)); }, 600); };
+    b.onpointerup = () => { clearTimeout(t); if (!didHold) cmd('key=' + (i + 1)); };
+    b.onpointercancel = () => clearTimeout(t);
+    const led = document.createElement('div'); led.className = 'led';
+    const sm = document.createElement('small');
+    w.append(b, led, sm); k.appendChild(w);
+  });
+}
+
+function buildMap(s) {
+  const tbl = $('#map'); tbl.innerHTML = '';
+  const acts = s.inputs.actions;
+  INPUT_GROUPS.forEach(([title, inputs]) => {
+    const g = tbl.insertRow(); g.className = 'group'; const gc = g.insertCell(); gc.colSpan = 3; gc.textContent = title;
+    inputs.forEach(name => {
+      const spec = s.inputs.bindings[name] || 'none';
+      const r = tbl.insertRow();
+      r.insertCell().textContent = INPUT_NAMES[name];
+      const sel = document.createElement('select');
+      acts.forEach(a => { const o = document.createElement('option'); o.value = a.id; o.textContent = a.label; sel.appendChild(o); });
+      const isBtn = spec.startsWith('button:');
+      sel.value = isBtn ? 'button:' : spec;
+      const arg = document.createElement('input'); arg.placeholder = 'name'; arg.value = isBtn ? spec.slice(7) : '';
+      arg.style.display = isBtn ? '' : 'none';
+      const apply = () => {
+        const v = sel.value === 'button:' ? 'button:' + arg.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : sel.value;
+        if (v === 'button:') return;              /* waiting for a name */
+        cmd('bind=' + enc(name + '|' + v));
+      };
+      sel.onchange = () => { arg.style.display = sel.value === 'button:' ? '' : 'none'; if (sel.value === 'button:') arg.focus(); else apply(); };
+      arg.onchange = apply; arg.onkeydown = e => { if (e.key === 'Enter') apply(); };
+      r.insertCell().appendChild(sel);
+      const c3 = r.insertCell(); c3.appendChild(arg);
+      if (/^key[1-3]$/.test(name)) {
+        const i = +name[3] - 1;
+        const lb = document.createElement('input'); lb.placeholder = 'label (auto)'; lb.maxLength = 13; lb.value = ''; lb.title = 'override the label drawn under the key; empty = derived from the action';
+        lb.onchange = () => cmd('label=' + enc((i + 1) + '|' + lb.value.trim()));
+        c3.appendChild(document.createTextNode(' ')); c3.appendChild(lb);
+      }
+    });
+  });
+}
+$('#resetmap').onclick = async () => {
+  for (const [k, v] of Object.entries(DEFAULT_BINDINGS)) { await fetch('/api/cmd?bind=' + enc(k + '|' + v), { method: 'POST' }); await new Promise(r => setTimeout(r, 120)); }
+  for (let i = 0; i < 4; i++) { await fetch('/api/cmd?label=' + enc((i + 1) + '|' + DEFAULT_LABELS[i]), { method: 'POST' }); await new Promise(r => setTimeout(r, 120)); }
+  mapSig = ''; poll();
+};
+
+let mapSig = '';
+function build(s) {
+  buildKeys(s);
+  built = true;
+}
+
+let keysSig = '';
+function render(s) {
+  if (!built) build(s);
+  const sig = JSON.stringify([s.inputs.labels, s.inputs.bindings]);
+  if (sig !== mapSig) { mapSig = sig; if (!document.activeElement || !$('#map').contains(document.activeElement)) buildMap(s); }
+  const ksig = JSON.stringify(s.inputs.labels);
+  if (ksig !== keysSig) { keysSig = ksig; buildKeys(s); }
+  [...$('#keys').children].forEach((w, i) => {
+    w.querySelector('.led').style.background = keyColour(i, s.inputs.night, s.inputs.backlight);
+    w.querySelector('.led').style.boxShadow = s.inputs.backlight ? `0 0 8px ${keyColour(i, s.inputs.night, s.inputs.backlight)}` : 'none';
+    const press = s.inputs.bindings['key' + (i + 1)], hold = s.inputs.bindings['key' + (i + 1) + '_hold'];
+    w.querySelector('small').textContent = describe(press, s.inputs.actions) + (hold && hold !== 'none' ? ' · hold: ' + describe(hold, s.inputs.actions) : '');
+  });
+  $('#b_enc').classList.toggle('on', !!s.inputs.encoder);  $('#b_enc').textContent = s.inputs.encoder ? 'knob: connected' : 'knob: virtual only';
+  $('#b_keys').classList.toggle('on', !!s.inputs.keys);    $('#b_keys').textContent = s.inputs.keys ? 'keys: connected' : 'keys: virtual only';
+  $('#knobpos').textContent = `position ${s.inputs.position}`;
+  $('#b_screen').textContent = s.screen; $('#b_screen').classList.toggle('on', s.screen !== 'home');
+  const L = s.local;
+  $('#localstate').textContent = `alarm ${L.alarm}${L.alarm_on ? '' : ' (off)'}${L.phase === 2 ? ' RINGING' : L.phase === 1 ? ' waking' : ''} · rain ${L.rain_on ? 'level ' + L.rain_lvl : 'off'} · lights ${L.lights_on ? L.bright + '%' : 'off'} · AC ${['off','heat','fan','cool','dry'][L.ac_mode]}${L.ac_mode ? ' ' + L.sp + '°' : ''} · volume ${L.vol}/10 · ${L.on_battery ? 'on battery' : 'mains'} · dashboard page ${L.dash_page + 1}`;
+  if (document.activeElement !== $('#backlight')) $('#backlight').value = s.inputs.backlight;
+  $('#night').checked = !!s.inputs.night;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('#vcom', s.vcom_mv); set('#longpress', s.long_press_ms); set('#movemode', s.move_mode); set('#spihz', s.spi_hz);
+  set('#server', s.tesserae.server); set('#device', s.tesserae.device_id); set('#name', s.tesserae.name); set('#kind', s.tesserae.kind);
+  $('#mirror').checked = !!s.mirror; $('#banner').checked = !!s.banner;
+  $('#status').innerHTML = (s.busy ? '<span class="warn">painting…</span> ' : '') +
+    `showing: ${s.content}` + (s.screen !== 'home' ? ` · page: ${s.screen}` : '') +
+    ` · last paint: stream ${s.last_stream_ms} ms + refresh ${s.last_refresh_ms} ms · paints ${s.paints}`;
+  const t = s.tesserae;
+  $('#tess').innerHTML =
+    `<span class="${t.paired ? 'ok' : 'warn'}">${t.state}</span>` + (t.error ? ` · <span class="warn">${t.error}</span>` : '') + `\n` +
+    `id ${t.device_id}  mac ${s.mac}  kind ${t.kind} / gray_16\n` +
+    `frames ${t.frames}  etag ${t.etag || '-'}  poll ${t.poll_s}s (next in ${t.next_in_s}s)` +
+    (t.local_time ? `\nserver local time ${t.local_time}` : '');
+  $('#info').textContent =
+    `panel ${s.panel.w}x${s.panel.h}  LUT ${s.panel.lut}  FW ${s.panel.fw}  buffer ${s.panel.addr}\n` +
+    `VCOM -${(s.vcom_mv / 1000).toFixed(2)} V${s.vcom_mv < 500 ? '  ⚠ not set' : ''}  ·  SPI ${(s.spi_hz / 1e6).toFixed(3)} MHz  ·  PSRAM ${s.psram ? 'yes' : 'NO'}\n` +
+    `wifi ${s.ip}  rssi ${s.rssi} dBm  ·  fw ${s.fw}  ·  up ${Math.floor(s.uptime_s / 60)} min`;
+}
+
+async function loadFrame() {
+  if (loading) return; loading = true;
+  try {
+    const buf = await (await fetch('/frame?s=' + $('#scale').value)).arrayBuffer();
+    const v = new DataView(buf), w = v.getUint16(0, true), h = v.getUint16(2, true);
+    const c = $('#c'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), px = new Uint8Array(buf, 4), d = img.data, rb = w >> 1;
+    for (let y = 0, o = 0; y < h; y++) for (let x = 0; x < w; x++, o += 4) {
+      const b = px[y * rb + (x >> 1)], g = ((x & 1) ? (b & 15) : (b >> 4)) * 17;
+      d[o] = d[o + 1] = d[o + 2] = g; d[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  } catch (e) { seq = -1; }
+  loading = false;
+}
+
+async function poll() {
+  try {
+    st = await (await fetch('/api/state')).json();
+    render(st);
+    if (st.paints !== seq && !st.busy) { seq = st.paints; await loadFrame(); }
+  } catch (e) { $('#status').textContent = 'device unreachable: ' + e; }
+}
+setInterval(poll, 1500);
+poll();
+</script>
+</body>
+</html>

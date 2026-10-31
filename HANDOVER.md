@@ -1,0 +1,441 @@
+# Handover: from the bench driver to the bedside device firmware
+
+*29 October 2026. Written for whoever works on `tesserae-device-bedside`: the
+device firmware for the Bedside Dashboard proposal (Jorgo). This note records
+what the bench project proved on real hardware, what was lifted from it, and
+what the proposal still needs. It is deliberately specific about pins, timings
+and gotchas so none of today's discovery has to be repeated.*
+
+> **Update, 29 October 2026 (evening).** This repo now exists as a working
+> tree: the bench driver was copied in whole, VCOM is set from the label
+> (**-1.48 V**, `-DEPD_VCOM_MV=1480`), the Tesserae client (Phase 2's "pulls a
+> first dashboard") and the knob/keys (Phase 2) are implemented, and the
+> **first flash ran on the panel**: VCOM read back 1480 mV, INIT clear and test
+> card painted (orientation not yet confirmed by eye), PSRAM 8 MB, rotary
+> encoder (0x36) and NeoKey (0x30) both answered with seesaw id 0x55 (SAMD09),
+> WiFi joined, discover → Register → token → polling all worked. What did
+> not: the device was registered under bare `esp32_client`, which gave it an
+> 800x480 Spectra 6 panel on the server and 192,000-byte colour frames; the
+> firmware refused them ("frame size wrong"). Fix: the kind now defaults to
+> `seeed_reterminal_e1003` (same glass, panel fixed by the server's catalog);
+> after a reflash the server re-provisioned the device at 1872x1404 gray_16
+> on the next discover. **First dashboard frame painted at 15:43**: a
+> 1,314,144-byte `esp32_gray_bin` frame downloaded in ~1 s, streamed in
+> 846 ms, GC16 in 532 ms, ETag held, subsequent polls 304. Test page
+> "Bedside (first light)" (page `cfbdd5120985`, bound to `bedside`) carries a
+> clock and a 16-step grey ramp for judging greys at -1.48 V. Kayden then
+> confirmed by eye that it all works. **Later that evening:** the UI from the
+> proposal's mock-up was built on both sides: server pages "Bedside"
+> (`34e7775087ac`, live Open-Meteo weather for Carlton) and "Bedside ·
+> Tomorrow" (`14a3610dc061`) in rotation `bedside_pages`, Albert Sans cached
+> on the server; and `src/local.c` on the device (top bar with date / chips /
+> key labels, menu sheet, Dashboards picker, AC / Lights / Sound / Alarm /
+> Weather / Status / Keys pages, volume bar, wake-up note, alarm screen) with
+> the mock-up's knob and key grammar. Verified on the glass: key toggles
+> repaint the 150 px top bar in ~0.24 s (A2), the menu sheet opens with a
+> full GC16 (~1.4 s), the volume bar repaints in ~0.6 s. Local state is
+> sample data and MQTT publishes are log lines until Phase 3. After Kayden's
+> review: text moved from scaled Font24 to anti-aliased Albert Sans bitmaps
+> (`tools/gen_font.py`, `src/fonts/`, ~500 KB in flash) so the key labels are
+> one size (34 px) and the pages read like the mock-up; and inputs are
+> coalesced in `main.c` (a burst of detents or presses updates the state and
+> paints once) so refreshes no longer bank up.
+>
+> **UI, final direction (29 Oct, night).** After several rejected concepts
+> (radial menu, key tabs, live tiles), Kayden picked "Bedside pages":
+> https://claude.ai/artifact/FfJVR3WbBC3776iGZm2pof . Knob = volume, press =
+> list menu on the right, pages full width with labelled quick keys, orange =
+> Menu / Back / Stop, and a dedicated status bar along the bottom with the
+> volume. Phosphor Bold icons (bitmaps in `src/fonts/icon34.c`, `icon46.c`,
+> codes in `include/icons.h`). Implemented in `src/local.c`; the server pages
+> now leave 150 px at the top and 130 px at the bottom for the device's bars.
+> The 1200-baud reset stopped working on the board that evening (picotool's
+> reset too); `tools/flash.sh` now asks the firmware for the bootloader over
+> WiFi first (`/api/cmd?bootsel`), so only the first flash of that build
+> needs BOOTSEL by hand.
+>
+> **Responsiveness and a cleaner UI (later that night).** Measured, then fixed:
+> repaints were whole strips or the whole screen, with flashing GC16, a
+> second volume repaint, and a dirty-rect union bug that turned a key toggle
+> into a full-screen repaint. Now: a list of small dirty rectangles, all
+> loaded into the IT8951 and refreshed once over their bounding box
+> (`it8951_update_areas`), non-flashing GL16 (mode 3) for UI changes, a GC16
+> clean-up after 40 partials when idle. Measured per interaction: volume or a
+> toggle ~0.6 s, menu move ~0.6 s, page open ~1.3 s (the body has to be
+> streamed); GL16's ~0.5 s refresh is the floor. Input never replays: turns
+> made during a paint arrive as one summed delta, input made while the screen
+> changed is discarded (`local_epoch` / `inputs_discard`), and key taps the
+> NeoKey latched during a paint are honoured only if under 300 ms old. The
+> REST client services the UI while it waits (`rest_set_idle_hook`) and
+> frames download into a second PSRAM buffer, so the knob no longer freezes
+> during a server poll. All on core 0; core 1 is kept for audio. The UI was
+> stripped back: no key numbers, no hints or footers, page name in the top
+> bar, a single volume bar, status icons only when unusual.
+>
+> **UI, final (29 Oct, late).** Replaced "Bedside pages" with the click-wheel
+> design Kayden chose (https://claude.ai/artifact/C9LQZGki2gwZMCTczx94ZZ),
+> keeping the physical 4x1 keys: ⏮ · ▶︎❙❙ · ⏭ · MENU (orange), knob = wheel and
+> centre button. iPod-style split list with a large preview, value scrubber,
+> choice list. Measured: list scroll ~1.0 s (one GL16 refresh over rows and
+> preview), value change ~1.0 s, screen change ~1.5 s (GC16), volume ~0.6 s.
+> The server's dashboard 'Sound / Lights / AC / Alarm' columns were removed;
+> the device's status bar shows that state. See `README.md` for the run-through and `docs/tesserae.md` for
+> the protocol as used. The rest of this note is the original bench handover,
+> with the sections below amended where the picture changed.
+
+## Where things are
+
+| What | Where |
+| --- | --- |
+| Bench driver (this handover's source) | `~/Documents/Projects/Jorgo/ed103tc2-pico-driver`, public at https://github.com/dmellok/ed103tc2-pico-driver |
+| Spectra 6 sibling, same board and adapter | https://github.com/dmellok/el133-pico-driver |
+| Existing Pico firmware with the Tesserae server pull (el133's parent, Pico SDK, C) | https://github.com/dmellok/tesserae-device-pico-bin |
+| `tesserae-device-firmware` (checked 29 Oct: it is the **ESP-IDF** unified firmware for ESP32 boards, so it does not replace pico-bin as the Pico base; its `seeed_reterminal_e1003` board is the same IT8951 / ED103TC2 glass and its REST client shaped ours) | https://github.com/dmellok/tesserae-device-firmware |
+| Readable reference for the device protocol (Python daemon: MQTT subscribe, PNG frames) | https://github.com/dmellok/tesserae-device-pi-png |
+| Client proposal, with plan, BOM and the 29 Oct progress note | https://gist.github.com/dmellok/a3edbc30c2d0f969744f1ebe6a66f69b |
+| Interactive screen/keys mock-up | https://claude.ai/artifact/34JYWiCdWGYzborfu1rGqV |
+| WiFi credentials used on the bench | `ed103tc2-pico-driver/include/wifi_secrets.h` (gitignored) |
+
+## Hardware facts verified on the bench
+
+Board: Pimoroni Pico Plus 2 W (RP2350B, 16 MB flash, 8 MB APS6404 PSRAM on
+QMI CS1 / GP47). Panel: Waveshare 10.3" e-Paper HAT, IT8951 controller, glass
+ED103TC2, 1872x1404, 16 greys. Adapter: Hard Stuff "Pico to Pi Hat".
+
+**Adapter pin map** (found by the firmware's own pin discovery; the vendor
+pinout PDF is an unrelated ESP32-style table and is wrong):
+
+| HAT signal | Pi BCM | Pico GP | Note |
+| --- | --- | --- | --- |
+| SCK | 11 | GP10 | SPI1 SCK |
+| MOSI | 10 | GP11 | SPI1 TX |
+| MISO | 9 | **GP12** | SPI1 RX, not GP9 |
+| CS | 8 | GP8 | |
+| RST | 17 | GP17 | active low |
+| HRDY | 24 | **GP1** | HIGH = ready. GP23/24/25/29 are the RM2 wireless pins, so the adapter reroutes BCM23-25 (BCM25 reportedly GP28) |
+
+Everything else the el133 verified (BCM22/26/27/16/15 to GP22/26/27/16/15) is
+1:1. So the Pi SPI0 lines land on the Pico's SPI1 hardware pins; the bench
+driver uses PIO SPI anyway, which works on any GPIO.
+
+**Controller:** GET_DEV_INFO returns 1872x1404, image buffer `0x00119F00`,
+FW `SWv_0.1.`, LUT `M841_TFA5210` (the 10.3" waveform; A2 = mode 6, GC16 =
+mode 2, INIT = mode 0). HRDY stays low for **~820 ms after reset** while the
+IT8951 boots; Waveshare's 200 ms is not enough on its own.
+
+**SPI speed:** 12.5 MHz (PIO divider 3) is clean. 18.75 MHz (divider 2)
+returned corrupted device info that still looked plausible (2040x1406), so
+the init insists on three identical, printable device-info reads before it
+accepts a speed. Fractional PIO dividers jitter SCK below the IT8951's minimum
+pulse width; use integer dividers.
+
+**Timings at 12.5 MHz with DMA double-buffering:**
+
+| operation | stream | refresh |
+| --- | --- | --- |
+| full frame, GC16 | ~845 ms | ~630 ms |
+| full frame, INIT clear | ~845 ms | ~1.9 s |
+| 912x688 menu box, GC16 | ~205 ms | ~590 ms |
+| 912x688 menu box, A2 | ~205 ms | ~190 ms |
+| on-device JPEG 1872x1404 decode + dither | 7.8 s | |
+
+**Still unconfirmed by eye** (the panel was driven headless from the serial
+console): the horizontal mirror default (`EPD_MIRROR_H=1`, Waveshare's "mode
+1" for the 10.3"), and grey rendition. **VCOM is -1.48 V** from the FPC label
+and is now the build default (`-DEPD_VCOM_MV=1480` in `platformio.ini`); the
+controller had reported 0.00 V on the bench, so the first flash of this
+firmware is the first time the panel runs at its rated VCOM. Judge greys
+only after that.
+
+**Buttons:** the Pico Plus 2 W's BOOT button is on **GP45** (active low) as
+well as the flash-CS BOOTSEL trick; the bench driver reads both. The HAT has
+no buttons.
+
+**Bench flash loop without touching the board:** the pico-sdk USB stdio
+accepts the 1200-baud reset. `pio run`, open the CDC port at 1200 baud, wait
+for `/Volumes/RP2350`, `cp -X firmware.uf2` there, then read the log with
+pyserial (DTR asserted). Scripted as `tools/flash.sh` in this repo. Once the
+board was lost from USB mid-reset and needed a physical replug, so keep that
+in mind for unattended runs; it happened again on 29 Oct on the first flash
+attempt of this firmware (the 1200-baud open returned "Device not configured"
+and the board never re-enumerated).
+
+## What to lift from `ed103tc2-pico-driver`
+
+The bench driver is AGPL-3.0-or-later with third-party pieces listed in its
+`NOTICES.md` (picojpeg public domain, Font24 and the PIO SPI / BOOTSEL code
+BSD-3, Waveshare's IT8951 sequence MIT, MicroPython's PSRAM init MIT).
+
+- `src/epd_io.c`, `include/epd_io.h`: PIO SPI (modes 0 and 3, integer
+  divider), CS/RST/HRDY, DMA write with a second channel draining RX so the
+  state machine never stalls. Reusable as is.
+- `src/it8951.c`, `include/it8951.h`: init with pin probing and speed
+  fallbacks, VCOM, run-time mirror, `it8951_show_pattern()` (full frame from a
+  row generator), `it8951_update_area()` (any rectangle, x and w widened to
+  16 px, mirrored in panel space), sleep, enhance-driving. Reusable as is; the
+  diagnostics (`it8951_probe_matrix`, `it8951_probe_blind`) can stay for field
+  debugging.
+- `src/menu.c`: per-row compositing of a menu box and a one-line banner using
+  Font24 at 2x. The pattern to keep is the **row generator**: the panel is
+  always fed from `composite_row(y)` = content, then overlays, so overlays need
+  no frame buffer and partial updates just slice rows. The proposal's key
+  labels, status badge ("on battery") and local pages fit the same shape.
+- `src/img_decode.c`: picojpeg to luma in PSRAM, Floyd-Steinberg to 16 levels.
+  A Tesserae-served frame can skip this if the server sends packed 4bpp.
+- `src/psram.c`: QMI bring-up, verbatim from MicroPython.
+- `src/net.c` + `www/index.html`: WiFi join and a raw-lwIP HTTP server. Worth
+  keeping as the on-device tuning page even in the product firmware. Note the
+  PlatformIO picosdk builder always links the **threadsafe-background** cyw43
+  arch: lwIP callbacks run from an interrupt-driven context, so they only
+  queue commands and fill small buffers; slow work happens in the main loop
+  under `cyw43_arch_lwip_begin/end`. `include/lwipopts.h` is the project's
+  (the builder's btstack copy is later on the include path).
+- `tools/`: `gen_sample.py`, `png2frame.py`, `make_sample_jpg.py`,
+  `fetch_sample_jpg.py`. Frame format: packed 4bpp, high nibble = even
+  column, 936 bytes/row, 0x0 black .. 0xF white, logical left-to-right.
+
+Resources the bench firmware already uses on the RP2350: PIO0 one state
+machine, two DMA channels, GP47 for PSRAM, GP23/24/25/29 for the radio, about
+155 KB of SRAM with lwIP (82 KB of that is the SRAM preview buffer, movable to
+PSRAM).
+
+## What the proposal needs next
+
+Mapped to the gist's plan. Phase 1 is done; Phase 2's panel bring-up is done;
+Phase 2's Tesserae pull is implemented (unverified on the panel); Phase 3's
+overlay mechanism is proven.
+
+1. **Tesserae pull (Phase 2).** Done in code, 29 Oct: `src/net_rest.c` (the
+   pico-bin REST client, ported, with a streaming sink for the 1.3 MB frame)
+   and `src/tesserae.c` (zero-touch pairing, always-on poll, ETag/304,
+   heartbeat, button events). Decision taken: **server-side dithering**. The
+   server's `esp32_gray_bin` renderer (built for the Seeed E1003, same glass)
+   emits exactly the packed 4bpp row format `it8951.c` streams, so the device
+   does no decode; `img_decode.c`/picojpeg were dropped. The device registers
+   as `kind: seeed_reterminal_e1003` (runtime setting; bare `esp32_client`
+   got an 800x480 Spectra 6 panel from the Register card on the bench, so
+   never that) with `gamut: gray_16`; the bedside's own catalog entry is in
+   `tesserae/hardware/` for the server. Remaining: flash and verify end to end,
+   then move the synchronous requests off the main loop (core 1 or event
+   driven) before the knob arrives, because a poll blocks inputs for 1-3 s.
+   lwIP gotcha found on the way: the picosdk builder compiles lwIP core against
+   the bundled btstack `lwipopts.h` unless the project include dir is
+   prepended (`scripts/lwip_prepend.py`), which shows up as
+   `dns_gethostbyname` failing to link.
+2. **Knob, keys, gesture (Phase 2).** Knob and keys done in code, 29 Oct:
+   `src/seesaw.c` (Adafruit seesaw register map on I2C0 GP4/GP5),
+   `src/inputs.c` (encoder delta + button, NeoKey keys with debounce and
+   press/hold, NeoPixel backlights with a red night palette, hot-plug
+   re-probe), key-label strip along the top edge in `src/menu.c`, and a
+   bindings table in `src/main.c`: every input (key press/hold, knob cw/ccw/
+   press/hold, BOOT short/long) runs an action chosen from the web page's
+   Mapping table and saved to flash; "button:<name>" sends a server button
+   wake. Unverified on the boards (no hardware session yet); the first thing
+   to check is the seesaw HW_ID read (0x87 expected for both ATtiny817
+   boards) and the encoder's direction sign. **APDS-9960 gesture sensor not
+   started.** The web page's virtual controller drives the same bindings, so
+   the mapping can be set up and tested before the keys are soldered.
+3. **Audio (Phases 2 and 4).** MAX98357A over I2S from PIO (pico-extras has
+   `audio_i2s`); check the GPIO splitter's free pins against the pin map above.
+   Stored loop first, then the generated rain and dawn chorus.
+4. **Power (Phase 2).** PowerBoost 1000C mains-sense and battery-level lines
+   through the splitter; "on battery" badge is one more overlay in
+   `composite_row`.
+5. **MQTT and HA (Phase 3).** Retained topics for key labels/actions, volume,
+   alarm offset, menu items; HA discovery; alarm publish. lwIP's MQTT client
+   (`lwip/apps/mqtt.h`) is in the SDK tree; the builder only compiles
+   `api`, `core`, `port` and `netif/ethernet.c`, so the `apps/` source must be
+   added to the build.
+6. **Local pages (Phase 3).** Alarm, AC, lights, sound, settings as more
+   row-generator overlays; A2 for navigation, GC16 when leaving a page.
+
+## Suggested first steps in this repo
+
+1. ~~Start from a copy of `ed103tc2-pico-driver`~~ Done.
+2. ~~Set `-DEPD_VCOM_MV` from the label~~ Done (1480). **Flash, and confirm
+   orientation on the test card by eye (black square top-left) before anything
+   else.** Then `V` on the serial console should read back -1.48 V.
+3. ~~Replace the demo screens with the Tesserae client~~ Done in code. Verify:
+   `cp include/secrets.h.example include/secrets.h`, fill in WiFi and the
+   server URL, flash, Register the device in Tesserae, bind a 1872x1404
+   dashboard, confirm it paints and that `304`s are cheap at a 10 s poll.
+4. Only then add I2C inputs, audio and MQTT, one at a time, each verified on
+   the bench web page. The knob maps to `menu_move`/`menu_select`/`menu_close`
+   and the keys to `tesserae_button("<name>")` in `src/main.c`.
+
+## 2026-10-29: knob freeze fix and mobile web app
+
+- **Knob freeze.** One failed I2C read used to mark the encoder lost and park it for 5 s, so the knob and everything driven by it went dead. Seesaw reads now retry three times. A board counts as lost only after 30 failures in a row, and it is re-probed every second. A soak test went from frequent dropouts to none.
+- **Stall logging.** The main loop prints `stall: <phase> took N ms` whenever one phase runs past 400 ms, to catch any other freeze source over serial.
+- **Command queue.** Web commands go into an 8-slot ring, so a burst from the app no longer overwrites a pending one.
+- **Web API.** `/api/cmd?set=key|value` drives the local UI state: vol, rain_on, rain_lvl, rain_kind, sleep, lights_on, bright, colour, ac_mode, setpoint, fan, night, keylights, dash, alarm `i,h,m,on,daymask,early` (bit 0 = Monday), alarm_add, alarm_del. `/api/state` carries the same state under `ui`.
+- **Mobile app.** Served at `/`. It polls state every 1.5 s, updates optimistically, and ignores polled values for a field for a few seconds after you touch it. The source is `www/app.src.html`.
+
+## 2026-10-29: panel driver on core 1
+
+- **What moved.** `src/painter.c` runs the IT8951 on core 1: streaming pixels and waiting out each refresh. Core 0 keeps the knob, keys, network and UI state and stays responsive during paints. In a stress test, state requests during paints answered in under 100 ms.
+- **Jobs.** One at a time. Core 0's `paint_pump()` in `src/main.c` submits the next job only when core 1 is idle, so changes made during a paint are painted once, as their latest state. Ten volume changes in half a second produced three paints.
+- **Snapshot.** Core 1 paints from a frozen copy of the UI draw lists (`local_snapshot()`, about 80 KB SRAM) and of the content, frame pointer and banner. Core 0 can rebuild freely. Each core has its own scratch line, because the web preview renders on core 0 at the same time.
+- **Page changes.** While a page-change paint runs, input stays unread and is dropped at the end, as before. During small updates, input acts immediately.
+- **Frame buffers.** Tesserae waits before downloading into the buffer core 1 is still painting (`tesserae_set_buffer_guard`).
+- **Flash writes.** `config_save()` parks core 1 with `multicore_lockout_start_blocking()`. `flash_safe_execute()` does not do this under PlatformIO, because the build never sets `PICO_FLASH_SAFE_EXECUTE_PICO_SUPPORT_MULTICORE_LOCKOUT`. Erasing flash with core 1 running hung the painter. Don't write flash any other way.
+- **BOOTSEL read removed.** The QSPI chip-select trick cuts flash off for both cores. The BOOT button is read on GP45 instead, which is the same button on the Pico Plus 2 W.
+- **Direct panel calls** from core 0 (VCOM, init, sleep, diagnostics) take `painter_lock()`.
+- **Audio, later.** Put it on core 1 in DMA interrupt context at a higher priority than the painter loop. The painter is thread-mode background work, and the IT8951 tolerates pauses in SPI. Keep the inter-core FIFO free, because the flash lockout uses it.
+
+## 2026-10-29: sleep sounds, streamed to the web app
+
+- **Synth.** `src/rainsynth.c` is procedural. Rain is a filtered-noise wash with gusts, plus individual drops: noise ticks ringing damped resonators, with occasional near, low plops. Ocean is brown noise through a filter that opens with each wave, with foam on the break. Noise is brown-to-pink by intensity. All changes glide over about a second, so nothing clicks. Levels at full volume sit between −24 and −14 dBFS.
+- **Where it runs.** A repeating timer on its own hardware alarm, created on core 1, renders 10 ms blocks into a 0.74 s ring. It tracks a real-time sample clock, so it can't drift, and after a stall it catches up by at most 200 ms. It renders only while someone listens and costs about 14% of core 1. The interrupt pre-empts the painter.
+- **Streaming.** `GET /audio` sends endless raw PCM: signed 16-bit little-endian, mono, 22.05 kHz, about 44 KB/s, in batches of at least 46 ms. The web app plays it through Web Audio with about 0.35 s of buffering. To support it, the lwIP heap went to 32 KB and the server to 6 connections.
+- **Sleep timer.** Now implemented in `local_sleep_tick()`. It arms when sound turns on or the timer changes, fades over the last minute, then turns the sound off on the panel too. `ui.rain.sleep_left_s` in the state shows the time left.
+- **When a speaker lands.** Feed an I2S DAC from the same ring by DMA. Move `on_timer` and `rs_render` to RAM with `__not_in_flash_func`. Defer `config_save()` while playing: the flash lockout pauses core 1 for the erase, and the ring only covers about 0.7 s.
+- **Build.** `scripts/build_www.py` stamps the page's hash into `src/www.S`. SCons rebuilds by content, so before this, edits to the page did not reach the firmware.
+
+## 2026-10-29: rain controls, thunder, config moved
+
+- **Rain controls.** `rs_params_t` gains patter, wash, tone, wind, surface (open ground, leaves, tin roof, window), thunder (how often), thunder_near (far rumble to overhead crack) and strike (roll now). The web app shows them under "Shape the rain". The panel's Rain menu gets "Falling on" and "Thunder" (Off, Distant, Storm). Thunder is several overlapping low swells through a filter that opens on each peak. Near strikes add a crack and crackle and briefly lift the rain. Distant thunder sits about 6 dB over the rain, and a close strike peaks about 14 dB over it. `tools/render_rain.c` renders every scene.
+- **Settings survive reboots.** Volume, sound, intensity and every shaping control persist in flash blob slot 1 (`config_blob_*`, magic "SND2"), saved 4 s after the last change.
+- **Config moved from 2 MB to 15 MB.** The firmware image is about 2.6 MB, so the old sector sat inside the embedded test card. Every save corrupted a strip of the card, and every flash wiped the config. `config_load()` migrates a valid old copy once.
+- **SomaFM was built, then removed as out of scope.** The device had chosen stations and polled now-playing, and the phone played the stream. If a radio comes back, SomaFM's stream servers refused the device's self-identified client with 403. The phone's own browser played fine.
+
+## 2026-10-30: dawn chorus and the device alarm clock
+
+- **Recordings.** Six species: Australian magpie, grey butcherbird, superb fairy-wren, eastern whipbird, red wattlebird and laughing kookaburra. The clips come from Wikimedia Commons, all CC BY-SA 4.0 or public domain, with credits in NOTICES.md. I picked each clip from spectrograms, and the cuts are in `assets/birds/clips.json`. The fairy-wren reels come from a mixed woodland soundscape, band-passed above 4 kHz. The bell miner was dropped: the only suitably licensed recordings are distant and hissy. xeno-canto's API now needs a key, and Freesound had nothing isolated for these species. Regenerating the clips needs the decoded source WAVs: `tools/make_bird_clips.py <dir>`.
+- **Engine.** `src/birds.c` runs six voices that play clips straight from flash (mu-law), with ±4% pitch and a random distance that sets gain, a low-pass and the reverb send, plus a small Schroeder reverb. The conductor brings species in by intensity: magpie at 0, butcherbird 0.12, fairy-wren 0.25, whipbird 0.4, wattlebird 0.55, kookaburra 0.75. Gaps shrink as intensity rises. Birds mix after the master volume, under their own "alarm volume" (`bird_vol`), and the sleep sound fades out as the chorus builds. Core 1 runs at about 15% with the chorus playing.
+- **Alarm clock on the device.** `local_alarm_tick()` uses the server's clock: the Date header plus `tz_offset_seconds`, falling back to the offset in `local_time`. In each alarm's wake window ("wake up early", else 10 min) the chorus climbs from 0.05 to 0.8 and the phase is PREWAKE, with lights on. At the alarm time it rings at full. Knob press stops, a key or turn snoozes 9 min, it gives up after 30 min, and a "Once" alarm switches itself off. Tested on the device: alarm set 2 min ahead, build-up, ring, snooze and stop all worked.
+- **Controls.** Panel: Menu → Alarms → Dawn chorus, with a switch per bird (switching one on plays it), alarm volume and preview. Web app, Alarms tab: the same, with a play button per bird, a 90 s preview, and Stop and Snooze while ringing. API keys: `birds` (mask), `bird_vol`, `audition` (bird index), `chorus_preview` (seconds, 0 stops), `alarm_stop`, `alarm_snooze`. Settings persist in blob slot 1, now magic "SND3".
+- **Until there is a speaker,** the chorus is only heard through Listen on a phone, because the audio engine renders only while someone listens. With a DAC, render always.
+- **Flash** is now 4.4 MB with the clips, and a flash takes about 2 minutes.
+
+## 2026-10-30: synthesised birds, Home Assistant over MQTT
+
+- **Synthesised birds.** Four species were added in `src/birds.c` for variety: bell miner (pings), spotted pardalote ("sleep-may-be"), golden whistler (rising whistles and a whip crack, or "ee-CHONG") and crimson rosella ("too-ee-too", or "cussik"). Each call is built fresh from notes: a sine with a little 2nd and 3rd harmonic, a pitch contour, attack, release and optional vibrato. They join the same conductor, distance and reverb as the clips, at matched levels. Saved settings from before switch them on once (the `pad` flag in the SND3 blob).
+- **Home Assistant (`src/ha.c`).**
+  - **Connection.** lwIP's MQTT client, compiled from the SDK by `src/vendor/lwip_mqtt.c`, with buffers raised in `lwipopts.h`. Broker settings are in the web app's Device tab, saved in blob slot 2 with magic "HAC1", and can be seeded from secrets.h `MQTT_*`. The password is hidden in logs.
+  - **Discovery.** On connect it sends 78 retained configs under `homeassistant/<component>/bedside_<mac6>/<key>/config`, one HA device. It re-announces when HA's birth message (`homeassistant/status online`) arrives.
+  - **Topics.** State is the `/api/state` "ui" JSON on `bedside/state`, published on change at most every 250 ms. Diagnostics go to `bedside/diag` every 60 s. Availability is `bedside/status`, with a last will of "offline". Events (prewake, alarm_ringing, alarm_snoozed, alarm_stopped, thunder, chorus_preview ...) go to `bedside/event` for HA's event entity.
+  - **Commands.** HA writes to `bedside/set/<key>`. `ha_translate()` maps each one onto the web API's command path, so both behave the same. Selects send option indexes through command templates. Alarm slots use text entities: time as `HH:MM`, and days as "Mon Wed Fri", "Weekdays", "Weekends", "Every day" or "Once". A slot's entities are unavailable while that alarm doesn't exist.
+  - **Tested** against a local Mosquitto: all 78 configs are valid JSON, and every value, command and availability template renders under Jinja2 against the real state. Commands for volume, selects, the half-degree setpoint, bird switches, alarm time, days, window, add and delete, and thunder all worked, and the event arrived. The birth message re-announces. Not yet tested against a real Home Assistant instance.
+  - **Lights and A/C** are the panel's own intent state. Map them to real HA entities with automations.
+
+## 2026-10-30: live dashboard (D1), new status bar, more settings
+
+- **Live dashboard.** Dashboard 0, "Live", is drawn by the panel (`build_live()` in `src/local.c`) over a white page (`CONTENT_LIVE` in main.c). Dashboards 1 and 2 are the server's rotation. The keys cycle Live, Bedside, Tomorrow. Server frames that arrive while Live is up are kept for later.
+  - **Layout,** from mock-up D1: the clock in a new 214 px light face, the next alarm with a countdown ("on Monday" when more than a day away), and the dawn chorus start. Below that, the tonight timeline: now, when the sleep timer stops the sound, sleep, the chorus, sunrise (computed on the device, NOAA equations, location in the web app), then the alarm. Then seven soft tiles: outside with an hourly rain chart, bedroom with a 12-hour trend, washing, security, bins, next event and A/C. A tile turns black only when it needs you.
+  - **Drawing.** New ops: `OP_RRECT` (rounded fill), `OP_LINE` (thick segment) and `OP_DASH` (dashed rule). New fonts: `clock214` and `ui72`.
+  - **Refresh.** The header repaints each minute (GL16). The header and timeline repaint when the alarms, sleep timer or sound change. A tile repaints when its value changes.
+  - **Values** come from `src/live.c`. Each tile's source is an HA entity id (via MQTT Statestream), a topic, or `bedside/live/<tile>`. `ha.c` subscribes to them all. See `docs/live-dashboard.md` for the HA configuration.
+  - **Tested** against a local Mosquitto broker: all 14 values arrived, a tile turned black on "done" and on an unlocked door, and the page repainted. The bedroom trend needs 30-minute samples and hasn't been watched over hours yet.
+  - **printf has no floats in this build,** so `live_fmt_dec()` formats decimals. Don't use `%f`.
+- **Status bar** (every screen). Left: volume and the sound. Right, right-aligned: the sleep timer's stop time, alarm, A/C and lights when set, then the HA and Wi-Fi icons. Night, battery and offline appear only when true.
+- **Settings page.**
+  - **Rows:** night mode, auto night (from 21/22/23:00 until 07:00, switching only at the edges so a manual change holds), key lights, key colour, menu key colour, night colour (9-colour palette, `inputs_set_colours()`), knob light, clock (24 or 12 hour), snooze (5/9/10/15 min), refresh screen, status, restart, and reset everything (confirm screen).
+  - **Saving:** blob slot 4, magic "SET1". The web app's Device tab has the same settings, and they're in HA discovery too (85 entities now).
+  - **Master reset** (`config_erase_all()`) erases the config and blobs 1 to 8, then reboots. The device re-seeds Wi-Fi and server from secrets.h and re-registers. It is not tested on the bench panel, because it would wipe the user's alarms and pairing.
+
+## 2026-10-30: full refresh once input settles
+
+- Partial (GL16) updates fade blacks a little each time. Any partial update the user causes, within 3 s of a knob, key, web or HA input, marks the screen as touched. Once input has been quiet for 4 s (`SETTLE_MS` in main.c), the panel does one full GC16 refresh.
+- Background updates don't count: the live page's minute clock and HA values keep the slower clean-up (40 partials and 20 s idle), so nothing flashes every minute at night.
+- Verified on the device: a volume change gave one partial paint and then one full refresh about 4 s later, and nothing after that.
+- Still worth trying for faded pages: the IT8951's "enhance driving" register (`/api/cmd?enhance`), which the firmware never sets at start-up.
+
+## 2026-10-30: Mk II UI (flashed to the bench panel)
+
+Design and rules: https://claude.ai/artifact/Gxywayio7myr4sh2UwxMxH. Compiles clean
+(`pio run`, RAM 87.1%). Flashed 30 Oct: strip, confirmation box and grouped Settings checked from the web preview; physical key holds and the card layouts not yet tried by hand.
+
+- **Home screen.** On a server dashboard (not Live) the top bar and status bar are
+  gone: the dashboard plus one overlay (`build_overlay()` in `src/local.c`). Strip
+  176 px along the bottom (default), cards down the left (432 px), cards along
+  the bottom (324 px), or off. Items are one line each (icon + value): clock,
+  alarm, sound, room, connection; default clock, alarm, sound. "At night: Clock
+  only" keeps the same size. A lost connection always shows. Live keeps its own
+  layout.
+- **Viewport.** `tesserae_set_viewport()` from `overlay_apply()`; sent on the
+  heartbeat as `viewport`; frames of the viewport's size are accepted and placed
+  by `dash_row()` in main.c (docs/tesserae.md). The server side is not done.
+- **Confirmations.** `toast()`: a box over everything for 1.5 s after a key
+  action or a volume change on the home screen, drawn in the ring layer (now
+  composited last), expired in `local_live_tick()`.
+- **Keys.** Keys 1-3 run their press / hold bindings (`key_run()` in main.c);
+  `local_key()` only handles MENU and the ringing alarm. Defaults: press rain /
+  lights / AC, hold `dash.prev` (new action) / `dash.next` / `night`. Untouched
+  old hold defaults (open.sound/lights/ac) migrate on load (`migrate_holds()`).
+  Knob hold: Back by default (`local_back_up()`, nothing on the home screen);
+  any other binding replaces it. The top bar's key icons follow the bindings.
+- **Settings, grouped.** Home screen, Night, Keys and knob (Key 1-3 → Press /
+  Hold, Knob hold, MENU key, brightness, colours, knob light), Time and clock,
+  Device.
+- **Night.** No more red: the keys keep their day colour at 12% ("Keys at night:
+  Dim") or go dark ("Off"). `night_col` is kept in the blob and HA but unused.
+- **Time.** "Set automatically" (default: Date headers + Tesserae's offset), a
+  zone override with AU/NZ daylight-saving rules (`tz_offset_at()`), and Time /
+  Date set by hand from the board's timer when automatic is off. The hand-set
+  time is not kept across a reboot (no RTC).
+- **Settings blob** slot 4 is now "SET2" (16 bytes); SET1 migrates.
+- **Web app** (Device tab): a keymap with Key 1-3 press / hold and Knob hold,
+  a Home screen card (overlay, what it shows, the viewport sent), Keys at night,
+  time zone and automatic time. `set=` keys: `night_keys`, `overlay`, `show`
+  (bit mask), `at_night`, `tz`, `auto_time`.
+- **Not done:** HA entities for the new settings; the server rendering at the
+  viewport.
+
+## 2026-10-30: Screen updates setting (flashed)
+
+Settings → Device → **Screen updates** (web app: Device → Panel; `set=refresh_mode|0..2`;
+saved in the SET2 blob's `refresh_mode` byte): **Fast** (partial GL16/A2, then GC16 once
+input settles: the old behaviour), **Clean** (every change painted with GC16, just its
+areas), **Full** (every change repaints the whole panel with GC16). Applied in
+`paint_pump()` in main.c. Clean is the default (Kayden found it best; Full "didn't seem to work" on the glass, cause not yet known). Under Full, each change is ~1.5 s with
+a flash (two paints for a key action: the change, then the confirmation clearing).
+
+## 2026-10-30: faded full refreshes (driver fix, flashed)
+
+Full-screen GC16 came out very faded (patches were fine; power and enhance-driving ruled out).
+Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-firmware
+(`fw/src/panel/drivers/it8951_gray.c`); two differences, both now in `src/it8951.c`:
+- **Forced waveform temperature, 14 C** (`apply_temp()`, CMD 0x0040, re-applied on every
+  init). This board gives no temperature reading. Full GC16 went from 627 ms to 1015 ms: a
+  longer, stronger waveform. `/api/cmd?temp=N` to try others (0 = controller default).
+- **INIT before a full-screen GC16 once anything has been shown** (`s_ref_stale` in
+  `paint()`): GC16 derives each pixel's drive from the controller's reference image, and a
+  full GC16 after earlier refreshes under-drives (dmellok/tesserae#274). A full refresh now
+  costs ~2.2 s more. `/api/cmd?cleanfull=0` turns it off for comparison.
+- **STANDBY between updates: does not work on this board.** Sent after each refresh (as the
+  E1003 driver does), the controller's HRDY stays low and the next command times out, so
+  painting stops. Left in the code, off by default (`s_standby`; `/api/cmd?standby=1` to try).
+- VCOM −1.55 V was tried live; no visible improvement reported; back at −1.48 V.
+- Found the bench panel back on Screen updates = Fast after the reflashes (the Clean choice
+  had not stuck); set to Clean again, saved, and it survives a reboot now.
+- **ROOT CAUSE FOUND: the SPI clock.** At 12.5 MHz a full-screen solid black (`/api/cmd?pattern=black`)
+  came out dark grey with lines: pixel data was being corrupted on the way in, which reads as
+  lighter greys everywhere (the "faded" screens). At 4 MHz (`/api/cmd?spihz=4000000`, what the
+  E1003 driver uses) solid black is solid. Default is now `-DEPD_SPI_HZ=4000000` in
+  platformio.ini (full-screen load ~2.5 s instead of ~0.85 s). The VCOM / temperature sweeps
+  above ran on corrupted data, so don't trust them; VCOM is back at the rated -1.48 V.
+  Diagnostics kept: `pattern=black|ramp`, `temp=`, `cleanfull=`, `standby=` (broken).
+- **SPI settled at 6.25 MHz** (platformio.ini). Test any clock with BOTH `pattern=black` and
+  `pattern=ramp`: 7.5 and 9.4 MHz passed black but striped the greys.
+- **Second pass.** A screen change or full GC16 still looked faded until something redrew it
+  (a knob turn), so `paint_pump()` now follows those with a GL16 pass over the same areas
+  with no reload (`PJ_REDISPLAY` / `it8951_redisplay_areas()`), ~0.55 s, no flash.
+- Waveform temperature default is 24 C (judged best); VCOM back at the rated -1.48 V.
+- Live (dashboard 0) still has the old top and status bars, by the Mk II rules; the panel boots on it.
+- **Final: SPI 12.5 MHz with 12 mA / fast-slew pins** (`EPD_DRIVE_MA`, `EPD_FAST_SLEW` in
+  platformio.ini; `/api/cmd?spidrive=12f` live). The corruption was soft edges from the
+  default 4 mA / slow-slew pins, not the clock as such. Clean for black and the ramp.
+- **Waveshare setup restored** for the rest: waveform temperature not forced, INIT only at
+  start-up (`cleanfull` off), standby off; the GL16 second pass after screen changes stays.
+- **Rain web stream**: the sample ring is ~4 s in PSRAM (+6 MB) instead of 0.74 s in SRAM, and
+  the web player keeps a 1 s cushion; frame downloads no longer gap it.
+- **Vertical lines on dithered dashboards** (31 Oct). Not the SPI clock (same at 12.5, 9.4 and
+  7.5 MHz; the panel's own copy of the frame is clean). Two causes found: the GL16 second pass
+  streaked dithered greys (now off; `/api/cmd?echo=gl16|gc16|off`, and it only ever applies to
+  non-full screen changes), and drawing over the old screen without INIT left traces (INIT
+  before full GC16 is back on by default, `cleanfull`). Faint lines may remain: reseat the
+  panel's FPC at the HAT next.
+- **Power supply was the last piece** (31 Oct): the remaining faint vertical lines went away on a
+  good PSU. Some workarounds above (INIT before every full GC16) may no longer be needed; re-test
+  with `/api/cmd?cleanfull=0` before keeping their cost in speed.

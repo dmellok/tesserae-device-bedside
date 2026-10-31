@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Pin Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#edf0f3; --surface:#ffffff; --ink:#1a2028; --muted:#5b6672; --line:#cfd6dd; --line-strong:#9aa6b2;
+  --free:#1f8a4c; --free-bg:#dff5e6;
+  --assumed:#8a6a00; --assumed-bg:#fbf0c4;
+  --hat:#1f5fa8; --hat-bg:#dbe8fa;
+  --res:#7a3fa8; --res-bg:#ecdff8;
+  --shared:#0e7c86; --shared-bg:#d6f2f4;
+  --unk:#6b7682; --unk-bg:#e3e7eb;
+  --p5:#c0392b; --p5-bg:#fadbd8; --p3:#d35400; --p3-bg:#fbe3d2; --gnd:#3a4149; --gnd-bg:#d7dbe0;
+  --radio:#8a2e6a; --radio-bg:#f5dcec;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#121619; --surface:#1b2126; --ink:#e6eaee; --muted:#9aa5b1; --line:#2d363e; --line-strong:#4b5762;
+    --free:#5fd38d; --free-bg:#163b26; --assumed:#e6c35c; --assumed-bg:#3d3312; --hat:#7fb3f2; --hat-bg:#17304f;
+    --res:#c99af0; --res-bg:#32204a; --shared:#6fd2db; --shared-bg:#123a3f; --unk:#aab4be; --unk-bg:#2a3138;
+    --p5:#f07a6d; --p5-bg:#4a1d18; --p3:#f29a58; --p3-bg:#4a2a12; --gnd:#c2c9d0; --gnd-bg:#2c3238;
+    --radio:#e58fc8; --radio-bg:#45203a;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121619; --surface:#1b2126; --ink:#e6eaee; --muted:#9aa5b1; --line:#2d363e; --line-strong:#4b5762;
+  --free:#5fd38d; --free-bg:#163b26; --assumed:#e6c35c; --assumed-bg:#3d3312; --hat:#7fb3f2; --hat-bg:#17304f;
+  --res:#c99af0; --res-bg:#32204a; --shared:#6fd2db; --shared-bg:#123a3f; --unk:#aab4be; --unk-bg:#2a3138;
+  --p5:#f07a6d; --p5-bg:#4a1d18; --p3:#f29a58; --p3-bg:#4a2a12; --gnd:#c2c9d0; --gnd-bg:#2c3238;
+  --radio:#e58fc8; --radio-bg:#45203a;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;margin:0;padding-block:28px 56px;padding-inline:16px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:clamp(26px,4vw,36px);line-height:1.1;margin:0 0 6px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:20px;margin:40px 0 12px;font-weight:600;letter-spacing:-.005em}
+h3{font-size:15px;margin:18px 0 8px;font-weight:600}
+p{max-width:68ch;margin:0 0 10px}
+.lede{color:var(--muted);font-size:16px;max-width:72ch}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:140px;flex:1 1 150px}
+.stat b{display:block;font-size:26px;font-family:var(--mono);font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.free b{color:var(--free)} .stat.assumed b{color:var(--assumed)} .stat.hat b{color:var(--hat)} .stat.shared b{color:var(--shared)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:14px 0 22px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--line-strong);display:inline-block}
+.sw.free{background:var(--free-bg);border-color:var(--free)} .sw.assumed{background:var(--assumed-bg);border-color:var(--assumed)}
+.sw.hat{background:var(--hat-bg);border-color:var(--hat)} .sw.res{background:var(--res-bg);border-color:var(--res)}
+.sw.shared{background:var(--shared-bg);border-color:var(--shared)} .sw.unk{background:var(--unk-bg);border-color:var(--unk)}
+.sw.p5{background:var(--p5-bg);border-color:var(--p5)} .sw.p3{background:var(--p3-bg);border-color:var(--p3)} .sw.gnd{background:var(--gnd-bg);border-color:var(--gnd)}
+.sw.radio{background:var(--radio-bg);border-color:var(--radio)}
+.boards{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+@media (max-width:900px){.boards{grid-template-columns:1fr}}
+.board{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 14px 16px}
+.board h3{margin:0 0 2px;font-size:16px}
+.board .sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+.hdr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;position:relative}
+.hdr::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line);transform:translateX(-1px)}
+.pin{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:8px;border:1px solid var(--line);border-left-width:5px;border-radius:5px;padding:5px 8px;min-height:50px;background:var(--surface)}
+.pin.r{grid-template-columns:1fr 30px;text-align:right;border-left-width:1px;border-right-width:5px}
+.pin .n{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center;border:1px solid var(--line);border-radius:50%;width:26px;height:26px;line-height:24px;justify-self:center}
+.pin .t{min-width:0}
+.pin .a{font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap}
+.pin .b{font-size:11.5px;color:var(--muted);line-height:1.25;white-space:normal}
+.pin.free{border-color:var(--free);background:var(--free-bg)} .pin.free .a{color:var(--free)}
+.pin.assumed{border-color:var(--assumed);background:var(--assumed-bg)} .pin.assumed .a{color:var(--assumed)}
+.pin.hat{border-color:var(--hat);background:var(--hat-bg)} .pin.hat .a{color:var(--hat)}
+.pin.res{border-color:var(--res);background:var(--res-bg)} .pin.res .a{color:var(--res)}
+.pin.shared{border-color:var(--shared);background:var(--shared-bg)} .pin.shared .a{color:var(--shared)}
+.pin.unk{border-color:var(--unk);background:repeating-linear-gradient(135deg,var(--unk-bg) 0 6px,var(--surface) 6px 10px)} .pin.unk .a{color:var(--unk)}
+.pin.p5{border-color:var(--p5);background:var(--p5-bg)} .pin.p5 .a{color:var(--p5)}
+.pin.p3{border-color:var(--p3);background:var(--p3-bg)} .pin.p3 .a{color:var(--p3)}
+.pin.gnd{border-color:var(--gnd);background:var(--gnd-bg)} .pin.gnd .a{color:var(--gnd)}
+.pin.radio{border-color:var(--radio);background:var(--radio-bg)} .pin.radio .a{color:var(--radio)}
+.pin.ctl{border-color:var(--line-strong);background:var(--surface)} .pin.ctl .a{color:var(--muted)}
+.offhdr{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-top:12px}
+.offhdr .pin{min-height:44px}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.m,th.m{font-family:var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid;white-space:nowrap}
+.chip.free{color:var(--free);border-color:var(--free);background:var(--free-bg)}
+.chip.assumed{color:var(--assumed);border-color:var(--assumed);background:var(--assumed-bg)}
+.chip.shared{color:var(--shared);border-color:var(--shared);background:var(--shared-bg)}
+.chip.unk{color:var(--unk);border-color:var(--unk);background:var(--unk-bg)}
+.chip.res{color:var(--res);border-color:var(--res);background:var(--res-bg)}
+.chip.hat{color:var(--hat);border-color:var(--hat);background:var(--hat-bg)}
+.note{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--assumed);border-radius:8px;padding:12px 14px;margin:14px 0;max-width:none}
+.note p{max-width:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+.card ul,.card ol{padding-left:20px;margin:6px 0 0}
+.card li{margin-bottom:5px}
+code{font-family:var(--mono);font-size:.92em;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;margin:8px 0}
+.src{font-size:13px;color:var(--muted)}
+.src a{color:inherit}
+a{color:var(--hat)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--hat);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">Bedside Dashboard · Pico Plus 2 W · Hard Stuff Pico-to-Pi adapter · Waveshare 10.3" IT8951 HAT</div>
+  <h1>Which GPIOs are still free after the e-paper HAT</h1>
+  <p class="lede">The 40-pin header you see at the GPIO Double Expansion Board is the Pi header. The adapter re-routes it onto the Pico Plus 2 W, and the HAT takes six signals plus power. Everything below is drawn from that angle: the pin you can touch on the splitter, which Pico GP it reaches, and whether anything in the firmware already owns it.</p>
+
+  <div class="stats">
+    <div class="stat free"><b>4</b><span>free, mapping verified on the bench (GP16, GP22, GP26, GP27)</span></div>
+    <div class="stat assumed"><b>11</b><span>free, mapping assumed or only reported, not yet metered (incl. GP28)</span></div>
+    <div class="stat shared"><b>2</b><span>I2C0 bus pins (GP4/GP5) shared with the Qw/ST chain</span></div>
+    <div class="stat hat"><b>6</b><span>signals owned by the e-paper HAT</span></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw free"></i>Free, verified map</span>
+    <span><i class="sw assumed"></i>Free, assumed 1:1 map</span>
+    <span><i class="sw shared"></i>Shared I2C0 (Qw/ST)</span>
+    <span><i class="sw res"></i>Firmware reserved</span>
+    <span><i class="sw hat"></i>e-paper HAT</span>
+    <span><i class="sw unk"></i>Mapping unknown</span>
+    <span><i class="sw radio"></i>RM2 radio / internal</span>
+    <span><i class="sw p5"></i>5 V</span>
+    <span><i class="sw p3"></i>3.3 V</span>
+    <span><i class="sw gnd"></i>GND</span>
+  </div>
+
+  <div class="boards">
+    <div class="board">
+      <h3>Pi 40-pin header (as seen on the splitter)</h3>
+      <div class="sub">Physical pin · Pi name → Pico GP it reaches. Pin 1 is top-left, the square pad. Odd pins left, even pins right.</div>
+      <div class="hdr" id="pi"></div>
+    </div>
+    <div class="board">
+      <h3>Pico Plus 2 W header (same facts, Pico side)</h3>
+      <div class="sub">Physical pin 1 is top-left (USB-C at the top). GP → the Pi header pin it is wired to through the adapter.</div>
+      <div class="hdr" id="pico"></div>
+      <div class="sub" style="margin-top:14px">Not on the header, already spoken for:</div>
+      <div class="offhdr" id="off"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>Why the two shades of "free".</strong> The vendor pinout PDF for the adapter is an unrelated ESP32-style table, so the only trustworthy mappings are the ones the firmware's pin discovery and the Spectra 6 sibling project found: BCM 8/9/10/11/15/16/17/22/24/26/27. BCM25 → GP28 was reported but not metered. Every other pin is assumed to be 1:1 (BCM n → GP n) because every verified non-SPI pin was. Put a meter between the splitter pin and the Pico header pin before soldering anything to an amber pin.</p>
+  </div>
+
+  <h2>Free pins at a glance</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th class="m">Pi pin</th><th class="m">Pi name</th><th class="m">Pico GP</th><th>Status</th><th>Pico peripherals on this GP</th><th>Good for</th></tr></thead>
+      <tbody id="freetbl"></tbody>
+    </table>
+  </div>
+
+  <h2>Suggested allocation for the next phases</h2>
+  <p>The handover lists three things still to wire: the MAX98357A amplifier over I2S, the PowerBoost 1000C mains and battery sense lines, and nothing else on the header (the APDS-9960 joins the Qw/ST chain). This plan uses the verified pins for anything analogue and the Pi header's own PCM pins for I2S, which keeps the splitter labels honest.</p>
+  <div class="two">
+    <div class="card">
+      <h3>MAX98357A (I2S, three signals)</h3>
+      <ul>
+        <li><strong>BCLK → Pi pin 12 (BCM18) → GP18</strong></li>
+        <li><strong>LRCLK → Pi pin 35 (BCM19) → GP19</strong></li>
+        <li><strong>DIN → Pi pin 40 (BCM21) → GP21</strong></li>
+        <li>VIN → 5 V (pin 2 or 4), GND → any GND. Leave SD floating for L+R/2 mono, or tie it to a free pin if you want hardware mute (GP16 is a verified spare).</li>
+      </ul>
+      <p style="margin-top:8px">pico-extras <code>audio_i2s</code> wants BCLK and LRCLK on consecutive GPs (<code>clock_pin_base = 18</code>) and any pin for data; GP18/GP19/GP21 satisfy that and are the Pi's native PCM_CLK, PCM_FS and PCM_DOUT, so the splitter silkscreen matches. All three are amber: meter them first. Verified fallback if any fail: BCLK GP26, LRCLK GP27, DIN GP22, at the cost of the two ADC pins.</p>
+    </div>
+    <div class="card">
+      <h3>PowerBoost 1000C sensing</h3>
+      <ul>
+        <li><strong>Bat (battery voltage) → divider → Pi pin 37 (BCM26) → GP26 / ADC0</strong></li>
+        <li><strong>USB (mains present) → divider → Pi pin 13 (BCM27) → GP27 / ADC1</strong></li>
+        <li><strong>LBO (low battery, optional) → divider → Pi pin 22 (BCM25) → GP28 / ADC2.</strong> LBO sits at battery voltage when healthy, so it needs the divider too. GP22 stays a verified spare.</li>
+      </ul>
+      <p style="margin-top:8px">GP26, GP27 and GP28 are the only ADC-capable pins the Pico Plus 2 W brings to its header (GP29 belongs to the radio), so keep the two verified ones for analogue. Bat peaks at 4.2 V and USB at 5 V; a 2:1 divider (two 100 kΩ) keeps both under the 3.3 V ADC ceiling. See the wiring guide for the divider values.</p>
+    </div>
+  </div>
+
+  <h2>What is already taken, and why</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th class="m">Pico GP</th><th class="m">Pi pin</th><th>Owner</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="m">GP10</td><td class="m">23 · SCLK</td><td><span class="chip hat">HAT</span></td><td>IT8951 SPI clock, PIO SPI at 12.5 MHz (<code>EPD_PIN_SCLK</code>)</td></tr>
+        <tr><td class="m">GP11</td><td class="m">19 · MOSI</td><td><span class="chip hat">HAT</span></td><td>IT8951 MOSI (<code>EPD_PIN_MOSI</code>)</td></tr>
+        <tr><td class="m">GP12</td><td class="m">21 · MISO</td><td><span class="chip hat">HAT</span></td><td>IT8951 MISO. Adapter puts Pi SPI0 on the Pico's SPI1 pins, so this is GP12, not GP9</td></tr>
+        <tr><td class="m">GP8</td><td class="m">24 · CE0</td><td><span class="chip hat">HAT</span></td><td>IT8951 chip select (<code>EPD_PIN_CS</code>)</td></tr>
+        <tr><td class="m">GP17</td><td class="m">11 · BCM17</td><td><span class="chip hat">HAT</span></td><td>IT8951 reset, active low</td></tr>
+        <tr><td class="m">GP1</td><td class="m">18 · BCM24</td><td><span class="chip hat">HAT</span></td><td>IT8951 HRDY. BCM24 is re-routed here because GP24 is a radio pin. Also costs UART0 RX, which stdio over USB does not need</td></tr>
+        <tr><td class="m">GP4 / GP5</td><td class="m">7 / 29 (if 1:1)</td><td><span class="chip shared">I2C0</span></td><td>Qw/ST connector: seesaw encoder (0x36), NeoKey 1x4 (0x30), APDS-9960 later. The same GPs probably surface on the Pi header as BCM4/BCM5, so those two splitter pins are the I2C bus, not spares. Hang more I2C devices there, nothing else</td></tr>
+        <tr><td class="m">GP15</td><td class="m">10 · RXD</td><td><span class="chip res">firmware</span></td><td><code>BTN_PIN</code>: optional bench push-button to GND, pulled up, idle high. Free to reassign once the NeoKey covers that job</td></tr>
+        <tr><td class="m">GP23 GP24 GP25 GP29</td><td class="m">—</td><td><span class="chip unk">radio</span></td><td>RM2 wireless module (REG_ON, DATA, CS, CLK). Not on the header at all</td></tr>
+        <tr><td class="m">GP45</td><td class="m">—</td><td><span class="chip res">board</span></td><td>BOOT button, active low; firmware reads it as a second user button</td></tr>
+        <tr><td class="m">GP47</td><td class="m">—</td><td><span class="chip res">board</span></td><td>PSRAM chip select (QMI CS1) for the 8 MB APS6404 frame buffer</td></tr>
+        <tr><td class="m">GP43</td><td class="m">—</td><td><span class="chip res">board</span></td><td>VSYS sense, internal</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Before you solder: confirm the amber pins</h2>
+  <div class="two">
+    <div class="card">
+      <h3>With a meter (two minutes)</h3>
+      <ol>
+        <li>Power off, HAT unplugged, Pico still in the adapter.</li>
+        <li>Continuity from each amber splitter pin to the Pico header pin the diagram predicts (Pico pin numbers are in the circles).</li>
+        <li>Also probe Pi pins 16 (BCM23) and 32 (BCM12): the diagram leaves them grey because their GP is unknown. GP0 and GP9 are the two Pico GPs with no verified Pi-side pin, so those are the likely landing spots.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>With the firmware's pin discovery</h3>
+      <p>The diag path in <code>src/main.c</code> already walks GP0 to GP29 with pulls and reports which pins move. Jumper one amber splitter pin to GND at a time, run the diag, and the GP that reads low is your answer. That is how the SPI and HRDY mappings were found in the first place.</p>
+    </div>
+  </div>
+
+  <h2>Sources</h2>
+  <p class="src">
+    Bench-verified map and firmware pin defines: <code>HANDOVER.md</code>, <code>include/epd_io.h</code>, <code>include/seesaw.h</code>, <code>src/main.c</code> in this repo, and the <a href="https://github.com/dmellok/ed103tc2-pico-driver">ed103tc2-pico-driver</a> / <a href="https://github.com/dmellok/el133-pico-driver">el133-pico-driver</a> bench projects.
+    HAT header usage: <a href="https://www.waveshare.com/wiki/10.3inch_e-Paper_HAT">Waveshare 10.3inch e-Paper HAT wiki</a>.
+    Board pins: Pimoroni <a href="https://cdn.shopify.com/s/files/1/0174/1800/files/ppico_plus_2_w_pinout_diagram.pdf?v=1727350378">Pico Plus 2 W pinout</a> and the pico-sdk board header <code>pimoroni_pico_plus2_w_rp2350.h</code> (RM2 on GP23/24/25/29, BOOT GP45, PSRAM CS GP47).
+    Adapter: <a href="https://thepihut.com/products/pico-to-pi-hat">Hard Stuff Pico to Pi HAT</a>; its own pinout PDF was not used because it does not describe this board.
+    Last checked 29 October 2026.
+  </p>
+</div>
+
+<script>
+// status keys: free, assumed, shared, res, hat, unk, radio, p5, p3, gnd, ctl
+const GP = {
+  0:  {st:'unk',    pi:null, piName:'not verified', fn:'UART0 TX · I2C0 SDA · SPI0 RX · PWM0A', note:'free on the Pico; which Pi pin reaches it is unknown (BCM23?)'},
+  1:  {st:'hat',    pi:18, piName:'BCM24', fn:'UART0 RX · I2C0 SCL · SPI0 CSn · PWM0B', note:'HRDY'},
+  2:  {st:'assumed',pi:3,  piName:'BCM2 SDA1', fn:'I2C1 SDA · SPI0 SCK · UART0 CTS · PWM1A', note:''},
+  3:  {st:'assumed',pi:5,  piName:'BCM3 SCL1', fn:'I2C1 SCL · SPI0 TX · UART0 RTS · PWM1B', note:''},
+  4:  {st:'shared', pi:7,  piName:'BCM4', fn:'I2C0 SDA · UART1 TX · SPI0 RX · PWM2A', note:'Qw/ST SDA'},
+  5:  {st:'shared', pi:29, piName:'BCM5', fn:'I2C0 SCL · UART1 RX · SPI0 CSn · PWM2B', note:'Qw/ST SCL'},
+  6:  {st:'assumed',pi:31, piName:'BCM6', fn:'I2C1 SDA · SPI0 SCK · UART1 CTS · PWM3A', note:''},
+  7:  {st:'assumed',pi:26, piName:'BCM7 CE1', fn:'I2C1 SCL · SPI0 TX · UART1 RTS · PWM3B', note:''},
+  8:  {st:'hat',    pi:24, piName:'BCM8 CE0', fn:'SPI1 RX · I2C0 SDA · UART1 TX · PWM4A', note:'CS'},
+  9:  {st:'unk',    pi:null, piName:'not verified', fn:'SPI1 CSn · I2C0 SCL · UART1 RX · PWM4B', note:'free on the Pico; Pi pin unknown (BCM12?)'},
+  10: {st:'hat',    pi:23, piName:'BCM11 SCLK', fn:'SPI1 SCK · I2C1 SDA · PWM5A', note:'SCK'},
+  11: {st:'hat',    pi:19, piName:'BCM10 MOSI', fn:'SPI1 TX · I2C1 SCL · PWM5B', note:'MOSI'},
+  12: {st:'hat',    pi:21, piName:'BCM9 MISO', fn:'SPI1 RX · I2C0 SDA · UART0 TX · PWM6A', note:'MISO'},
+  13: {st:'assumed',pi:33, piName:'BCM13 PWM1', fn:'SPI1 CSn · I2C0 SCL · UART0 RX · PWM6B', note:''},
+  14: {st:'assumed',pi:8,  piName:'BCM14 TXD', fn:'SPI1 SCK · I2C1 SDA · PWM7A', note:''},
+  15: {st:'res',    pi:10, piName:'BCM15 RXD', fn:'SPI1 TX · I2C1 SCL · PWM7B', note:'BTN_PIN (optional)'},
+  16: {st:'free',   pi:36, piName:'BCM16', fn:'SPI0 RX · I2C0 SDA · UART0 TX · PWM0A', note:''},
+  17: {st:'hat',    pi:11, piName:'BCM17', fn:'SPI0 CSn · I2C0 SCL · UART0 RX · PWM0B', note:'RST'},
+  18: {st:'assumed',pi:12, piName:'BCM18 PCM_CLK', fn:'SPI0 SCK · I2C1 SDA · PWM1A', note:'I2S BCLK candidate'},
+  19: {st:'assumed',pi:35, piName:'BCM19 PCM_FS', fn:'SPI0 TX · I2C1 SCL · PWM1B', note:'I2S LRCLK candidate'},
+  20: {st:'assumed',pi:38, piName:'BCM20 PCM_DIN', fn:'SPI0 RX · I2C0 SDA · UART1 TX · PWM2A', note:''},
+  21: {st:'assumed',pi:40, piName:'BCM21 PCM_DOUT', fn:'SPI0 CSn · I2C0 SCL · UART1 RX · PWM2B', note:'I2S DIN candidate'},
+  22: {st:'free',   pi:15, piName:'BCM22', fn:'SPI0 SCK · I2C1 SDA · PWM3A', note:'spare'},
+  26: {st:'free',   pi:37, piName:'BCM26', fn:'ADC0 · SPI1 SCK · I2C1 SDA · PWM5A', note:'battery sense candidate'},
+  27: {st:'free',   pi:13, piName:'BCM27', fn:'ADC1 · SPI1 TX · I2C1 SCL · PWM5B', note:'mains sense candidate'},
+  28: {st:'assumed',pi:22, piName:'BCM25', fn:'ADC2 · SPI1 RX · I2C0 SDA · PWM6A', note:'mapping reported, not metered'},
+};
+const STATUS_LABEL = {free:'free · verified', assumed:'free · assumed', shared:'I2C0 bus', res:'reserved', hat:'HAT', unk:'unknown map', radio:'radio'};
+
+// Pi header: physical pin -> {name, bcm|null, kind}
+const PI = {
+  1:{n:'3V3',k:'p3'}, 2:{n:'5V',k:'p5'}, 3:{n:'BCM2 SDA1',g:2}, 4:{n:'5V',k:'p5'}, 5:{n:'BCM3 SCL1',g:3}, 6:{n:'GND',k:'gnd'},
+  7:{n:'BCM4',g:4}, 8:{n:'BCM14 TXD',g:14}, 9:{n:'GND',k:'gnd'}, 10:{n:'BCM15 RXD',g:15}, 11:{n:'BCM17',g:17}, 12:{n:'BCM18 PCM_CLK',g:18},
+  13:{n:'BCM27',g:27}, 14:{n:'GND',k:'gnd'}, 15:{n:'BCM22',g:22}, 16:{n:'BCM23',k:'unk',note:'re-routed (GP23 is radio); GP unknown'},
+  17:{n:'3V3',k:'p3'}, 18:{n:'BCM24',g:1}, 19:{n:'BCM10 MOSI',g:11}, 20:{n:'GND',k:'gnd'}, 21:{n:'BCM9 MISO',g:12}, 22:{n:'BCM25',g:28},
+  23:{n:'BCM11 SCLK',g:10}, 24:{n:'BCM8 CE0',g:8}, 25:{n:'GND',k:'gnd'}, 26:{n:'BCM7 CE1',g:7},
+  27:{n:'ID_SD',k:'unk',note:'HAT EEPROM line; leave alone'}, 28:{n:'ID_SC',k:'unk',note:'HAT EEPROM line; leave alone'},
+  29:{n:'BCM5',g:5}, 30:{n:'GND',k:'gnd'}, 31:{n:'BCM6',g:6}, 32:{n:'BCM12 PWM0',k:'unk',note:'GP12 is MISO; where this lands is unknown'},
+  33:{n:'BCM13 PWM1',g:13}, 34:{n:'GND',k:'gnd'}, 35:{n:'BCM19 PCM_FS',g:19}, 36:{n:'BCM16',g:16},
+  37:{n:'BCM26',g:26}, 38:{n:'BCM20 PCM_DIN',g:20}, 39:{n:'GND',k:'gnd'}, 40:{n:'BCM21 PCM_DOUT',g:21},
+};
+// Pico header physical pin -> label
+const PICO = {
+  1:'GP0',2:'GP1',3:'GND',4:'GP2',5:'GP3',6:'GP4',7:'GP5',8:'GND',9:'GP6',10:'GP7',11:'GP8',12:'GP9',13:'GND',14:'GP10',15:'GP11',16:'GP12',17:'GP13',18:'GND',19:'GP14',20:'GP15',
+  21:'GP16',22:'GP17',23:'GND',24:'GP18',25:'GP19',26:'GP20',27:'GP21',28:'GND',29:'GP22',30:'RUN',31:'GP26',32:'GP27',33:'GND',34:'GP28',35:'ADC_VREF',36:'3V3',37:'3V3_EN',38:'GND',39:'VSYS',40:'VBUS',
+};
+const PICO_PIN_OF_GP = {}; for (const [p,l] of Object.entries(PICO)) if (l.startsWith('GP')) PICO_PIN_OF_GP[+l.slice(2)] = +p;
+
+function pinEl(num, a, b, st, right){
+  const d=document.createElement('div'); d.className='pin '+st+(right?' r':'');
+  const n=`<span class="n">${num}</span>`; const t=`<span class="t"><span class="a">${a}</span><br><span class="b">${b}</span></span>`;
+  d.innerHTML = right ? t+n : n+t; return d;
+}
+function hatNote(g){ const o=GP[g]; return o.st==='hat' ? `IT8951 ${o.note}` : o.note; }
+
+// Pi header render
+const pi=document.getElementById('pi');
+for(let p=1;p<=40;p++){
+  const row=PI[p]; let st,a,b;
+  if(row.k==='p3'||row.k==='p5'||row.k==='gnd'){st=row.k;a=row.n;b=st==='gnd'?'ground':(st==='p5'?'from VBUS · HAT power':'3.3 V from Pico');}
+  else if(row.k==='unk'){st='unk';a=row.n;b=row.note;}
+  else {const g=row.g,o=GP[g];st=o.st;a=`${row.n} → GP${g}`;b=(o.st==='free'?'free · verified':o.st==='assumed'?'free · assumed 1:1':o.st==='shared'?'I2C0 · Qw/ST chain':o.st==='res'?'reserved':'HAT')+(hatNote(g)?' · '+hatNote(g):'');}
+  pi.appendChild(pinEl(p,a,b,st,p%2===0));
+}
+// Pico header render
+const pc=document.getElementById('pico');
+for(let p=1;p<=40;p++){
+  const l=PICO[p]; let st,a,b;
+  if(l==='GND'){st='gnd';a='GND';b='ground';}
+  else if(l==='VBUS'){st='p5';a='VBUS';b='5 V from USB-C · feeds Pi 5 V pins and the HAT';}
+  else if(l==='VSYS'){st='p5';a='VSYS';b='system supply in/out';}
+  else if(l==='3V3'){st='p3';a='3V3';b='300 mA budget shared with the radio';}
+  else if(l==='3V3_EN'||l==='RUN'||l==='ADC_VREF'){st='ctl';a=l;b=l==='RUN'?'reset, active low':l==='3V3_EN'?'regulator enable':'ADC reference';}
+  else {const g=+l.slice(2),o=GP[g];st=o.st;a=l+(o.pi?` ← Pi ${o.pi}`:'');b=(o.st==='unk'?'free on Pico · Pi pin unknown':STATUS_LABEL[o.st])+(hatNote(g)&&o.st!=='unk'?' · '+hatNote(g):'');}
+  pc.appendChild(pinEl(p,a,b,st,p>20));
+}
+// off-header
+const off=document.getElementById('off');
+[['GP23','RM2 REG_ON','radio'],['GP24','RM2 DATA','radio'],['GP25','RM2 CS','radio'],['GP29','RM2 CLK','radio'],['GP45','BOOT / user button','res'],['GP47','PSRAM CS (QMI CS1)','res'],['GP43','VSYS sense','res'],['WL_GPIO0','board LED (via RM2)','radio']].forEach(([a,b,st])=>{
+  const d=document.createElement('div');d.className='pin '+st;d.innerHTML=`<span class="n">·</span><span class="t"><span class="a">${a}</span><br><span class="b">${b}</span></span>`;off.appendChild(d);
+});
+// free table
+const tb=document.getElementById('freetbl');
+const order=[16,22,26,27,28,2,3,6,7,13,14,18,19,20,21,15,4,5,0,9];
+const goodFor={16:'digital spare: amp SD/mute, LED, button',22:'verified digital spare (LBO alternative via divider)',26:'ADC0: battery voltage via divider',27:'ADC1: mains-present via divider',28:'ADC2: PowerBoost LBO via 2:1 divider (optional)',2:'I2C1 second bus, or digital',3:'I2C1 second bus, or digital',6:'digital / PWM',7:'digital / PWM',13:'digital / PWM',14:'UART1-free digital / PWM',18:'I2S BCLK (pico-extras clock_pin_base)',19:'I2S LRCLK (base+1)',20:'digital / PWM',21:'I2S DIN',15:'external button (current firmware), or digital once reassigned',4:'more Qw/ST I2C devices only',5:'more Qw/ST I2C devices only',0:'digital once its Pi pin is found',9:'digital once its Pi pin is found'};
+order.forEach(g=>{const o=GP[g];const tr=document.createElement('tr');
+  const piCell=o.pi?`${o.pi}`:'?';
+  tr.innerHTML=`<td class="m">${piCell}</td><td class="m">${o.piName}</td><td class="m">GP${g} <span style="color:var(--muted)">(Pico pin ${PICO_PIN_OF_GP[g]})</span></td><td><span class="chip ${o.st}">${STATUS_LABEL[o.st]}</span>${o.note&&o.st!=='hat'?`<div class="b" style="font-size:12px;color:var(--muted)">${o.note}</div>`:''}</td><td style="font-family:var(--mono);font-size:12.5px">${o.fn}</td><td>${goodFor[g]||''}</td>`;
+  tb.appendChild(tr);});
+</script>
+</body>
+</html>
