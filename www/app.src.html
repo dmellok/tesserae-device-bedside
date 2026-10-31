@@ -245,6 +245,7 @@ details.more[open] summary::after{transform:rotate(-135deg)}
   <div class="card">
     <div class="seg" id="dashes"></div>
     <div class="grid2" style="margin-top:10px">
+      <button class="btn" data-cmd="picks"><span data-i="list"></span>Refresh list</button>
       <button class="btn" data-cmd="fetch"><span data-i="arrow-clockwise"></span>Fetch now</button>
       <button class="btn" data-cmd="action=refresh"><span data-i="monitor"></span>Re-render</button>
     </div>
@@ -640,7 +641,8 @@ function renderAlarms(force){
 $('#alarm-add').onclick=()=>{alarmsLocal.push({h:7,m:0,on:1,days:31,early:15});touch('alarms',3000);cmd('set='+enc('alarm_add|1'));renderAlarms(true)};
 
 /* ---- dashboard picker (Room tab) ---- */
-$('#dashes').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#dashes button').forEach(x=>x.classList.toggle('on',x===b));set('dash',b.dataset.v)};
+$('#dashes').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#dashes button').forEach(x=>x.classList.toggle('on',x===b));touch('dash',4000);
+  if(b.dataset.p!==undefined){set('pick',b.dataset.p);if(+b.dataset.p>=0)toast('Loading '+b.textContent+'…')}else set('dash',b.dataset.v)};
 
 /* ---- console: the panel's log, and the serial commands ---- */
 let logPos=0, logT=0, logBusy=false;
@@ -789,7 +791,12 @@ async function poll(){
     ui=st.ui;failN=0;
     setConn(true,st.busy?'Refreshing':(st.tesserae.local_time||'Online').replace(/^.*T(\d\d:\d\d).*$/,'$1'));
     renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();
-    if(!held('dash')){const ds=ui.dashes.map((n,i)=>`<button data-v="${i}" class="${i===ui.dash?'on':''}">${n}</button>`).join('');if($('#dashes').innerHTML!==ds)$('#dashes').innerHTML=ds}
+    if(!held('dash')){
+      // Tesserae 0.498+: Live, then the dashboards bound to this panel; older servers: the rotation
+      const picks=ui.picks&&ui.picks.length?ui.picks:null;
+      const ds=picks?[`<button data-p="-1" class="${ui.pick<0?'on':''}">Live</button>`].concat(picks.map((n,i)=>`<button data-p="${i}" class="${i===ui.pick?'on':''}">${n.replace(/</g,'&lt;')}</button>`)).join('')
+                    :ui.dashes.map((n,i)=>`<button data-v="${i}" class="${i===ui.dash?'on':''}">${n}</button>`).join('');
+      if($('#dashes').innerHTML!==ds)$('#dashes').innerHTML=ds}
   }catch(e){if(++failN>1)setConn(false,'Offline')}
   inflight=false;
   if(!document.hidden)pollT=setTimeout(poll,failN?3000:1500);

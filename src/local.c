@@ -320,6 +320,25 @@ static void publish(const char *topic, const char *fmt, ...);
 /* Show dashboard k: 0 = the live page drawn here; 1, 2 = the server's rotation
  * (moving between those two steps the rotation; to and from Live only swaps
  * what main.c paints underneath). */
+/* The dashboard picker: Live (drawn here), then the server's list. */
+static int s_dash_sel;                      /* 0 Live, 1.. the list */
+static const char *s_dash_opt[1 + TESS_PICK_MAX];
+static const char *const *dash_opts(void)
+{
+    s_dash_opt[0] = "Live";
+    for (int i = 0; i < tesserae_pick_count(); i++) s_dash_opt[1 + i] = tesserae_pick_title(i);
+    return s_dash_opt;
+}
+static void toast_loading(const char *title);
+static void dash_pick(int k)
+{
+    if (k < 1 || k > tesserae_pick_count()) return;
+    s_dash_sel = k;
+    if (S.dash_page == 0) { S.dash_page = 1; publish("config/dashboard", "%s", "bedside"); }
+    tesserae_pick(k - 1);
+    toast_loading(tesserae_pick_title(k - 1));
+}
+
 static void dash_go(int k)
 {
     if (k < 0 || k > 2 || k == S.dash_page) return;
@@ -818,7 +837,8 @@ static int choice_opts(item_t id, const char *const **o)
     case C_RAIN_KIND: *o = KINDS; return 3;   case C_SLEEP: *o = SLEEPS; return 4;
     case C_COLOUR:    *o = COLOURS; return 2; case C_AC_MODE: *o = MODES4; return 4;
     case C_FAN:       *o = FANS; return 4;    case C_EARLY: *o = EARLY; return 5;
-    case C_DASH:      *o = DASHES; return 3;
+    case C_DASH:      if (!tesserae_pick_count()) { *o = DASHES; return 3; }      /* no list (older server): the rotation */
+                      *o = dash_opts(); return 1 + tesserae_pick_count();
     case C_SURFACE:   *o = SURFACES; return 4;
     case C_KEYCOL: case C_MENUCOL: case C_NIGHTCOL: *o = PAL_NAMES; return N_PAL;
     case C_AUTONIGHT: *o = AUTONIGHT; return 4;
@@ -845,7 +865,7 @@ static int choice_get(item_t id)
     case C_AC_MODE:   for (int i = 0; i < 4; i++) if (MODE_V[i] == S.ac_mode) return i; return 0;
     case C_FAN:       return S.fan;
     case C_EARLY:     for (int i = 0; i < 5; i++) if (EARLY_V[i] == s_alarms[s_ai].early) return i; return 3;
-    case C_DASH:      return S.dash_page;
+    case C_DASH:      return tesserae_pick_count() ? (S.dash_page == 0 ? 0 : s_dash_sel) : S.dash_page;
     case C_SURFACE:   return S.surface;
     case C_KEYCOL:    return S.key_col;
     case C_MENUCOL:   return S.menu_col;
@@ -880,7 +900,9 @@ static void choice_set(item_t id, int k)
     case C_AC_MODE:   S.ac_mode = MODE_V[k]; publish("set/ac", "%s", AC_MODES[S.ac_mode]); break;
     case C_FAN:       S.fan = k; publish("set/ac", "fan %s", FANS[k]); break;
     case C_EARLY:     s_alarms[s_ai].early = EARLY_V[k]; publish_alarm(s_ai); sync_alarm_summary(); break;
-    case C_DASH:      dash_go(k); break;
+    case C_DASH:      if (!tesserae_pick_count()) { dash_go(k); break; }
+                      if (k == 0) { dash_go(0); s_dash_sel = 0; break; }
+                      dash_pick(k); break;
     case C_SURFACE:   S.surface = k; S.rain_on = true; publish("set/rain", "surface %s", SURFACES[k]); break;
     case C_KEYCOL:    S.key_col = k; apply_colours(); break;
     case C_MENUCOL:   S.menu_col = k; apply_colours(); break;
@@ -912,6 +934,7 @@ static void row_value(const row_def_t *r, char *b, size_t n)
     case K_TOGGLE: snprintf(b, n, "%s", toggle_get(r) ? "On" : "Off"); break;
     case K_VALUE:  value_text(r->id, b, n); break;
     case K_CHOICE: { if (r->id == C_RESET) break;
+                     if (r->id == C_DASH && tesserae_pick_count() && S.dash_page) { snprintf(b, n, "%s", tesserae_pick_title(s_dash_sel - 1 >= 0 ? s_dash_sel - 1 : 0)); break; }
                      if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) s_ki = r->arg;
                      int k = choice_opts(r->id, &o), c = choice_get(r->id);
                      if (k && c >= 0) snprintf(b, n, "%s", o[c]);
@@ -1718,7 +1741,7 @@ static void build_overlay(layer_t *l)
 /* ---- confirmations: a box over everything, then the screen as it was ------------
  * A key action or a volume change on the home screen says what it did for
  * 1.5 s; the dashboard underneath is repainted from the frame in PSRAM. */
-static char s_toast_txt[24], s_toast_val[24];
+static char s_toast_txt[24], s_toast_val[44];
 static const char *s_toast_icon;
 
 static void toast(const char *icon, const char *txt, const char *val)
@@ -1729,6 +1752,20 @@ static void toast(const char *icon, const char *txt, const char *val)
     s_toast_until = (now_ms() + 3000u) | 1u;          /* long enough to read from the pillow */
     rebuild();
     mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, IT8951_MODE_GL16);
+}
+
+static bool s_toast_loading;
+static void toast_loading(const char *title)
+{
+    toast(ICON_HOUSE, "Loading", title);
+    s_toast_loading = true;
+    s_toast_until = (now_ms() + 40000u) | 1u;            /* a first render can take a while */
+}
+/* main.c: a new frame arrived, so the loading card goes with the repaint. */
+void local_frame_arrived(void)
+{
+    if (!s_toast_loading) return;
+    s_toast_loading = false; s_toast_until = 0; rebuild();
 }
 
 static void build_toast(layer_t *l)
@@ -1745,7 +1782,10 @@ static void build_toast(layer_t *l)
     }
     int ty = cy - (F_M->line_h + 8 + F_XL->line_h) / 2;
     op_text(l, x, ty, F_M, G_DARK, s_toast_txt);
-    op_text(l, x, ty + F_M->line_h + 8, F_XL, G_BLACK, s_toast_val[0] ? s_toast_val : s_toast_txt);
+    const char *v = s_toast_val[0] ? s_toast_val : s_toast_txt;
+    int room = TOAST_X + TOAST_W - 56 - x;
+    const bfont_t *vf = draw_font_w(F_XL, v) <= room ? F_XL : draw_font_w(F_L, v) <= room ? F_L : F_M;   /* long titles */
+    op_text(l, x, ty + F_M->line_h + 8, vf, G_BLACK, v);
 }
 
 static void rebuild(void)
@@ -2154,7 +2194,8 @@ bool local_press(void)
         case K_SUB:    if (r.id == S_ALARM_ITEM) s_ai = r.arg; if (r.id == S_KEY) s_ki = r.arg; push_node(sub_node(r.id)); return true;
         case K_VALUE:  if ((r.id == V_TIME || r.id == V_DATE) && S.auto_time) return true;
                        s_edit = r.id; snprintf(s_edit_label, sizeof s_edit_label, "%s", r.label); s_mode = M_VALUE; mark_screen(); return true;
-        case K_CHOICE: s_edit = r.id; snprintf(s_edit_label, sizeof s_edit_label, "%s", r.label); s_csel = clampi(choice_get(r.id), 0, 99); s_mode = M_CHOICE; mark_screen(); return true;
+        case K_CHOICE: if (r.id == C_DASH) tesserae_picks_fetch();     /* fresh: dashboards can be bound any time */
+                       s_edit = r.id; snprintf(s_edit_label, sizeof s_edit_label, "%s", r.label); s_csel = clampi(choice_get(r.id), 0, 99); s_mode = M_CHOICE; mark_screen(); return true;
         case K_BACK:   list_back(); return true;
         case K_ACTION:
             if (r.id == A_ADD_ALARM && s_nalarms < MAX_ALARMS) {
@@ -2301,7 +2342,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "fan"))       { if (v < 0 || v > 3) return false; S.fan = v; publish("set/ac", "fan %s", FANS[v]); }
     else if (!strcmp(key, "night"))     { if ((v != 0) != S.night) toggle_flip(&R_T_NIGHT); }
     else if (!strcmp(key, "keylights")) { if (v < 0 || v > 100) return false; uint8_t lv = (uint8_t)(v * 255 / 100); inputs_set_backlight(lv); config_set_lights(lv, S.night); config_save(); return true; }
-    else if (!strcmp(key, "dash"))      { if (v < 0 || v > 2) return false; choice_set(C_DASH, v); }
+    else if (!strcmp(key, "dash"))      { if (v < 0 || v > 2) return false; dash_go(v); if (s_mode == M_HOME) mark_screen(); }
+    else if (!strcmp(key, "pick"))      { if (v < -1 || v >= tesserae_pick_count()) return false; if (v < 0) { dash_go(0); s_dash_sel = 0; } else dash_pick(v + 1); }
     else if (!strcmp(key, "patter") || !strcmp(key, "wash") || !strcmp(key, "tone") || !strcmp(key, "wind") ||
              !strcmp(key, "thunder") || !strcmp(key, "thunder_near")) {
         if (v < 0 || v > 100) return false;
@@ -2515,6 +2557,9 @@ size_t local_state_json(char *b, size_t cap)
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
     J("\"lights\":{\"on\":%d,\"bright\":%d,\"colour\":%d},", S.lights_on, S.bright, S.light_mode);
     J("\"ac\":{\"mode\":%d,\"sp\":%d.%d,\"fan\":%d,\"room\":%d.%d},", S.ac_mode, S.sp_x2 / 2, (S.sp_x2 % 2) * 5, S.fan, S.room_x10 / 10, S.room_x10 % 10);
+    J("\"picks\":[");
+    for (int i = 0; i < tesserae_pick_count(); i++) J("%s\"%s\"", i ? "," : "", tesserae_pick_title(i));
+    J("],\"pick\":%d,", S.dash_page ? s_dash_sel - 1 : -1);
     J("\"night\":%d,\"keylights\":%d,\"dash\":%d,\"dashes\":[\"%s\",\"%s\",\"%s\"],\"phase\":%d,\"screen\":\"%s\",\"alarms\":[",
       S.night, inputs_backlight() * 100 / 255, S.dash_page, DASHES[0], DASHES[1], DASHES[2], (int)S.phase, local_screen_name(local_screen()));
     for (int i = 0; i < s_nalarms; i++) {

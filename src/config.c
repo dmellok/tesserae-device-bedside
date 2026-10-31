@@ -20,6 +20,10 @@
 #include "pico/multicore.h"
 #include "hardware/sync.h"
 #include "hardware/regs/addressmap.h"   /* XIP_BASE */
+/* Flash as stored, not as mapped: when the firmware runs from partition B the
+ * boot ROM translates XIP_BASE onto that partition, so the config at 15 MB is
+ * read through the untranslated (uncached) window instead. */
+#define FLASH_RAW XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE
 
 #define CONFIG_FLASH_OFFSET   (15u * 1024 * 1024)
 #define CONFIG_OLD_OFFSET     (2u * 1024 * 1024)
@@ -70,7 +74,7 @@ static void defaults(void)
 
 static bool valid_at(uint32_t off)
 {
-    const stored_t *f = (const stored_t *)(XIP_BASE + off);
+    const stored_t *f = (const stored_t *)(FLASH_RAW + off);
     return f->magic == CONFIG_MAGIC && f->version == CONFIG_VERSION && f->crc == crc32(f, offsetof(stored_t, crc));
 }
 
@@ -90,12 +94,12 @@ static bool migrate_holds(void)
 bool config_load(void)
 {
     if (valid_at(CONFIG_FLASH_OFFSET)) {
-        s_cfg = ((const stored_t *)(XIP_BASE + CONFIG_FLASH_OFFSET))->cfg;
+        s_cfg = ((const stored_t *)(FLASH_RAW + CONFIG_FLASH_OFFSET))->cfg;
         if (migrate_holds()) config_save();
         return true;
     }
     if (valid_at(CONFIG_OLD_OFFSET)) {
-        s_cfg = ((const stored_t *)(XIP_BASE + CONFIG_OLD_OFFSET))->cfg;
+        s_cfg = ((const stored_t *)(FLASH_RAW + CONFIG_OLD_OFFSET))->cfg;
         printf("config: moving from the 2 MB sector (inside the firmware image) to 15 MB\n");
         config_save();
         return true;
@@ -106,10 +110,14 @@ bool config_load(void)
 
 /* Erase one sector and program len bytes (a multiple of the page size). */
 typedef struct { uint32_t off; const uint8_t *data; size_t len; } flash_job_t;
+volatile int g_flash_step;              /* diagnostics: how far the last write got */
 static void write_sector(const flash_job_t *j)
 {
+    g_flash_step = 3;
     flash_range_erase(j->off, FLASH_SECTOR_SIZE);
+    g_flash_step = 4;
     flash_range_program(j->off, j->data, j->len);
+    g_flash_step = 5;
 }
 
 /* Core 1 paints from flash-resident code, so park it in RAM (the SDK's
@@ -122,12 +130,20 @@ static void flash_write(uint32_t off, const uint8_t *data, size_t len)
 {
     flash_job_t j = { off, data, len };
     bool park = multicore_lockout_victim_is_initialized(1);
+    g_flash_step = 1;
     if (park) multicore_lockout_start_blocking();
+    g_flash_step = 2;
     uint32_t ints = save_and_disable_interrupts();
     write_sector(&j);
     restore_interrupts(ints);
+    g_flash_step = 6;
     if (park) multicore_lockout_end_blocking();
+    g_flash_step = 7;
 }
+
+/* One 4 KB sector (erase, then program up to 4 KB from SRAM), core 1 parked:
+ * the firmware updater writes the spare partition with this. */
+void config_flash_sector(uint32_t off, const uint8_t *data, size_t len) { flash_write(off, data, len); }
 
 /* Master reset: erase the config and every blob sector. The caller reboots;
  * config_seed() then starts again from include/secrets.h. */
@@ -146,7 +162,7 @@ typedef struct { uint32_t magic, len, crc; } blob_hdr_t;
 bool config_blob_load(int slot, uint32_t magic, void *data, size_t len)
 {
     if (slot < 1 || slot > 8) return false;
-    const blob_hdr_t *h = (const blob_hdr_t *)(XIP_BASE + BLOB_OFF(slot));
+    const blob_hdr_t *h = (const blob_hdr_t *)(FLASH_RAW + BLOB_OFF(slot));
     if (h->magic != magic || h->len != len || h->crc != crc32(h + 1, len)) return false;
     memcpy(data, h + 1, len);
     return true;
@@ -162,7 +178,7 @@ bool config_blob_save(int slot, uint32_t magic, const void *data, size_t len)
     memcpy(page + sizeof h, data, len);
     size_t n = ((sizeof h + len + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE;
     flash_write(BLOB_OFF(slot), page, n);
-    blob_hdr_t chk; memcpy(&chk, (const void *)(XIP_BASE + BLOB_OFF(slot)), sizeof chk);
+    blob_hdr_t chk; memcpy(&chk, (const void *)(FLASH_RAW + BLOB_OFF(slot)), sizeof chk);
     return chk.crc == h.crc;
 }
 
@@ -181,7 +197,7 @@ bool config_save(void)
 
     flash_write(CONFIG_FLASH_OFFSET, page, CONFIG_PAGE_BYTES);
 
-    const stored_t *f = (const stored_t *)(XIP_BASE + CONFIG_FLASH_OFFSET);
+    const stored_t *f = (const stored_t *)(FLASH_RAW + CONFIG_FLASH_OFFSET);
     return (f->magic == CONFIG_MAGIC && f->crc == crc32(f, offsetof(stored_t, crc)));
 }
 

@@ -40,6 +40,8 @@ int         net_rssi(void);
 void app_command(const char *name, const char *value);
 /* Write the state JSON; returns its length. */
 size_t app_state_json(char *buf, size_t cap);
+/* Called repeatedly while net_init() waits for the WiFi join. */
+void net_set_wait_hook(void (*fn)(void));
 /* The log (the web console): text from byte `from`; *next is where to read next. */
 size_t app_log_read(uint32_t from, char *dst, size_t cap, uint32_t *next);
 /* Render the preview at 1/scale into the app's buffer and return it; scale 0

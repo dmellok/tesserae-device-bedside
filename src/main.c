@@ -42,6 +42,8 @@
 
 #include "it8951.h"
 #include "epd_io.h"
+#include "ota.h"
+#include "boot_logo.h"
 #include "patterns.h"
 #include "images.h"
 #include "psram.h"
@@ -92,7 +94,9 @@ static bool     tune_banner        = true;
 
 static void handle_key(int ch);
 static void console_input(const char *text);
-typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE } content_t;   /* LIVE: white, the live page is drawn over it */
+static volatile const char *s_phase = "boot";   /* last main-loop phase passed (state JSON) */
+static volatile uint32_t    s_loops;
+typedef enum { CONTENT_DASHBOARD, CONTENT_CARD, CONTENT_WHITE, CONTENT_LIVE, CONTENT_BOOT } content_t;   /* BOOT: logo + the boot log */   /* LIVE: white, the live page is drawn over it */
 static content_t cur_content = CONTENT_CARD;
 
 static void frame_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
@@ -123,8 +127,111 @@ static void ramp_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
     }
 }
 
+/* ---- the boot screen: the Tesserae logo, the firmware, and the log as it
+ * happens (Font24, the newest line in black), until the first dashboard. ---- */
+#define BOOT_LOGO_X   104                 /* top left, the log aligned under it */
+#define BOOT_LOGO_Y   84
+#define BOOT_SUB_Y    (BOOT_LOGO_Y + 200 + 30)
+#define BOOT_RULE_Y   (BOOT_SUB_Y + 66)
+#define BOOT_LOG_X    112
+#define BOOT_LOG_Y    (BOOT_RULE_Y + 34)
+#define BOOT_LINE_H   30
+#define BOOT_LINES    ((IT8951_H - 50 - BOOT_LOG_Y) / BOOT_LINE_H)
+#define BOOT_COLS     ((IT8951_W - 2 * BOOT_LOG_X) / GLYPH_W)
+typedef struct { char line[BOOT_LINES][BOOT_COLS + 1]; char sub[96]; } boot_text_t;
+static boot_text_t s_boot;                 /* built on core 0 */
+static uint32_t    s_boot_seen, s_boot_last_ms, s_boot_hold_until;
+static uint8_t     s_boot_line[2][IT8951_W];
+
+static size_t app_log_tail(char *dst, size_t cap);
+static volatile uint32_t s_log_w;          /* the console log's write position (below) */
+static void local_flush(void);
+/* Lines left off the screen: the panel's own paint timings (each repaint of
+ * the log would otherwise add a line, and repaint it again). */
+static bool boot_skip(const char *l, size_t n)
+{
+    static const char *const SKIP[] = { "streamed in", "area(s) in parallel", "second pass over" };
+    for (size_t k = 0; k < sizeof SKIP / sizeof SKIP[0]; k++) {
+        size_t m = strlen(SKIP[k]);
+        for (size_t i = 0; i + m <= n; i++) if (!memcmp(l + i, SKIP[k], m)) return true;
+    }
+    return false;
+}
+
+/* The last BOOT_LINES non-empty lines of the log. True when they changed. */
+static bool boot_collect(void)
+{
+    static char tail[3072];
+    static boot_text_t prev;
+    prev = s_boot;
+    size_t n = app_log_tail(tail, sizeof tail);
+    int k = BOOT_LINES;
+    memset(s_boot.line, 0, sizeof s_boot.line);
+    size_t end = n;
+    while (k > 0 && end > 0) {
+        size_t e = end; while (e > 0 && (tail[e - 1] == '\n' || tail[e - 1] == '\r')) e--;
+        if (e == 0) break;
+        size_t b = e; while (b > 0 && tail[b - 1] != '\n') b--;
+        if (boot_skip(tail + b, e - b)) { end = b; continue; }
+        size_t len = e - b; if (len > BOOT_COLS) len = BOOT_COLS;
+        k--;
+        for (size_t i = 0; i < len; i++) { char c = tail[b + i]; s_boot.line[k][i] = (c >= 32 && c < 127) ? c : ' '; }
+        end = b;
+    }
+    if (k > 0) {                            /* fewer lines than rows: top-align */
+        memmove(s_boot.line[0], s_boot.line[k], sizeof s_boot.line[0] * (size_t)(BOOT_LINES - k));
+        memset(s_boot.line[BOOT_LINES - k], 0, sizeof s_boot.line[0] * (size_t)k);
+    }
+    int slot = ota_boot_partition();
+    snprintf(s_boot.sub, sizeof s_boot.sub, "Bedside  \x80  firmware %s%s%c", FW_VERSION, slot >= 0 ? "  \x80  slot " : "", slot >= 0 ? 'A' + slot : ' ');
+    return memcmp(&prev, &s_boot, sizeof prev) != 0;
+}
+
+static void boot_row(int y, uint8_t out[IT8951_ROW_BYTES], const boot_text_t *t)
+{
+    memset(out, 0xFF, IT8951_ROW_BYTES);
+    if (y >= BOOT_LOGO_Y && y < BOOT_LOGO_Y + boot_logo_h) {
+        int x0 = BOOT_LOGO_X & ~1;
+        memcpy(out + x0 / 2, boot_logo + (size_t)(y - BOOT_LOGO_Y) * (boot_logo_w / 2), boot_logo_w / 2);
+        return;
+    }
+    uint8_t *line = s_boot_line[get_core_num()];
+    if (y >= BOOT_SUB_Y && y < BOOT_SUB_Y + ui34.line_h) {
+        memset(line, 0xF, IT8951_W);
+        draw_font_row(&ui34, line, IT8951_W, BOOT_LOG_X, t->sub, y - BOOT_SUB_Y, G_DARK);
+        draw_pack(out, 0, line, IT8951_W);
+        return;
+    }
+    if (y >= BOOT_RULE_Y && y < BOOT_RULE_Y + 2) {
+        memset(line, 0xF, IT8951_W); memset(line + BOOT_LOG_X, G_LIGHT, IT8951_W - 2 * BOOT_LOG_X);
+        draw_pack(out, 0, line, IT8951_W);
+        return;
+    }
+    if (y >= BOOT_LOG_Y && y < BOOT_LOG_Y + BOOT_LINES * BOOT_LINE_H) {
+        int i = (y - BOOT_LOG_Y) / BOOT_LINE_H, g = (y - BOOT_LOG_Y) % BOOT_LINE_H;
+        if (g >= GLYPH_H || !t->line[i][0]) return;
+        bool newest = (i == BOOT_LINES - 1 || !t->line[i + 1][0]);
+        memset(line, 0xF, IT8951_W);
+        draw_text_row(line, IT8951_W, BOOT_LOG_X, t->line[i], g, 1, newest ? G_BLACK : G_DARK);
+        draw_pack(out, 0, line, IT8951_W);
+    }
+}
+
+/* Repaint the log when new lines have arrived (fast 2-level update). */
+static void boot_service(void)
+{
+    if (cur_content != CONTENT_BOOT || s_log_w == s_boot_seen) return;
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (now - s_boot_last_ms < 400 || painter_busy()) return;
+    s_boot_seen = s_log_w; s_boot_last_ms = now;
+    if (!boot_collect()) return;              /* only paint timings arrived */
+    local_mark_area(0, BOOT_LOG_Y, IT8951_W, BOOT_LINES * BOOT_LINE_H, IT8951_MODE_DU);
+    local_flush();
+}
+
 static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
 {
+    if (cur_content == CONTENT_BOOT) { boot_row(y, out, &s_boot); return; }
     const uint8_t *frame = tesserae_frame();
     if (cur_content == CONTENT_DASHBOARD && frame) dash_row(y, out, frame);
     else if (cur_content == CONTENT_WHITE || cur_content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
@@ -133,6 +240,7 @@ static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
 
 static const char *content_name(void)
 {
+    if (cur_content == CONTENT_BOOT) return "boot screen";
     if (cur_content == CONTENT_LIVE) return "live";
     if (cur_content == CONTENT_DASHBOARD) return tesserae_frame() ? "dashboard" : "dashboard (none yet)";
     return cur_content == CONTENT_CARD ? "test card" : "white";
@@ -146,6 +254,7 @@ static void composite_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
     content_row(y, out);
+    if (cur_content == CONTENT_BOOT) return;          /* the boot screen stands alone */
     local_overlay_row(y, out);
     if (tune_banner && banner_text[0]) banner_overlay_row(banner_text, y, out);
 }
@@ -157,6 +266,7 @@ static struct {
     const uint8_t *frame;
     bool           banner;
     char           text[sizeof banner_text];
+    boot_text_t    boot;
 } P;
 
 static void snapshot(void)
@@ -165,12 +275,14 @@ static void snapshot(void)
     P.frame = tesserae_frame();
     P.banner = tune_banner;
     memcpy(P.text, banner_text, sizeof P.text);
+    if (P.content == CONTENT_BOOT) P.boot = s_boot;
     local_snapshot();
 }
 
 static void paint_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
 {
     (void)ctx;
+    if (P.content == CONTENT_BOOT) { boot_row(y, out, &P.boot); return; }
     if (P.content == CONTENT_DASHBOARD && P.frame) dash_row(y, out, P.frame);
     else if (P.content == CONTENT_WHITE || P.content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
     else                                           frame_row(y, out, (void *)sample_card);
@@ -244,7 +356,8 @@ static void paint_pump(void)
     if (!full && !j.n) return;
     /* Screen updates: Clean draws every change with GC16 (just its area), Full
      * repaints the whole screen with GC16 every time. Both keep blacks black. */
-    if (local_refresh_mode() == 2) { full = true; j.mode = IT8951_MODE_GC16; }
+    if (cur_content == CONTENT_BOOT) { if (!full) j.mode = IT8951_MODE_DU; }   /* the boot log: fast, black and white */
+    else if (local_refresh_mode() == 2) { full = true; j.mode = IT8951_MODE_GC16; }
     else if (local_refresh_mode() == 1 && j.mode != IT8951_MODE_INIT) j.mode = IT8951_MODE_GC16;
     j.kind = full ? PJ_FULL : PJ_AREAS;
     s_job_resets = full && j.mode == IT8951_MODE_GC16;
@@ -353,10 +466,12 @@ static void clear_screen(uint8_t mode)
  * a complete page; partial patches are a later protocol step. */
 static void on_frame(void)
 {
+    if (cur_content == CONTENT_BOOT) { printf("paint: dashboard frame %s ready\n", tesserae_frame_etag()); return; }
     if (local_live_active()) {                 /* the live page is up: keep the frame for when it is chosen */
         printf("paint: dashboard frame %s kept (live page showing)\n", tesserae_frame_etag());
         return;
     }
+    local_frame_arrived();
     cur_content = CONTENT_DASHBOARD;
     printf("paint: dashboard frame %s\n", tesserae_frame_etag());
     repaint();
@@ -671,6 +786,14 @@ static void exec_command(const char *name, const char *value)
     else if (!strcmp(name, "movemode"))  { tune_move_mode = (v == IT8951_MODE_GC16) ? IT8951_MODE_GC16 : IT8951_MODE_A2; }
     else if (!strcmp(name, "echo"))      { s_echo_mode = !strcmp(value, "off") ? 0xFF : !strcmp(value, "gc16") ? IT8951_MODE_GC16 : IT8951_MODE_GL16;
                                            printf("paint: second pass %s\n", value); }
+    else if (!strcmp(name, "ota"))       {     /* <url>|<size>|<sha256>[|<version>]: install that image */
+        char u[1024]; snprintf(u, sizeof u, "%s", value);
+        char *f[4] = { u, NULL, NULL, NULL };
+        for (int i = 1; i < 4 && f[i - 1]; i++) { char *bar = strchr(f[i - 1], '|'); if (bar) { *bar = 0; f[i] = bar + 1; } }
+        if (f[1] && f[2]) ota_start(f[0], (uint32_t)strtoul(f[1], NULL, 10), f[2], f[3]);
+        else printf("ota: expected <url>|<size>|<sha256>[|<version>]\n");
+    }
+    else if (!strcmp(name, "picks"))     tesserae_picks_fetch();          /* refresh the dashboard list */
     else if (!strcmp(name, "serial"))    console_input(value);
     else if (!strcmp(name, "enter"))     handle_key('\r');   /* the console's Enter: a knob press */
     else if (!strcmp(name, "spidrive"))  {     /* <mA>[f]: 2/4/8/12, 'f' = fast slew; re-inits the panel link */
@@ -774,6 +897,10 @@ size_t app_state_json(char *buf, size_t cap)
         ls->alarm_h, ls->alarm_m, ls->alarm_on, (int)ls->phase, ls->rain_on, ls->rain_lvl, ls->lights_on, ls->bright,
         ls->ac_mode, ls->sp_x2 / 2, (ls->sp_x2 % 2) * 5, ls->vol, ls->night, ls->on_battery, ls->dash_page);
     ADD("\"live\":"); n += live_json(buf + n, cap > n ? cap - n : 0); ADD(",");
+    { extern volatile int g_flash_step;
+      ADD("\"loop\":{\"phase\":\"%s\",\"n\":%lu,\"flash_step\":%d},", (const char *)s_phase, (unsigned long)s_loops, g_flash_step); }
+    ADD("\"ota\":{\"state\":\"%s\",\"pct\":%d,\"err\":\"%s\",\"to\":\"%s\",\"slot\":%d,\"ab\":%d},",
+        ota_state_name(), ota_percent(), ota_error(), ota_target_version(), ota_boot_partition(), ota_partitioned() ? 1 : 0);
     ADD("\"mqtt\":"); n += ha_status_json(buf + n, cap > n ? cap - n : 0); ADD(",");
     ADD("\"audio\":{\"sr\":%d,\"listeners\":%d,\"cpu_pm\":%d},", AUDIO_SR, audio_listeners(), audio_cpu_permille());
     ADD("\"ui\":"); n += local_state_json(buf + n, cap > n ? cap - n : 0); ADD(",");
@@ -862,8 +989,11 @@ static void pairing_status(void)
 
 /* ---- console: everything printed, kept for the web app's Console tab ---- */
 #include "pico/stdio/driver.h"
-#define LOG_RING 16384u
-static char              s_log[LOG_RING];
+/* A small SRAM ring until PSRAM is up, then 64 KB in PSRAM (log_use_psram). */
+static char              s_log_sram[2048];
+static char             *s_log = s_log_sram;
+static uint32_t          s_log_cap = sizeof s_log_sram;
+#define LOG_RING s_log_cap
 static volatile uint32_t s_log_w;          /* bytes written, ever */
 static void log_out(const char *buf, int len)
 {
@@ -872,6 +1002,13 @@ static void log_out(const char *buf, int len)
     s_log_w = w + (uint32_t)len;
 }
 static stdio_driver_t s_log_drv = { .out_chars = log_out };
+
+static void log_use_psram(char *buf, uint32_t cap)
+{
+    uint32_t w = s_log_w, keep = w < s_log_cap ? w : s_log_cap;
+    for (uint32_t i = 0; i < keep; i++) buf[(w - keep + i) % cap] = s_log[(w - keep + i) % s_log_cap];
+    s_log = buf; s_log_cap = cap;           /* positions stay valid: only the ring grew */
+}
 
 /* Log text from position `from` (bytes ever written); returns bytes copied and
  * where the next read starts. A reader too far behind skips to the oldest kept. */
@@ -884,6 +1021,17 @@ size_t app_log_read(uint32_t from, char *dst, size_t cap, uint32_t *next)
     *next = from + (uint32_t)n;
     return n;
 }
+
+/* The newest `cap` bytes of the log (for the boot screen). */
+static size_t app_log_tail(char *dst, size_t cap)
+{
+    uint32_t w = s_log_w, from = w > cap ? w - (uint32_t)cap : 0, next;
+    return app_log_read(from, dst, cap, &next);
+}
+
+static void paint_pump(void);
+/* While WiFi joins: keep the boot log moving. */
+static void boot_wait(void) { boot_service(); paint_pump(); }
 
 static void handle_key(int ch);
 /* Typed into the web console: the same handler as the USB serial port. */
@@ -1038,7 +1186,9 @@ static void ui_service(void)
     {   /* the live page vs the server's frames: follow the chosen dashboard */
         static int last_live = -1;
         int live = local_live_active() ? 1 : 0;
-        if (live != last_live) { last_live = live; show_content(live ? CONTENT_LIVE : CONTENT_DASHBOARD); }
+        bool booting = cur_content == CONTENT_BOOT && (int32_t)(to_ms_since_boot(get_absolute_time()) - s_boot_hold_until) < 0;
+        if (booting) boot_service();
+        else if (live != last_live || cur_content == CONTENT_BOOT) { last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE)); }
     }
     if (local_live_tick()) local_flush();
     switch (local_take_request()) {               /* asked for from the panel's settings */
@@ -1062,6 +1212,7 @@ int main(void)
 
     size_t psram = psram_init(PSRAM_CS_PIN_PLUS2);
     have_psram = (psram >= IT8951_FRAME_BYTES);
+    if (have_psram) log_use_psram((char *)(PSRAM_XIP_BASE + 7u * 1024 * 1024 + 768u * 1024), 64u * 1024);   /* 7.75 MB */
     printf("psram: %s (%u bytes)\n", have_psram ? "ready" : "MISSING: dashboard frames need it", (unsigned)psram);
 
     inputs_init();          /* before config_seed() so the stored backlight applies */
@@ -1081,16 +1232,27 @@ int main(void)
 
     /* Test card first so the panel is not blank while we associate, and so the
      * orientation can be checked by eye (black square top-left). */
+    /* The panel is up: commit an image that was just installed (it has ~16 s to
+     * do so before the boot ROM goes back to the old one), and make sure only
+     * the running image can boot. Before core 1 starts: the commit writes flash,
+     * and core 1 runs from flash (a commit under it killed core 1). */
+    if (have_psram) ota_init(PSRAM_XIP_BASE + 6u * 1024 * 1024 + 512u * 1024, 1024u * 1024);   /* 1 MB chunks */
+    ota_boot_check();
     if (have_psram) audio_use_buffer((int16_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024), 4u * AUDIO_SR);   /* ~4 s */
     painter_start(paint_row, audio_core1_start);
-    show_content(CONTENT_CARD);
+    boot_collect();
+    show_content(CONTENT_BOOT);
+    net_set_wait_hook(boot_wait);
 
     const config_t *c = config_get();
     bool up = net_init(c->wifi_ssid, c->wifi_pass);
+    net_set_wait_hook(NULL);
+    s_boot_hold_until = to_ms_since_boot(get_absolute_time()) + 4000;   /* time to read the log */
     /* Two frame buffers: the one on screen, and one downloads land in. */
     tesserae_init(have_psram ? PSRAM_XIP_BASE : NULL, have_psram ? PSRAM_XIP_BASE + 2u * 1024 * 1024 : NULL,
                   have_psram ? IT8951_FRAME_BYTES : 0, on_frame);
     (void)up;
+    if (have_psram) tesserae_set_scratch(PSRAM_XIP_BASE + 7u * 1024 * 1024 + 512u * 1024, 256u * 1024);   /* frames.json */
     local_init();
     ha_init();
     live_init();
@@ -1106,7 +1268,7 @@ int main(void)
         /* Stall watch: any phase of the loop that holds the UI for long is
          * logged with its name and duration (see README "Diagnostics"). */
         uint32_t t0 = to_ms_since_boot(get_absolute_time()), tp = t0;
-        #define PHASE(name) do { uint32_t _n = to_ms_since_boot(get_absolute_time()); \
+        #define PHASE(name) do { s_phase = name; s_loops++; uint32_t _n = to_ms_since_boot(get_absolute_time()); \
             if (_n - tp > 400) { printf("stall: %s took %lu ms\n", name, (unsigned long)(_n - tp)); } tp = _n; } while (0)
         press_t p = poll_press(button_down);
         if (p != PRESS_NONE) on_press(p);
@@ -1120,7 +1282,8 @@ int main(void)
 
         tess_state_t before = tesserae_state();
         bool had_err = tesserae_last_error()[0] != '\0';
-        tesserae_poll();
+        if (!ota_busy()) tesserae_poll();           /* an update has the network to itself */
+        ota_tick();
         PHASE("server");
         if (tesserae_state() != before || (tesserae_last_error()[0] != '\0') != had_err) banner_update();
         if (tesserae_local_time()[0]) local_set_time(tesserae_local_time());

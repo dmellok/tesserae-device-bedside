@@ -115,7 +115,12 @@ rest_status_t rest_register(const rest_identity_t *id, rest_register_out_t *out,
 /* GET /frame with Bearer + If-None-Match (from config.last_frame_etag unless
  * force is set, which drops it so a refresh key always gets a 200). button may
  * be NULL. */
-rest_status_t rest_get_frame(const char *button, uint32_t button_event_id, bool force,
+/* GET frames.json (the dashboards bound to this device) into dst. */
+rest_status_t rest_get_frames_json(uint8_t *dst, size_t cap, size_t *len, uint32_t timeout_ms);
+
+/* page: a dashboard pick (frames.json id after "page:"), sent instead of a
+ * button; NULL for none. */
+rest_status_t rest_get_frame(const char *button, const char *page, uint32_t button_event_id, bool force,
                              rest_frame_out_t *out, uint32_t timeout_ms);
 
 /* POST /status with Bearer. */
@@ -128,6 +133,11 @@ bool rest_download(const char *url, uint8_t *dst, size_t cap, size_t *out_len, u
 
 /* Resolve a possibly-relative URL against the server origin in config. */
 void rest_resolve_url(const char *u, char *out, size_t cap);
+
+/* GET a byte range into dst, following redirects (url is updated to the final
+ * location). See net_rest.c. */
+bool rest_download_range(char *url, size_t url_cap, uint32_t off, uint32_t len, uint8_t *dst,
+                         size_t *got, uint32_t *total, uint32_t timeout_ms);
 
 /* Wall clock: set from every response's Date header (no SNTP needed on a LAN).
  * 0 until the first response. */

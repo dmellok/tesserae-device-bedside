@@ -1,7 +1,7 @@
 # Push a tag like v0.2.0 to publish a release. The firmware reports the tag
 # (without the v) as its version, and the release carries:
-#   bedside-<version>.uf2   drag-and-drop install over USB (BOOTSEL)
-#   bedside-<version>.bin   the raw image, for over-the-air updates
+#   bedside-<version>.uf2   install over USB (picotool load -x; tools/partition.sh once)
+#   bedside-<version>.bin   the raw "try before you buy" image, for over-the-air updates
 #   bedside-<version>.bin.sha256
 #   manifest.json           version, file, size and sha256, read by the OTA check
 name: Release
@@ -34,18 +34,24 @@ jobs:
 
       # No include/secrets.h: a release must never overwrite the panel's stored
       # WiFi or server settings after an update.
+      # Two builds of the same source:
+      #  - the .uf2, a normal image, for installing over USB (picotool load -x);
+      #  - the .bin, marked "try before you buy", for over-the-air updates: the
+      #    panel reboots into it on trial and the boot ROM rolls back unless it
+      #    commits itself (src/ota.c). A trial image can't be started over USB.
       - name: Build
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          B=.pio/build/pimoroni_pico_plus_2w
+          mkdir dist
           PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"$VERSION\\\"" pio run
+          cp "$B/firmware.uf2" "dist/bedside-$VERSION.uf2"
+          PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"$VERSION\\\" -DPICO_CRT0_IMAGE_TYPE_TBYB=1" pio run
+          cp "$B/firmware.bin" "dist/bedside-$VERSION.bin"
 
       - name: Package
         run: |
-          B=.pio/build/pimoroni_pico_plus_2w
-          mkdir dist
-          cp "$B/firmware.uf2" "dist/bedside-$VERSION.uf2"
-          cp "$B/firmware.bin" "dist/bedside-$VERSION.bin"
           cd dist
           SHA=$(sha256sum "bedside-$VERSION.bin" | cut -d' ' -f1)
           echo "$SHA  bedside-$VERSION.bin" > "bedside-$VERSION.bin.sha256"

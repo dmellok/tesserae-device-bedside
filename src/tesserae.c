@@ -22,6 +22,7 @@
 #include "config.h"
 #include "net.h"
 #include "net_rest.h"
+#include "cJSON.h"
 #include "it8951.h"
 
 #ifndef FW_VERSION
@@ -49,6 +50,11 @@ static uint32_t       s_next_due_ms;      /* ms-since-boot of the next cycle */
 static int32_t        s_poll_s = DEFAULT_AWAKE_POLL;
 static bool           s_force_full;        /* drop ETag on the next GET */
 static char           s_button[16];        /* pending key press */
+static char           s_page[64];          /* pending dashboard pick (one-shot) */
+static uint8_t       *s_scratch;
+static size_t         s_scratch_cap;
+static int            s_npicks;
+static char           s_pick_id[TESS_PICK_MAX][64], s_pick_title[TESS_PICK_MAX][40];
 static uint32_t       s_button_id;
 static char           s_local_time[40];
 static int32_t        s_tz_offset_s;
@@ -90,6 +96,45 @@ void tesserae_kick(bool drop_etag)
 {
     if (drop_etag) s_force_full = true;
     s_next_due_ms = now_ms();
+}
+
+void tesserae_set_scratch(uint8_t *buf, size_t cap) { s_scratch = buf; s_scratch_cap = cap; }
+
+bool tesserae_picks_fetch(void)
+{
+    if (!s_scratch || !config_get()->device_token[0] || !net_connected()) return false;
+    size_t len = 0;
+    rest_status_t st = rest_get_frames_json(s_scratch, s_scratch_cap, &len, 8000);
+    if (st != REST_OK) { printf("tesserae: dashboard list failed (%d)\n", st); return false; }
+    cJSON *r = cJSON_Parse((const char *)s_scratch);
+    const cJSON *items = r ? cJSON_GetObjectItemCaseSensitive(r, "items") : NULL;
+    if (!cJSON_IsArray(items)) { cJSON_Delete(r); printf("tesserae: dashboard list unreadable\n"); return false; }
+    int n = 0;
+    const cJSON *it;
+    cJSON_ArrayForEach(it, items) {
+        if (n >= TESS_PICK_MAX) break;
+        const cJSON *id = cJSON_GetObjectItemCaseSensitive(it, "id"), *t = cJSON_GetObjectItemCaseSensitive(it, "title");
+        if (!cJSON_IsString(id) || !cJSON_IsString(t)) continue;
+        snprintf(s_pick_id[n], sizeof s_pick_id[n], "%s", id->valuestring);
+        snprintf(s_pick_title[n], sizeof s_pick_title[n], "%s", t->valuestring);
+        n++;
+    }
+    cJSON_Delete(r);
+    s_npicks = n;
+    printf("tesserae: %d dashboard(s) to pick from\n", n);
+    return true;
+}
+int         tesserae_pick_count(void) { return s_npicks; }
+const char *tesserae_pick_title(int i) { return (i >= 0 && i < s_npicks) ? s_pick_title[i] : ""; }
+const char *tesserae_pick_id(int i)    { return (i >= 0 && i < s_npicks) ? s_pick_id[i] : ""; }
+void tesserae_pick(int i)
+{
+    if (i < 0 || i >= s_npicks) return;
+    const char *id = s_pick_id[i];
+    if (!strncmp(id, "page:", 5)) snprintf(s_page, sizeof s_page, "%s", id + 5);
+    else s_page[0] = '\0';                  /* "current": the normal frame, fresh */
+    printf("tesserae: showing \"%s\"\n", s_pick_title[i]);
+    tesserae_kick(true);
 }
 
 void tesserae_button(const char *name)
@@ -217,7 +262,11 @@ static void cycle(void)
     /* 2. frame */
     rest_frame_out_t fo;
     bool force = s_force_full || (btn && strcmp(btn, "refresh") == 0);
-    rest_status_t fs = rest_get_frame(btn, s_button_id, force, &fo, REQ_TIMEOUT_MS);
+    /* A dashboard pick goes instead of a button; a first render of it can take a
+     * while on the server, so it gets a long timeout. One-shot either way. */
+    const char *page = s_page[0] ? s_page : NULL;
+    rest_status_t fs = rest_get_frame(page ? NULL : btn, page, s_button_id, force || page, &fo, page ? 40000 : REQ_TIMEOUT_MS);
+    if (page && fs != REST_NET_ERR) s_page[0] = '\0';
     if (fs == REST_OK || fs == REST_NOT_MODIFIED || fs == REST_NO_CONTENT) btn_acked = true;
 
     if (fs == REST_OK) {

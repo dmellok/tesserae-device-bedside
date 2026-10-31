@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <strings.h>
 #include <stdlib.h>
 
@@ -26,7 +27,7 @@
 #define TESSERAE_GAMUT  "gray_16"
 
 #define REST_RX_MAX   6144          /* status line + headers (+ small JSON body) */
-#define REST_REQ_MAX  1536
+#define REST_REQ_MAX  2048          /* GitHub's signed asset URLs are long */
 
 /* ---- in-flight request state (single request at a time) ---- */
 static char            s_req[REST_REQ_MAX];
@@ -490,14 +491,23 @@ static void parse_rotation(const cJSON *r, rest_frame_out_t *out)
     out->step_count = json_get_int(rot, "step_count", 0);
 }
 
-rest_status_t rest_get_frame(const char *button, uint32_t button_event_id, bool force,
+rest_status_t rest_get_frame(const char *button, const char *page, uint32_t button_event_id, bool force,
                              rest_frame_out_t *out, uint32_t timeout_ms)
 {
     memset(out, 0, sizeof *out);
     const config_t *c = config_get();
     char url[320];
     int un = snprintf(url, sizeof url, "%s/api/v1/device/%s/frame", c->server_url, config_device_id());
-    if (button && button[0] && un > 0 && un < (int)sizeof url)
+    if (page && page[0] && un > 0 && un < (int)sizeof url) {
+        /* A dashboard pick: the id is opaque, so percent-encode anything unusual. */
+        un += snprintf(url + un, sizeof url - un, "?page=");
+        for (const char *p = page; *p && un < (int)sizeof url - 4; p++) {
+            unsigned char ch = (unsigned char)*p;
+            if (isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~') url[un++] = (char)ch;
+            else un += snprintf(url + un, sizeof url - un, "%%%02X", ch);
+        }
+        url[un] = '\0';
+    } else if (button && button[0] && un > 0 && un < (int)sizeof url)
         snprintf(url + un, sizeof url - un, "?button=%s&button_event_id=%lu", button, (unsigned long)button_event_id);
 
     char auth[300], inm[128];
@@ -617,6 +627,61 @@ bool rest_download(const char *url, uint8_t *dst, size_t cap, size_t *out_len, u
     *out_len = s_sink_len;
     printf("rest: downloaded %u bytes\n", (unsigned)s_sink_len);
     return true;
+}
+
+/* GET bytes [off, off+len) of url into dst. Follows up to 5 redirects and
+ * leaves the final URL in url (cap url_cap) so the next range skips them. A
+ * server that ignores Range is accepted only when it sends the whole body and
+ * that fits. *total is the full size from Content-Range / Content-Length. */
+bool rest_download_range(char *url, size_t url_cap, uint32_t off, uint32_t len, uint8_t *dst,
+                         size_t *got, uint32_t *total, uint32_t timeout_ms)
+{
+    *got = 0;
+    for (int hop = 0; hop < 6; hop++) {
+        char range[48];
+        snprintf(range, sizeof range, "Range: bytes=%lu-%lu", (unsigned long)off, (unsigned long)(off + len - 1));
+        const char *hdrs[] = { range };
+        int http = 0;
+        rest_status_t st = do_request("GET", url, hdrs, 1, NULL, dst, len, NULL, &http, timeout_ms);
+        if (st == REST_NET_ERR) return false;
+        if (http == 301 || http == 302 || http == 303 || http == 307 || http == 308) {
+            char loc[REST_REQ_MAX];
+            if (!header_value("Location", loc, sizeof loc) || !loc[0]) { printf("rest: redirect without Location\n"); return false; }
+            if (strlen(loc) >= url_cap) { printf("rest: redirect URL too long\n"); return false; }
+            snprintf(url, url_cap, "%s", loc);
+            continue;
+        }
+        if (s_sink_overflow) { printf("rest: range larger than %lu bytes\n", (unsigned long)len); return false; }
+        char v[64];
+        if (http == 206) {
+            if (header_value("Content-Range", v, sizeof v)) { const char *sl = strchr(v, '/'); if (sl) *total = (uint32_t)strtoul(sl + 1, NULL, 10); }
+        } else if (http == 200 && off == 0) {
+            if (header_value("Content-Length", v, sizeof v)) *total = (uint32_t)strtoul(v, NULL, 10);
+        } else { printf("rest: range failed, HTTP %d\n", http); return false; }
+        if (header_value("Content-Length", v, sizeof v) && (size_t)strtoul(v, NULL, 10) != s_sink_len) {
+            printf("rest: range short: %u of %s bytes\n", (unsigned)s_sink_len, v); return false;
+        }
+        *got = s_sink_len;
+        return true;
+    }
+    printf("rest: too many redirects\n");
+    return false;
+}
+
+rest_status_t rest_get_frames_json(uint8_t *dst, size_t cap, size_t *len, uint32_t timeout_ms)
+{
+    const config_t *c = config_get();
+    char url[256], auth[300];
+    snprintf(url, sizeof url, "%s/api/v1/device/%s/frames.json", c->server_url, config_device_id());
+    snprintf(auth, sizeof auth, "Authorization: Bearer %s", c->device_token);
+    const char *hdrs[] = { auth };
+    int http = 0;
+    *len = 0;
+    rest_status_t st = do_request("GET", url, hdrs, 1, NULL, dst, cap - 1, NULL, &http, timeout_ms);
+    if (st != REST_OK) return st;
+    if (s_sink_overflow) { printf("rest: frames.json larger than %u bytes\n", (unsigned)cap); return REST_HTTP_ERR; }
+    *len = s_sink_len; dst[s_sink_len] = 0;
+    return st;
 }
 
 void rest_resolve_url(const char *u, char *out, size_t cap)

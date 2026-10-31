@@ -19,6 +19,29 @@ if [ ! -d /Volumes/RP2350 ] && [ -n "${BEDSIDE_IP:-192.168.50.216}" ]; then
     for i in $(seq 1 30); do [ -d /Volumes/RP2350 ] && break; sleep 0.5; done
   fi
 fi
+# With the A/B partition table (tools/partition.sh), load with picotool: it puts
+# the image in a slot and starts it. Copying the UF2 onto the drive fails there.
+PICOTOOL="$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool"
+for i in $(seq 1 20); do "$PICOTOOL" info >/dev/null 2>&1 && break; sleep 0.5; done
+if "$PICOTOOL" info >/dev/null 2>&1; then
+  echo "flash: loading with picotool"
+  "$PICOTOOL" load -x "$UF2" 2>&1 | grep -v "Loading into Flash" || true
+  sleep 3
+  PORT=""
+  for i in $(seq 1 40); do PORT=$(ls /dev/cu.usbmodem* 2>/dev/null | head -1); [ -n "$PORT" ] && break; sleep 0.5; done
+  [ -n "$PORT" ] || { echo "flash: board did not come back (replug USB)"; exit 1; }
+  echo "flash: logging $PORT for ${SECS}s"
+  exec "$PY" -c "
+import serial, sys, time
+end = time.time() + $SECS; s = None
+while time.time() < end:
+    try:
+        if s is None: s = serial.Serial('$PORT', 115200, timeout=0.5); s.dtr = True; s.rts = True
+        l = s.readline()
+        if l: sys.stdout.write(l.decode('utf-8', 'replace')); sys.stdout.flush()
+    except Exception: s = None; time.sleep(0.5)
+"
+fi
 if [ ! -d /Volumes/RP2350 ]; then
   PORT=$(ls /dev/cu.usbmodem* 2>/dev/null | head -1)
   if [ -n "$PORT" ]; then

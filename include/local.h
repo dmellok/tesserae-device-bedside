@@ -77,6 +77,8 @@ bool local_press(void);
 bool local_back(void);
 /* Back one level, but nothing on the home screen (the knob's hold). */
 bool local_back_up(void);
+/* A new dashboard frame arrived: the "Loading" card of a pick goes. */
+void local_frame_arrived(void);
 /* Screen updates setting (see local_state_t.refresh_mode). */
 int  local_refresh_mode(void);
 bool local_key(int i, bool hold);

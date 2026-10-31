@@ -304,6 +304,25 @@ void net_mac(char *out, size_t n)
     snprintf(out, n, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
+/* Called every 50 ms while the WiFi join is in progress (the boot screen
+ * repaints its log from it). */
+static void (*s_wait_hook)(void);
+void net_set_wait_hook(void (*fn)(void)) { s_wait_hook = fn; }
+
+static int join(const char *ssid, const char *pass, uint32_t auth, uint32_t timeout_ms)
+{
+    if (cyw43_arch_wifi_connect_async(ssid, pass, auth)) return -1;
+    absolute_time_t until = make_timeout_time_ms(timeout_ms);
+    while (!time_reached(until)) {
+        int st = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+        if (st == CYW43_LINK_UP) return 0;
+        if (st == CYW43_LINK_FAIL || st == CYW43_LINK_NONET || st == CYW43_LINK_BADAUTH) return st;
+        if (s_wait_hook) s_wait_hook();
+        sleep_ms(50);
+    }
+    return PICO_ERROR_TIMEOUT;
+}
+
 bool net_init(const char *ssid, const char *pass)
 {
     if (!ssid || !ssid[0]) { printf("net: no WiFi credentials (include/secrets.h or the web UI)\n"); return false; }
@@ -318,11 +337,11 @@ bool net_init(const char *ssid, const char *pass)
     bool open_net = (pass == NULL || pass[0] == '\0');
     uint32_t auth = open_net ? CYW43_AUTH_OPEN : CYW43_AUTH_WPA2_AES_PSK;
     printf("net: connecting to \"%s\"...\n", ssid);
-    int rc = cyw43_arch_wifi_connect_timeout_ms(ssid, open_net ? NULL : pass, auth, 30000);
+    int rc = join(ssid, open_net ? NULL : pass, auth, 30000);
 #ifdef CYW43_AUTH_WPA3_WPA2_AES_PSK
     if (rc && !open_net) {
         printf("net: WPA2 join failed (%d), trying WPA3/WPA2\n", rc);
-        rc = cyw43_arch_wifi_connect_timeout_ms(ssid, pass, CYW43_AUTH_WPA3_WPA2_AES_PSK, 30000);
+        rc = join(ssid, pass, CYW43_AUTH_WPA3_WPA2_AES_PSK, 30000);
     }
 #endif
     if (rc) {

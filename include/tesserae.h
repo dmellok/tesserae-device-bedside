@@ -54,6 +54,18 @@ void tesserae_kick(bool drop_etag);
  * "left", "right", "refresh", or the key names set in Settings -> Devices. */
 void tesserae_button(const char *name);
 
+/* Dashboard picker (frames.json, Tesserae 0.498+). Fetch the list now (a short
+ * blocking request); afterwards tesserae_pick_count/title/id read it. Item 0
+ * is "current". Picking asks the server for that dashboard on the next cycle
+ * (straight away), without moving its rotation. */
+#define TESS_PICK_MAX 16
+bool        tesserae_picks_fetch(void);
+int         tesserae_pick_count(void);
+const char *tesserae_pick_title(int i);
+const char *tesserae_pick_id(int i);         /* "current" or "page:<id>" */
+void        tesserae_pick(int i);
+void        tesserae_set_scratch(uint8_t *buf, size_t cap);   /* PSRAM for frames.json */
+
 /* Forget the token (and pairing code) so the device re-pairs on the next poll. */
 void tesserae_forget(void);
 
