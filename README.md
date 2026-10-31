@@ -228,3 +228,37 @@ firmware version) and attaches `bedside-<version>.uf2` (USB install),
 size, sha256) for the over-the-air update check. CI builds never include
 `include/secrets.h`, so an update can't overwrite the panel's stored WiFi or
 server settings.
+
+## Over-the-air updates
+
+The panel installs releases from this repo's GitHub releases, over HTTPS
+(mbedTLS, certificates checked against `src/tls_roots.c`):
+
+- **Settings > Device > Software** on the panel, or **Device > Software** in the
+  web app: the installed version, *Check GitHub*, the latest 10 releases (any
+  can be installed, older ones too), and *Auto-update overnight* (03:10, the
+  newest stable release if it is newer, never within 90 minutes of an alarm).
+- How: the flash holds two firmware slots (A/B, `tools/pt.json`). An update
+  downloads into the spare slot in 1 MB ranges, is checked against the
+  release's `manifest.json` SHA-256 by reading the slot back, and the panel
+  restarts into it *on trial*. If the new firmware doesn't start properly, the
+  boot ROM goes back to the old one. Once it commits, the old slot is cleared.
+- **One-time setup** for a panel flashed before this: `tools/partition.sh`
+  (writes the partition table over USB; settings survive). After that
+  `tools/flash.sh` loads with picotool.
+
+## WiFi setup
+
+With no WiFi saved, when the saved network can't be joined (then for 5
+minutes, after which it tries again), or from **Settings > Device > Wi-Fi
+setup**, the panel opens its own network, **Bedside-setup-xxxx**, and shows how
+to connect. A phone that joins it gets the setup page by itself (or open
+`http://192.168.4.1`): pick the WiFi, enter the password and the Tesserae
+server, and the panel restarts onto your network.
+
+## Picking a dashboard
+
+With Tesserae 0.498 or later, **Menu > Dashboard** (and the Room tab in the web
+app) lists *Live* plus every dashboard bound to this panel (`frames.json`,
+fetched when the menu opens). Picking one shows it now without moving the
+server's rotation; the next poll carries on with the schedule.

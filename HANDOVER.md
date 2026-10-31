@@ -439,3 +439,29 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
 - **Power supply was the last piece** (31 Oct): the remaining faint vertical lines went away on a
   good PSU. Some workarounds above (INIT before every full GC16) may no longer be needed; re-test
   with `/api/cmd?cleanfull=0` before keeping their cost in speed.
+
+## 2026-11-01: OTA from GitHub, boot screen, WiFi setup, dashboard picker
+
+- **OTA** (`src/ota.c`): A/B partitions + try-before-you-buy (Raspberry Pi's
+  `pico_w/wifi/ota_update` sequence). Lessons, all fixed: the boot ROM needs a
+  4 KB workarea for `rom_explicit_buy` (3264 gave -13); **the buy writes flash,
+  so it must run before core 1 starts** (core 1 paints from flash; a buy under
+  it killed core 1 and the next settings save hung waiting for it); settings are
+  read through `XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE` (XIP_BASE is remapped onto
+  the running slot); a trial (TBYB) image only starts from a flash-update reboot,
+  so USB installs (`.uf2`) are normal builds and only the OTA `.bin` is TBYB.
+  `picotool` v2.0.0 here; copying a UF2 onto the BOOTSEL drive fails silently
+  once partitioned.
+- **HTTPS**: mbedTLS 3.6.2 built by `scripts/build_mbedtls.py`
+  (`include/bedside_mbedtls_config.h`: the name matters, a plain
+  `mbedtls_config.h` loses to mbedTLS's own), lwIP altcp with the SDK's patched
+  `altcp_tls_mbedtls.c`, a 1 MB PSRAM heap for mbedTLS and cJSON
+  (`src/psram_heap.c`). Handshake ~1.5 s. Certificate dates are not checked.
+- **PSRAM map**: frame 0, download 2 MB, preview 4 MB, heap 4.5-5.5 MB, audio
+  6 MB, OTA chunk 6.5-7.5 MB, frames.json 7.5 MB, log 7.75 MB (64 KB).
+- **Boot screen** (CONTENT_BOOT in main.c): the official lockup
+  (`assets/brand/`, `tools/gen_logo.py`) and the boot log; WiFi joins async.
+- **WiFi setup** (net.c, vendored DHCP/DNS servers): see README.
+- **Dashboard picker** (Tesserae 0.498 `frames.json`, `/frame?page=`).
+- Diagnostics kept: `https=<url>`, `showsetup`, `wifisetup`, the `loop` phase in
+  the state JSON.

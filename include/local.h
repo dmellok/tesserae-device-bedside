@@ -57,6 +57,7 @@ typedef struct {
      * 1 clean (every change with GC16, just its area), 2 full (every change
      * repaints the whole screen with GC16) */
     int  refresh_mode;
+    bool auto_update;                  /* install the newest stable release overnight */
 } local_state_t;
 
 /* How much of the panel a repaint needs, and which waveform suits it. */
@@ -79,6 +80,8 @@ bool local_back(void);
 bool local_back_up(void);
 /* A new dashboard frame arrived: the "Loading" card of a pick goes. */
 void local_frame_arrived(void);
+/* main.c, every loop: the update's progress card, and the overnight check. */
+void local_ota_service(void);
 /* Screen updates setting (see local_state_t.refresh_mode). */
 int  local_refresh_mode(void);
 bool local_key(int i, bool hold);

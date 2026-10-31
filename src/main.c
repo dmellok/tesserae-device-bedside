@@ -43,6 +43,8 @@
 #include "it8951.h"
 #include "epd_io.h"
 #include "ota.h"
+#include "psram_heap.h"
+#include "cJSON.h"
 #include "boot_logo.h"
 #include "pico/unique_id.h"
 #include "hardware/structs/watchdog.h"
@@ -838,6 +840,17 @@ static void exec_command(const char *name, const char *value)
         else printf("ota: expected <url>|<size>|<sha256>[|<version>]\n");
     }
     else if (!strcmp(name, "picks"))     tesserae_picks_fetch();          /* refresh the dashboard list */
+    else if (!strcmp(name, "otacheck"))  ota_releases_fetch();
+    else if (!strcmp(name, "otainstall")) { if (!ota_install(v)) printf("ota: %s\n", ota_error()); }
+    else if (!strcmp(name, "https"))     {     /* diagnostics: GET a URL (http or https), print the status and the start */
+        static char u[1024]; snprintf(u, sizeof u, "%s", value);
+        uint8_t *buf = PSRAM_XIP_BASE + 6u * 1024 * 1024 + 512u * 1024; size_t got = 0; uint32_t total = 0;
+        uint32_t t0 = to_ms_since_boot(get_absolute_time());
+        bool ok = rest_download_range(u, sizeof u, 0, 65536, buf, &got, &total, 30000);
+        printf("https: %s, %u bytes (of %lu) in %lu ms, heap free %u\n", ok ? "ok" : "FAILED", (unsigned)got, (unsigned long)total,
+               (unsigned long)(to_ms_since_boot(get_absolute_time()) - t0), (unsigned)psram_heap_free_bytes());
+        if (got) { char head[121]; size_t n = got < 120 ? got : 120; memcpy(head, buf, n); head[n] = 0; for (size_t i = 0; i < n; i++) if (head[i] < 32 || head[i] > 126) head[i] = '.'; printf("https: %s\n", head); }
+    }
     else if (!strcmp(name, "wifisetup")) { printf("rebooting into WiFi setup\n"); watchdog_hw->scratch[0] = SETUP_MAGIC; sleep_ms(200); watchdog_reboot(0, 0, 0); }
     else if (!strcmp(name, "showsetup")) { snprintf(s_setup_why, sizeof s_setup_why, "Preview of the setup screen."); show_content(CONTENT_SETUP); }   /* diagnostics */
     else if (!strcmp(name, "serial"))    console_input(value);
@@ -945,8 +958,12 @@ size_t app_state_json(char *buf, size_t cap)
     ADD("\"live\":"); n += live_json(buf + n, cap > n ? cap - n : 0); ADD(",");
     { extern volatile int g_flash_step;
       ADD("\"loop\":{\"phase\":\"%s\",\"n\":%lu,\"flash_step\":%d},", (const char *)s_phase, (unsigned long)s_loops, g_flash_step); }
-    ADD("\"ota\":{\"state\":\"%s\",\"pct\":%d,\"err\":\"%s\",\"to\":\"%s\",\"slot\":%d,\"ab\":%d},",
-        ota_state_name(), ota_percent(), ota_error(), ota_target_version(), ota_boot_partition(), ota_partitioned() ? 1 : 0);
+    ADD("\"ota\":{\"state\":\"%s\",\"pct\":%d,\"err\":\"%s\",\"to\":\"%s\",\"slot\":%d,\"ab\":%d,\"checked_s\":%ld,\"rel\":[",
+        ota_state_name(), ota_percent(), ota_error(), ota_target_version(), ota_boot_partition(), ota_partitioned() ? 1 : 0,
+        ota_checked_ms() ? (long)((to_ms_since_boot(get_absolute_time()) - ota_checked_ms()) / 1000) : -1L);
+    for (int i = 0; i < ota_release_count(); i++) { const ota_release_t *e = ota_release(i);
+        ADD("%s{\"v\":\"%s\",\"date\":\"%s\",\"pre\":%d,\"ok\":%d}", i ? "," : "", e->ver, e->date, e->pre, e->has_manifest); }
+    ADD("]},");
     ADD("\"mqtt\":"); n += ha_status_json(buf + n, cap > n ? cap - n : 0); ADD(",");
     ADD("\"audio\":{\"sr\":%d,\"listeners\":%d,\"cpu_pm\":%d},", AUDIO_SR, audio_listeners(), audio_cpu_permille());
     ADD("\"ui\":"); n += local_state_json(buf + n, cap > n ? cap - n : 0); ADD(",");
@@ -1265,6 +1282,11 @@ int main(void)
     size_t psram = psram_init(PSRAM_CS_PIN_PLUS2);
     have_psram = (psram >= IT8951_FRAME_BYTES);
     if (have_psram) log_use_psram((char *)(PSRAM_XIP_BASE + 7u * 1024 * 1024 + 768u * 1024), 64u * 1024);   /* 7.75 MB */
+    if (have_psram) {   /* 1 MB heap for HTTPS (mbedTLS) and big JSON (the GitHub release list) */
+        psram_heap_init(PSRAM_XIP_BASE + 4u * 1024 * 1024 + 512u * 1024, 1024u * 1024);
+        cJSON_Hooks hooks = { psram_heap_malloc, psram_heap_free };
+        cJSON_InitHooks(&hooks);
+    }
     printf("psram: %s (%u bytes)\n", have_psram ? "ready" : "MISSING: dashboard frames need it", (unsigned)psram);
 
     inputs_init();          /* before config_seed() so the stored backlight applies */
@@ -1289,6 +1311,7 @@ int main(void)
      * the running image can boot. Before core 1 starts: the commit writes flash,
      * and core 1 runs from flash (a commit under it killed core 1). */
     if (have_psram) ota_init(PSRAM_XIP_BASE + 6u * 1024 * 1024 + 512u * 1024, 1024u * 1024);   /* 1 MB chunks */
+    ota_set_version(FW_VERSION);
     ota_boot_check();
     if (have_psram) audio_use_buffer((int16_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024), 4u * AUDIO_SR);   /* ~4 s */
     painter_start(paint_row, audio_core1_start);
@@ -1354,6 +1377,7 @@ int main(void)
         bool had_err = tesserae_last_error()[0] != '\0';
         if (!ota_busy()) tesserae_poll();           /* an update has the network to itself */
         ota_tick();
+        local_ota_service();
         PHASE("server");
         if (tesserae_state() != before || (tesserae_last_error()[0] != '\0') != had_err) banner_update();
         if (tesserae_local_time()[0]) local_set_time(tesserae_local_time());

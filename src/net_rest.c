@@ -17,6 +17,12 @@
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/tcp.h"
+#include "lwip/altcp.h"
+#include "lwip/altcp_tcp.h"
+#include "lwip/altcp_tls.h"
+#include "mbedtls/ssl.h"
+#include "tls_roots.h"
+#include "pico/rand.h"
 #include "lwip/dns.h"
 #include "lwip/ip_addr.h"
 #include "lwip/pbuf.h"
@@ -45,7 +51,21 @@ static volatile bool   s_sink_overflow;
 static volatile bool   s_hdr_done;      /* "\r\n\r\n" seen */
 static size_t          s_body_off;      /* offset of the body within s_rx */
 
-static struct tcp_pcb *s_pcb;
+static struct altcp_pcb *s_pcb;
+static struct altcp_tls_config *s_tls;    /* made on the first https:// request */
+
+/* mbedTLS's millisecond clock: time since boot. */
+#include "mbedtls/platform_time.h"
+mbedtls_ms_time_t mbedtls_ms_time(void) { return (mbedtls_ms_time_t)to_ms_since_boot(get_absolute_time()); }
+
+/* mbedTLS entropy: the RP2350's random number generator. */
+int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen)
+{
+    (void)data;
+    for (size_t i = 0; i < len; i += 8) { uint64_t r = get_rand_64(); memcpy(output + i, &r, len - i < 8 ? len - i : 8); }
+    *olen = len;
+    return 0;
+}
 static volatile bool   s_pcb_dead;
 static volatile bool   s_done;
 static volatile bool   s_err;
@@ -79,20 +99,20 @@ uint32_t rest_epoch_now(void)
 
 /* ---- raw TCP callbacks (run under the lwIP lock) ---- */
 
-static void try_send(struct tcp_pcb *pcb)
+static void try_send(struct altcp_pcb *pcb)
 {
     while (s_req_sent < s_req_len) {
-        u16_t avail = tcp_sndbuf(pcb);
+        u16_t avail = altcp_sndbuf(pcb);
         if (avail == 0) break;
         size_t remain = s_req_len - s_req_sent;
         u16_t n = (remain < avail) ? (u16_t)remain : avail;
-        if (tcp_write(pcb, s_req + s_req_sent, n, TCP_WRITE_FLAG_COPY) != ERR_OK) break;
+        if (altcp_write(pcb, s_req + s_req_sent, n, TCP_WRITE_FLAG_COPY) != ERR_OK) break;
         s_req_sent += n;
     }
-    tcp_output(pcb);
+    altcp_output(pcb);
 }
 
-static err_t sent_cb(void *arg, struct tcp_pcb *pcb, u16_t len)
+static err_t sent_cb(void *arg, struct altcp_pcb *pcb, u16_t len)
 {
     (void)arg; (void)len;
     try_send(pcb);
@@ -138,13 +158,13 @@ static void absorb(const uint8_t *d, size_t n)
     }
 }
 
-static err_t recv_cb(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
+static err_t recv_cb(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
 {
     (void)arg;
     if (p == NULL) { s_done = true; return ERR_OK; }   /* server closed: complete */
     if (err == ERR_OK) {
         for (struct pbuf *q = p; q != NULL; q = q->next) absorb((const uint8_t *)q->payload, q->len);
-        tcp_recved(pcb, p->tot_len);
+        altcp_recved(pcb, p->tot_len);
     }
     pbuf_free(p);
     return ERR_OK;
@@ -159,7 +179,7 @@ static void err_cb(void *arg, err_t err)
     s_done = true;
 }
 
-static err_t connected_cb(void *arg, struct tcp_pcb *pcb, err_t err)
+static err_t connected_cb(void *arg, struct altcp_pcb *pcb, err_t err)
 {
     (void)arg;
     if (err != ERR_OK) { s_err = true; s_done = true; return ERR_OK; }
@@ -272,6 +292,7 @@ static rest_status_t do_request(const char *method, const char *url,
     if (http_out) *http_out = 0;
 
     /* http://host[:port]/path */
+    bool tls = strncmp(url, "https://", 8) == 0;
     const char *p = strstr(url, "://");
     p = p ? p + 3 : url;
     const char *slash = strchr(p, '/');
@@ -280,7 +301,7 @@ static rest_status_t do_request(const char *method, const char *url,
     size_t hlen = colon ? (size_t)(colon - p) : (slash ? (size_t)(slash - p) : strlen(p));
     if (hlen >= sizeof host) hlen = sizeof host - 1;
     memcpy(host, p, hlen); host[hlen] = '\0';
-    uint16_t port = 80;
+    uint16_t port = tls ? 443 : 80;
     if (colon) { int v = atoi(colon + 1); if (v > 0 && v < 65536) port = (uint16_t)v; }
     const char *path = slash ? slash : "/";
 
@@ -313,13 +334,16 @@ static rest_status_t do_request(const char *method, const char *url,
     if (s_dns != 1) { printf("rest: dns failed for %s\n", host); return REST_NET_ERR; }
 
     cyw43_arch_lwip_begin();
-    s_pcb = tcp_new_ip_type(IP_GET_TYPE(&s_ip));
+    if (tls && !s_tls) s_tls = altcp_tls_create_config_client((const u8_t *)tls_roots_pem, tls_roots_pem_len);
+    if (tls && !s_tls) { cyw43_arch_lwip_end(); printf("rest: TLS setup failed\n"); return REST_NET_ERR; }
+    s_pcb = tls ? altcp_tls_new(s_tls, IP_GET_TYPE(&s_ip)) : altcp_tcp_new_ip_type(IP_GET_TYPE(&s_ip));
+    if (s_pcb && tls) mbedtls_ssl_set_hostname((mbedtls_ssl_context *)altcp_tls_context(s_pcb), host);   /* SNI, and the name the certificate must carry */
     if (s_pcb) {
-        tcp_err(s_pcb, err_cb);
-        tcp_recv(s_pcb, recv_cb);
-        tcp_sent(s_pcb, sent_cb);
-        if (tcp_connect(s_pcb, &s_ip, port, connected_cb) != ERR_OK) {
-            tcp_abort(s_pcb); s_pcb = NULL; s_pcb_dead = true;
+        altcp_err(s_pcb, err_cb);
+        altcp_recv(s_pcb, recv_cb);
+        altcp_sent(s_pcb, sent_cb);
+        if (altcp_connect(s_pcb, &s_ip, port, connected_cb) != ERR_OK) {
+            altcp_abort(s_pcb); s_pcb = NULL; s_pcb_dead = true;
         }
     }
     cyw43_arch_lwip_end();
@@ -330,8 +354,8 @@ static rest_status_t do_request(const char *method, const char *url,
 
     cyw43_arch_lwip_begin();
     if (s_pcb && !s_pcb_dead) {
-        tcp_recv(s_pcb, NULL); tcp_sent(s_pcb, NULL); tcp_err(s_pcb, NULL);
-        if (tcp_close(s_pcb) != ERR_OK) tcp_abort(s_pcb);
+        altcp_recv(s_pcb, NULL); altcp_sent(s_pcb, NULL); altcp_err(s_pcb, NULL);
+        if (altcp_close(s_pcb) != ERR_OK) altcp_abort(s_pcb);
         s_pcb = NULL;
     }
     cyw43_arch_lwip_end();

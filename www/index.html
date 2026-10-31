@@ -390,6 +390,14 @@ details.more[open] summary::after{transform:rotate(-135deg)}
     <div id="lv-slots"></div>
   </div>
 
+  <h2>Software</h2>
+  <div class="card">
+    <div class="row"><div style="flex:1">Installed<small id="sw-ver" style="display:block;color:var(--sub);font-size:12px"></small></div><button class="btn" data-cmd="otacheck" type="button">Check GitHub</button></div>
+    <div id="sw-rel" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Auto-update overnight<small style="display:block;color:var(--sub);font-size:12px">The newest stable release at 03:10, never near an alarm</small></div><label class="sw"><input type="checkbox" id="autoupdate" data-set="autoupdate"><span></span></label></div>
+    <div class="hint" style="text-align:left;margin-top:10px" id="sw-state"></div>
+  </div>
+
   <h2>Panel</h2>
   <div class="card">
     <div class="row"><div style="flex:1">Mirror image</div><label class="sw"><input type="checkbox" id="mirror"><span></span></label></div>
@@ -733,6 +741,23 @@ function renderHA(){const m=st.mqtt;if(!m)return;
   const f=$('#f-ha');
   if(!held('ha')&&!f.contains(document.activeElement)){$('#ha-on').checked=!!m.enabled;f.host.value=m.host;f.port.value=m.port;f.user.value=m.user;f.prefix.value=m.prefix;f.base.value=m.base;
     f.pass.placeholder=m.has_pass?'unchanged':'none'}}
+/* ---- software: releases on GitHub, installed over the air ---- */
+let swSig='';
+function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
+function renderSoftware(){
+  const o=st.ota; if(!o)return;
+  $('#sw-ver').textContent=`${st.fw}${o.slot>=0?' · slot '+'AB'[o.slot]:''}${o.checked_s>=0?' · checked '+(o.checked_s<60?'just now':Math.round(o.checked_s/60)+' min ago'):''}`;
+  const busy=o.state==='downloading'||o.state==='verifying'||o.state==='restarting';
+  $('#sw-state').textContent=busy?`${o.state==='downloading'?'Downloading':o.state==='verifying'?'Checking':'Restarting into'} ${o.to}${o.state==='downloading'?' · '+o.pct+'%':''}`
+    :o.state==='failed'?'Update failed: '+o.err:!o.ab?'Over-the-air updates need the one-time partition setup (tools/partition.sh).':'';
+  const sig=JSON.stringify([o.rel,st.fw,busy]); if(sig===swSig)return; swSig=sig;
+  $('#sw-rel').innerHTML=o.rel.map((r,i)=>{const c=vcmp(r.v,st.fw),tag=r.v===st.fw?'Installed':c>0?'Newer':'Older';
+    return `<div class="row"><div style="flex:1">v${r.v}${r.pre?' <span class="pill">pre-release</span>':''}<small style="display:block;color:var(--sub);font-size:12px">${r.date} · ${tag}</small></div>`
+      +(r.ok&&!busy?`<button class="btn" type="button" data-ota="${i}">${r.v===st.fw?'Reinstall':'Install'}</button>`:'')+'</div>'}).join('')||'<div class="hint" style="text-align:left">Press Check GitHub to list the releases.</div>';
+  $$('[data-ota]').forEach(b=>b.onclick=()=>{const r=o.rel[+b.dataset.ota];
+    if(!confirm(`Install v${r.v}? The panel downloads it, checks it and restarts into it (about two minutes).`))return;cmd('otainstall='+b.dataset.ota);toast('Downloading v'+r.v+'…')});
+}
+
 /* ---- keymap: what each key does, pressed and held ---- */
 const KEYS=[['key1','key1_hold','Key 1'],['key2','key2_hold','Key 2'],['key3','key3_hold','Key 3']];
 let kmSig='';
@@ -781,6 +806,8 @@ function renderPanelSettings(){
   $$('[data-pset]').forEach(sel=>{const k=sel.dataset.pset;if(held('pset_'+k)||sel===document.activeElement)return;sel.value=String(+p[k])});
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
+  if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
+  renderSoftware();
   renderHome(p);
   const lv=st.live; if(!lv)return;
   if(document.activeElement!==$('#lv-base'))$('#lv-base').value=lv.ss_base;

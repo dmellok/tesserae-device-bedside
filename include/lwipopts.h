@@ -39,6 +39,12 @@
 #define LWIP_DHCP_DOES_ACD_CHECK    0
 #define LWIP_DEBUG                  0
 
+/* HTTPS to GitHub (over-the-air updates): altcp with mbedTLS (scripts/build_mbedtls.py). */
+#define LWIP_ALTCP                  1
+#define LWIP_ALTCP_TLS              1
+#define LWIP_ALTCP_TLS_MBEDTLS      1
+#define ALTCP_MBEDTLS_AUTHMODE      MBEDTLS_SSL_VERIFY_REQUIRED   /* the certificate must check out */
+
 /* MQTT (Home Assistant, src/ha.c): discovery configs are up to ~1.2 KB each. */
 #define MQTT_OUTPUT_RINGBUF_SIZE    4096
 #define MQTT_VAR_HEADER_BUFFER_LEN  256

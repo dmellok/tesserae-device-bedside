@@ -190,6 +190,95 @@ void ota_tick(void)
     if (s_done >= s_size) verify_and_reboot();
 }
 
+/* ---- releases on GitHub ---------------------------------------------------------- */
+#include "cJSON.h"
+static ota_release_t s_rel[OTA_REL_MAX];
+static int      s_nrel;
+static uint32_t s_checked;
+static const char *s_running = "";
+void ota_set_version(const char *running) { s_running = running ? running : ""; }
+
+int ota_version_cmp(const char *a, const char *b)
+{
+    int x[3] = { 0 }, y[3] = { 0 };
+    sscanf(a, "%d.%d.%d", &x[0], &x[1], &x[2]); sscanf(b, "%d.%d.%d", &y[0], &y[1], &y[2]);
+    for (int i = 0; i < 3; i++) if (x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
+    return 0;
+}
+
+bool ota_releases_fetch(void)
+{
+    if (!s_buf) return false;
+    char url[256];
+    snprintf(url, sizeof url, "https://api.github.com/repos/%s/releases?per_page=%d", OTA_REPO, OTA_REL_MAX);
+    size_t got = 0; uint32_t total = 0;
+    if (!rest_download_range(url, sizeof url, 0, (uint32_t)s_cap - 1, s_buf, &got, &total, 30000)) { printf("ota: could not reach GitHub\n"); return false; }
+    s_buf[got] = 0;
+    cJSON *r = cJSON_Parse((const char *)s_buf);
+    if (!cJSON_IsArray(r)) { cJSON_Delete(r); printf("ota: release list unreadable\n"); return false; }
+    int n = 0; const cJSON *it;
+    cJSON_ArrayForEach(it, r) {
+        if (n >= OTA_REL_MAX) break;
+        const cJSON *tag = cJSON_GetObjectItemCaseSensitive(it, "tag_name"), *draft = cJSON_GetObjectItemCaseSensitive(it, "draft");
+        if (!cJSON_IsString(tag) || cJSON_IsTrue(draft)) continue;
+        ota_release_t *e = &s_rel[n];
+        memset(e, 0, sizeof *e);
+        snprintf(e->tag, sizeof e->tag, "%s", tag->valuestring);
+        snprintf(e->ver, sizeof e->ver, "%s", tag->valuestring[0] == 'v' ? tag->valuestring + 1 : tag->valuestring);
+        const cJSON *pub = cJSON_GetObjectItemCaseSensitive(it, "published_at");
+        if (cJSON_IsString(pub)) snprintf(e->date, sizeof e->date, "%.10s", pub->valuestring);
+        e->pre = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(it, "prerelease"));
+        const cJSON *as = cJSON_GetObjectItemCaseSensitive(it, "assets"), *a;
+        cJSON_ArrayForEach(a, as) {
+            const cJSON *nm = cJSON_GetObjectItemCaseSensitive(a, "name");
+            if (cJSON_IsString(nm) && !strcmp(nm->valuestring, "manifest.json")) e->has_manifest = true;
+        }
+        n++;
+    }
+    cJSON_Delete(r);
+    s_nrel = n; s_checked = to_ms_since_boot(get_absolute_time()) | 1u;
+    printf("ota: %d release(s) on GitHub\n", n);
+    return true;
+}
+int ota_release_count(void) { return s_nrel; }
+const ota_release_t *ota_release(int i) { return (i >= 0 && i < s_nrel) ? &s_rel[i] : NULL; }
+uint32_t ota_checked_ms(void) { return s_checked; }
+
+bool ota_install(int i)
+{
+    const ota_release_t *e = ota_release(i);
+    if (!e || ota_busy()) return false;
+    if (!e->has_manifest) { fail("that release has no manifest.json"); return false; }
+    char url[512];
+    snprintf(url, sizeof url, "https://github.com/%s/releases/download/%s/manifest.json", OTA_REPO, e->tag);
+    size_t got = 0; uint32_t total = 0;
+    if (!rest_download_range(url, sizeof url, 0, 4095, s_buf, &got, &total, 30000)) { fail("could not fetch the manifest"); return false; }
+    s_buf[got] = 0;
+    cJSON *m = cJSON_Parse((const char *)s_buf);
+    const cJSON *bin = cJSON_GetObjectItemCaseSensitive(m, "bin"), *size = cJSON_GetObjectItemCaseSensitive(m, "size"),
+                *sha = cJSON_GetObjectItemCaseSensitive(m, "sha256");
+    if (!cJSON_IsString(bin) || !cJSON_IsNumber(size) || !cJSON_IsString(sha)) { cJSON_Delete(m); fail("manifest unreadable"); return false; }
+    char binurl[512], hex[65], name[96];
+    snprintf(name, sizeof name, "%s", bin->valuestring);
+    snprintf(hex, sizeof hex, "%s", sha->valuestring);
+    uint32_t sz = (uint32_t)size->valuedouble;
+    cJSON_Delete(m);
+    snprintf(binurl, sizeof binurl, "https://github.com/%s/releases/download/%s/%s", OTA_REPO, e->tag, name);
+    return ota_start(binurl, sz, hex, e->ver);
+}
+
+bool ota_auto_update(void)
+{
+    if (ota_busy() || !ota_releases_fetch()) return false;
+    for (int i = 0; i < s_nrel; i++) {                     /* newest first, as GitHub lists them */
+        if (s_rel[i].pre || !s_rel[i].has_manifest) continue;
+        if (ota_version_cmp(s_rel[i].ver, s_running) <= 0) { printf("ota: up to date (%s)\n", s_running); return false; }
+        printf("ota: auto-update to %s\n", s_rel[i].ver);
+        return ota_install(i);
+    }
+    return false;
+}
+
 bool ota_busy(void) { return s_state == OTA_DOWNLOADING || s_state == OTA_VERIFYING || s_state == OTA_REBOOTING; }
 ota_state_t ota_state(void) { return s_state; }
 const char *ota_state_name(void)

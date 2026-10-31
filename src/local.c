@@ -28,6 +28,7 @@
 #include <strings.h>
 #include <ctype.h>
 #include "inputs.h"
+#include "ota.h"
 #include "icons.h"
 
 #include <stdio.h>
@@ -516,7 +517,7 @@ typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 static mode_t_ s_mode = M_HOME;
 
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
-               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_COUNT } node_t;
+               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -534,6 +535,7 @@ typedef enum {
     C_OVERLAY, T_SHOW, C_ATNIGHT, I_VIEWPORT, C_NIGHTKEYS,
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, A_WIFISETUP,
+    S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
 } item_t;
 
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
@@ -544,6 +546,7 @@ typedef struct { int h, m; bool on; uint8_t days[7]; int early; } alarm_t;
 static alarm_t s_alarms[MAX_ALARMS] = { { 6, 30, true, {1,1,1,1,1,0,0}, 15 } };
 static int s_nalarms = 1, s_ai;       /* count; the alarm being edited */
 static int s_ki;                      /* the key being set (0..2) */
+static int s_rel_armed = -1;           /* the release row pressed once (Software) */
 static const char *const DAY_NAMES[7] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 
 static void alarm_days_txt(const alarm_t *a, char *b, size_t n)
@@ -687,6 +690,17 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_KEY_PRESS, K_CHOICE, "Press", ICON_KEYBOARD, s_ki };
         r[n++] = (row_def_t){ C_KEY_HOLD, K_CHOICE, "Hold", ICON_KEYBOARD, s_ki };
         break;
+    case N_SOFTWARE: {
+        static char lab[OTA_REL_MAX][32];
+        r[n++] = (row_def_t){ I_FWVER, K_INFO, "Installed", ICON_GEAR, 0 };
+        r[n++] = (row_def_t){ A_OTACHECK, K_ACTION, "Check for updates", ICON_WIFI_HIGH, 0 };
+        r[n++] = (row_def_t){ T_AUTOUPD, K_TOGGLE, "Auto-update overnight", ICON_MOON, 0 };
+        for (int i = 0; i < ota_release_count() && n < 15; i++) {
+            const ota_release_t *e = ota_release(i);
+            snprintf(lab[i], sizeof lab[i], "%s%s", e->tag, e->pre ? " (pre)" : "");
+            r[n++] = (row_def_t){ A_RELEASE, K_ACTION, lab[i], ICON_HOUSE, i };
+        }
+        break; }
     case N_TIMEG:
         r[n++] = (row_def_t){ T_AUTOTIME, K_TOGGLE, "Set automatically", ICON_WIFI_HIGH, 0 };
         r[n++] = (row_def_t){ C_TZ, K_CHOICE, "Time zone", ICON_HOUSE, 0 };
@@ -696,6 +710,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_SNOOZE, K_CHOICE, "Snooze", ICON_BELL_RINGING, 0 };
         break;
     case N_DEVICE:
+        r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", ICON_GEAR, 0 };
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
@@ -718,7 +733,7 @@ static const char *node_title(node_t nd)
     case N_DAYS:  snprintf(b, sizeof b, "Alarm %d days", s_ai + 1); return b;
     case N_HOMESCR: return "Home screen"; case N_NIGHTG: return "Night"; case N_KEYS: return "Keys and knob";
     case N_KEY:   snprintf(b, sizeof b, "Key %d", s_ki + 1); return b;
-    case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device";
+    case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device"; case N_SOFTWARE: return "Software";
     default: return "";
     }
 }
@@ -734,7 +749,7 @@ screen_t local_screen(void)
     if (s_mode == M_HOME) return SCR_HOME;
     switch (s_stack[s_depth - 1].node) {
     case N_RAIN: return SCR_RAIN; case N_LIGHTS: return SCR_LIGHTS; case N_AC: return SCR_AC;
-    case N_ALARMS: case N_ALARM: case N_DAYS: case N_CHORUS: return SCR_ALARM; case N_SETTINGS: case N_HOMESCR: case N_NIGHTG: case N_KEYS: case N_KEY: case N_TIMEG: case N_DEVICE: return SCR_SETTINGS;
+    case N_ALARMS: case N_ALARM: case N_DAYS: case N_CHORUS: return SCR_ALARM; case N_SETTINGS: case N_HOMESCR: case N_NIGHTG: case N_KEYS: case N_KEY: case N_TIMEG: case N_DEVICE: case N_SOFTWARE: return SCR_SETTINGS;
     default: return SCR_MENU;
     }
 }
@@ -757,6 +772,7 @@ static bool toggle_get(const row_def_t *r)
     case T_KNOB: return S.knob_light;
     case T_SHOW: return (S.show >> r->arg) & 1;
     case T_AUTOTIME: return S.auto_time;
+    case T_AUTOUPD: return S.auto_update;
     case T_NIGHT: return S.night; default: return false;
     }
 }
@@ -770,6 +786,7 @@ static void toggle_flip(const row_def_t *r)
     case T_DAY:    s_alarms[s_ai].days[r->arg] ^= 1; publish_alarm(s_ai); sync_alarm_summary(); break;
     case T_KNOB:   S.knob_light = !S.knob_light; apply_colours(); break;
     case T_SHOW:   S.show ^= 1 << r->arg; overlay_apply(); break;
+    case T_AUTOUPD: S.auto_update = !S.auto_update; break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
     case T_BIRD:   S.birds ^= (uint16_t)(1u << r->arg);
                    if ((S.birds >> r->arg) & 1) { S.audition_bird = r->arg; S.audition++; }   /* let you hear who you added */
@@ -944,10 +961,15 @@ static void row_value(const row_def_t *r, char *b, size_t n)
                                   : (r->id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + r->arg])); } break;
     case K_INFO:
         if (r->id == I_VIEWPORT) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(b, n, "%d x %d", w, h); }
+        else if (r->id == I_FWVER) snprintf(b, n, "%s", FW_VERSION);
         else if (r->id == I_MENUKEY) snprintf(b, n, "Fixed");
         else snprintf(b, n, "%s", S.on_battery ? "Battery" : "Mains");
         break;
-    case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing"); break;
+    case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing");
+                   if (r->id == A_OTACHECK && ota_checked_ms()) { int m = (int)((now_ms() - ota_checked_ms()) / 60000); if (m < 1) snprintf(b, n, "just now"); else snprintf(b, n, "%d min ago", m); }
+                   if (r->id == A_RELEASE) { const ota_release_t *e = ota_release(r->arg); int c = e ? ota_version_cmp(e->ver, FW_VERSION) : 0;
+                                             snprintf(b, n, "%s", !e ? "" : s_rel_armed == r->arg ? "Press again" : !strcmp(e->ver, FW_VERSION) ? "Installed" : c > 0 ? "Newer" : "Older"); }
+                   break;
     case K_SUB:
         switch (r->id) {
         case S_RAIN:   if (S.rain_on) snprintf(b, n, "%s %d", KINDS[S.rain_kind], S.rain_lvl); else snprintf(b, n, "Off"); break;
@@ -977,7 +999,7 @@ static node_t sub_node(item_t id)
     case S_RAIN: return N_RAIN; case S_LIGHTS: return N_LIGHTS; case S_AC: return N_AC; case S_ALARMS: return N_ALARMS;
     case S_ALARM_ITEM: return N_ALARM; case S_DAYS: return N_DAYS;
     case S_HOMESCR: return N_HOMESCR; case S_NIGHTG: return N_NIGHTG; case S_KEYS: return N_KEYS; case S_KEY: return N_KEY;
-    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE;
+    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE;
     default: return N_SETTINGS;
     }
 }
@@ -1456,6 +1478,11 @@ static void build_list(layer_t *l)
     if (r->id == I_MENUKEY) { snprintf(big, sizeof big, "Menu"); snprintf(small, sizeof small, "Press: menu or back " DOT " hold: home"); }
     if ((r->id == V_TIME || r->id == V_DATE) && S.auto_time) snprintf(small, sizeof small, "Set automatically " DOT " switch it off to change");
     if (r->id == C_OVERLAY) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(small, sizeof small, "Dashboard %d x %d " DOT " press to change", w, h); }
+    if (r->id == I_FWVER) { int sl = ota_boot_partition(); snprintf(small, sizeof small, "slot %c " DOT " from github.com/%s", sl >= 0 ? 'A' + sl : '-', "dmellok"); }
+    if (r->id == A_OTACHECK) snprintf(small, sizeof small, "%d release(s) listed " DOT " press to check GitHub", ota_release_count());
+    if (r->id == T_AUTOUPD) snprintf(small, sizeof small, "Newest stable, 03:10, never near an alarm");
+    if (r->id == A_RELEASE) { const ota_release_t *e = ota_release(r->arg);
+        if (e) snprintf(small, sizeof small, "%s " DOT " %s", e->date, s_rel_armed == r->arg ? "press again to install" : "press to install"); }
     if (r->id == A_WIFISETUP) snprintf(small, sizeof small, "Restarts into setup: join its WiFi from a phone");
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Partial, then a full refresh");
@@ -1763,6 +1790,34 @@ static void toast_loading(const char *title)
     s_toast_loading = true;
     s_toast_until = (now_ms() + 40000u) | 1u;            /* a first render can take a while */
 }
+/* The update in progress: a card with the percentage; a failure says why. The
+ * overnight check: 03:10 local, auto-update on, no alarm within 90 minutes. */
+void local_ota_service(void)
+{
+    static int last_pct = -1; static ota_state_t last = OTA_IDLE;
+    ota_state_t st = ota_state();
+    if (st == OTA_DOWNLOADING || st == OTA_VERIFYING) {
+        int pct = ota_percent();
+        if (pct != last_pct || st != last) {
+            char v[40]; snprintf(v, sizeof v, "%s  %d%%", ota_target_version(), st == OTA_VERIFYING ? 100 : pct);
+            toast(ICON_GEAR, st == OTA_VERIFYING ? "Checking the update" : "Updating", v);
+            s_toast_loading = true; s_toast_until = (now_ms() + 120000u) | 1u;
+            last_pct = pct;
+        }
+    } else if (st == OTA_FAILED && last != OTA_FAILED) {
+        s_toast_loading = false; toast(ICON_GEAR, "Update failed", ota_error()); last_pct = -1;
+    }
+    last = st;
+    if (!S.auto_update || ota_busy()) return;
+    static int done_day = -1;
+    int wd, sec; int64_t mn;
+    if (!clock_now(&wd, &sec, &mn) || sec / 60 != 3 * 60 + 10 || done_day == (int)(mn / 1440)) return;
+    done_day = (int)(mn / 1440);
+    int ai; int32_t dl;
+    if (next_alarm(&ai, &dl) && dl >= 0 && dl < 90 * 60) { printf("ota: auto-update skipped, an alarm is due\n"); return; }
+    ota_auto_update();
+}
+
 /* main.c: a new frame arrived, so the loading card goes with the repaint. */
 void local_frame_arrived(void)
 {
@@ -2211,6 +2266,11 @@ bool local_press(void)
                 s_req = LREQ_RESTART;
             } else if (r.id == A_WIFISETUP) {
                 s_req = LREQ_SETUP;
+            } else if (r.id == A_OTACHECK) {
+                ota_releases_fetch(); s_rel_armed = -1; mark_screen();
+            } else if (r.id == A_RELEASE) {
+                if (s_rel_armed != r.arg) { s_rel_armed = r.arg; int sl = s_stack[s_depth - 1].sel; mark_rows(sl, sl); }
+                else { s_rel_armed = -1; if (!ota_install(r.arg)) toast(ICON_GEAR, "Update failed", ota_error()); }
             } else if (r.id == A_PREVIEW) {
                 chorus_preview(s_preview_len_ms ? 0 : 90);
                 rebuild(); { int sl = s_stack[s_depth - 1].sel; mark_rows(sl, sl); }
@@ -2371,6 +2431,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "show"))       { if (v < 0 || v > 31) return false; S.show = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 1) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "tz"))         { if (v < 0 || v >= N_TZ) return false; S.tz = v; rebuild(); if (ov_active()) mark_ov(); return true; }
+    else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
     else if (!strcmp(key, "birds"))     { if (v < 0 || v > BIRDS_ALL) return false; S.birds = (uint16_t)v; }
@@ -2452,7 +2513,7 @@ static void sound_load(void)
 #define SET2_MAGIC 0x53455432u  /* "SET2" */
 typedef struct { uint8_t key_col, menu_col, night_col, knob, auto_night, clock12, snooze, pad; } set1_blob_t;
 typedef struct { uint8_t key_col, menu_col, night_col, knob, auto_night, clock12, snooze,
-                 night_keys, overlay, show, at_night, tz, auto_time, refresh_mode, pad[2]; } set_blob_t;
+                 night_keys, overlay, show, at_night, tz, auto_time, refresh_mode, auto_update, pad[1]; } set_blob_t;
 static set_blob_t s_set_saved;
 static uint32_t   s_set_changed_at;
 static void set_pack(set_blob_t *b)
@@ -2461,14 +2522,14 @@ static void set_pack(set_blob_t *b)
     b->key_col = (uint8_t)S.key_col; b->menu_col = (uint8_t)S.menu_col; b->night_col = (uint8_t)S.night_col;
     b->knob = S.knob_light; b->auto_night = (uint8_t)S.auto_night; b->clock12 = S.clock12; b->snooze = (uint8_t)S.snooze_min;
     b->night_keys = (uint8_t)S.night_keys; b->overlay = (uint8_t)S.overlay; b->show = (uint8_t)S.show; b->at_night = (uint8_t)S.at_night;
-    b->tz = (uint8_t)S.tz; b->auto_time = S.auto_time; b->refresh_mode = (uint8_t)S.refresh_mode;
+    b->tz = (uint8_t)S.tz; b->auto_time = S.auto_time; b->refresh_mode = (uint8_t)S.refresh_mode; b->auto_update = S.auto_update;
 }
 static void settings_load(void)
 {
     set_blob_t b; set1_blob_t o;
     if (config_blob_load(4, SET2_MAGIC, &b, sizeof b)) {
         S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 4; S.show = b.show & 0x1F; S.at_night = b.at_night % 2;
-        S.tz = b.tz % N_TZ; S.auto_time = b.auto_time; S.refresh_mode = b.refresh_mode % 3;
+        S.tz = b.tz % N_TZ; S.auto_time = b.auto_time; S.refresh_mode = b.refresh_mode % 3; S.auto_update = b.auto_update == 1;
     } else if (config_blob_load(4, SET_MAGIC, &o, sizeof o)) {
         memset(&b, 0, sizeof b); memcpy(&b, &o, 7);           /* the SET1 fields; Mk II ones stay at their defaults */
     } else b.snooze = 0, b.knob = 2;
@@ -2549,8 +2610,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);
