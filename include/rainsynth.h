@@ -1,5 +1,6 @@
 /*
- * rainsynth.h: procedural sleep sounds (rain, ocean, noise) with thunder.
+ * rainsynth.h: sleep sounds (rain, ocean, noise, wind, or a stored recording)
+ * with thunder.
  *
  * Plain C with no Pico dependencies, so tools/render_rain.c can render it on a
  * host to audition and level-check. Mono, float internally, int16 out.
@@ -12,7 +13,8 @@
 
 #define RAIN_SR 22050
 
-typedef enum { RS_RAIN = 0, RS_OCEAN = 1, RS_NOISE = 2 } rs_kind_t;
+typedef enum { RS_RAIN = 0, RS_OCEAN = 1, RS_NOISE = 2, RS_WIND = 3, RS_RECORDING = 4 } rs_kind_t;
+#define RS_KINDS 5
 typedef enum { RS_OPEN = 0, RS_LEAVES = 1, RS_ROOF = 2, RS_WINDOW = 3 } rs_surface_t;
 
 typedef struct {
@@ -36,6 +38,11 @@ typedef struct {
     int      bird_vol;     /* 0..10: the chorus has its own volume (it has to wake you) */
     uint32_t audition;     /* change it to play one call from audition_bird now */
     int      audition_bird;
+    /* RS_RECORDING: an "ADP1" IMA ADPCM file (store.h), looped. NULL or not a
+     * valid 22.05 kHz file: rain instead. Read in place (flash); the caller
+     * swaps it out before that flash can change. */
+    const uint8_t *rec;
+    uint32_t       rec_len;
 } rs_params_t;
 
 /* Sensible defaults for the shaping fields. */

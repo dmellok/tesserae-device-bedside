@@ -13,6 +13,10 @@
  * Ocean   brown noise through a filter that opens and closes with each wave;
  *         each wave has its own length and size, with foam hiss on the break.
  * Noise   pink-to-brown noise; low levels are deep, high levels brighter.
+ * Wind    on its own: a breathy band of pink noise whose pitch and strength
+ *         follow slow gusts, a low roar under it, a thin whistle in strong gusts.
+ * Recording  a stored IMA ADPCM loop (store.h), level as loudness, tone as
+ *         brightness; thunder can roll over it as over rain.
  *
  * Every gain glides, so switching sound, level or volume, or turning it on and
  * off, fades instead of clicking.
@@ -170,9 +174,66 @@ static int    s_gust_left;
 static float  s_wind_f = 500.0f, s_wind_target = 500.0f;
 static float  s_wave_t, s_wave_len = 9.0f, s_wave_size = 1.0f;
 static float  s_noise_lp;
+/* wind on its own */
+static pink_t s_wpk;
+static svf_t  s_wbp, s_wwh;
+static float  s_wbr, s_wroar, s_wg = 0.6f, s_wg_target = 0.6f, s_wf = 500.0f, s_wf_target = 500.0f;
+static int    s_wg_left;
+/* the recording: an ADPCM decoder over the file in flash */
+static struct {
+    const uint8_t *p;
+    uint32_t len, n, bb, per, blk, k, pos;
+    int      pred, idx;
+    bool     ok;
+} R;
+static float  s_rec_lp;
+static const int16_t ADP_STEP[89] = {7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,
+    157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,
+    2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,
+    18500,20350,22385,24623,27086,29794,32767};
+static const int8_t ADP_IDX[8] = {-1,-1,-1,-1,2,4,6,8};
+static inline uint32_t rd32(const uint8_t *b) { return (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24; }
+
+/* Point the decoder at a file (or NULL); checks the header and the size. */
+static void rec_open(const uint8_t *p, uint32_t len)
+{
+    memset(&R, 0, sizeof R);
+    R.p = p; R.len = len;
+    if (!p || len < 16 || rd32(p) != 0x31504441u || rd32(p + 4) != RAIN_SR) return;
+    R.n = rd32(p + 8); R.bb = rd32(p + 12);
+    if (R.n < 2 || R.bb < 8 || R.bb > 65536) return;
+    R.per = 1 + 2 * (R.bb - 4);
+    uint32_t blocks = (R.n + R.per - 1) / R.per;
+    if (16 + (uint64_t)blocks * R.bb > len) return;
+    R.ok = true;
+}
+
+static inline float rec_next(void)
+{
+    const uint8_t *b = R.p + 16 + R.blk * R.bb;
+    if (R.k == 0) {                              /* a block starts with its first sample */
+        R.pred = (int16_t)(b[0] | b[1] << 8);
+        R.idx = b[2] > 88 ? 88 : b[2];
+    } else {
+        uint32_t c = R.k - 1;
+        int code = (b[4 + (c >> 1)] >> ((c & 1) * 4)) & 15;
+        int st = ADP_STEP[R.idx], dq = st >> 3;
+        if (code & 4) dq += st;
+        if (code & 2) dq += st >> 1;
+        if (code & 1) dq += st >> 2;
+        R.pred += (code & 8) ? -dq : dq;
+        R.pred = R.pred > 32767 ? 32767 : R.pred < -32768 ? -32768 : R.pred;
+        R.idx += ADP_IDX[code & 7];
+        R.idx = R.idx < 0 ? 0 : R.idx > 88 ? 88 : R.idx;
+    }
+    float v = (float)R.pred * (1.0f / 32768.0f);
+    if (++R.pos >= R.n) { R.pos = 0; R.blk = 0; R.k = 0; }      /* the end: loop (the web app blended it) */
+    else if (++R.k >= R.per) { R.k = 0; R.blk++; }
+    return v;
+}
 
 /* Gliding gains and controls. */
-static float  g_rain, g_ocean, g_noise, g_master, g_birds;
+static float  g_rain, g_ocean, g_noise, g_master, g_birds, g_wind, g_rec;
 static uint32_t s_last_audition;
 static float  s_level_s = 3.0f, s_patter = 0.6f, s_wash = 0.55f, s_tone = 0.5f, s_windk = 0.2f;
 
@@ -189,7 +250,10 @@ void rs_init(uint32_t seed)
     memset(&s_sea, 0, sizeof s_sea); memset(&s_foam, 0, sizeof s_foam); memset(&s_wind, 0, sizeof s_wind);
     s_gust = s_gust_target = 1.0f; s_gust_left = 0; s_wind_f = s_wind_target = 500.0f;
     s_wave_t = 0; s_wave_len = 9.0f; s_wave_size = 1.0f;
-    g_rain = g_ocean = g_noise = g_master = 0;
+    g_rain = g_ocean = g_noise = g_master = g_wind = g_rec = 0;
+    memset(&s_wpk, 0, sizeof s_wpk); memset(&s_wbp, 0, sizeof s_wbp); memset(&s_wwh, 0, sizeof s_wwh);
+    s_wbr = s_wroar = 0; s_wg = s_wg_target = 0.6f; s_wf = s_wf_target = 500.0f; s_wg_left = 0;
+    rec_open(NULL, 0); s_rec_lp = 0;
     s_level_s = 3.0f; s_patter = 0.6f; s_wash = 0.55f; s_tone = 0.5f; s_windk = 0.2f;
     g_birds = 0; s_last_audition = 0;
     bs_init(seed * 2654435761u + 1u);
@@ -212,8 +276,13 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     float chorus = clamp01(p->chorus);
     float under = 1.0f - clamp01(chorus * 1.6f);
     float tr = (p->on && kind == RS_RAIN)  ? under : 0.0f;
+    /* rain also stands in for a recording that isn't there (below) */
     float to = (p->on && kind == RS_OCEAN) ? under : 0.0f;
     float tn = (p->on && kind == RS_NOISE) ? under : 0.0f;
+    float tw = (p->on && kind == RS_WIND)  ? under : 0.0f;
+    if (p->rec != R.p || p->rec_len != R.len) rec_open(p->rec, p->rec_len);
+    float tc = (p->on && kind == RS_RECORDING && R.ok) ? under : 0.0f;
+    if (p->on && kind == RS_RECORDING && !R.ok) tr = under;          /* no usable recording: rain */
     if (p->audition != s_last_audition) { s_last_audition = p->audition; bs_call(p->audition_bird); }
     bs_block(chorus, p->birds, blk);
     float bv = (p->bird_vol < 0 ? 0 : p->bird_vol > 10 ? 10 : (float)p->bird_vol) / 10.0f;
@@ -255,6 +324,11 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     /* noise colour: brown at level 1, pink at 5, tone shifts it */
     float a_noise = lp_coef((250.0f + 2200.0f * L) * tone_k);
 
+    /* wind on its own: gust walk per block */
+    float a_roar = lp_coef(160.0f * tone_k);
+    float a_rec  = lp_coef(lerp(2500.0f, 11000.0f, s_tone));
+    float g_recl = lerp(0.55f, 1.0f, L);
+
     /* ocean: wave clock advances per block */
     float size_gain = 0.55f + 0.45f * L;
     if (g_ocean > 1e-4f || to > 0) {
@@ -266,8 +340,9 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     s_thunder_age += blk;
     float thunder_k = clamp01(p->thunder / 100.0f);
     float near_k = clamp01(p->thunder_near / 100.0f);
-    if (p->strike != s_last_strike) { s_last_strike = p->strike; if (tr > 0) thunder_start(near_k + (uni() - 0.5f) * 0.3f); }
-    if (tr > 0 && thunder_k > 0 && !T.on) {
+    bool stormy = tr > 0 || tc > 0;              /* thunder rolls over rain and recordings */
+    if (p->strike != s_last_strike) { s_last_strike = p->strike; if (stormy) thunder_start(near_k + (uni() - 0.5f) * 0.3f); }
+    if (stormy && thunder_k > 0 && !T.on) {
         s_next_thunder -= blk;
         if (s_next_thunder <= 0) {
             thunder_start(near_k + (uni() - 0.5f) * 0.4f);
@@ -289,7 +364,9 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         g_noise  += (tn - g_noise) * glide * 4.0f;
         g_master += (tm - g_master) * glide * 2.0f;
         g_birds  += (tb - g_birds) * glide * 2.0f;
-        if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise < 1e-4f && !T.on && !birds_on) { out[i] = 0; continue; }
+        g_wind   += (tw - g_wind)  * glide * 4.0f;
+        g_rec    += (tc - g_rec)   * glide * 4.0f;
+        if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise + g_wind + g_rec < 1e-4f && !T.on && !birds_on) { out[i] = 0; continue; }
 
         float w = white();
         float x = 0;
@@ -341,7 +418,8 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
                 T.crackle_lp *= 0.985f;
                 th += T.crackle_lp * expf(-T.t / 0.25f);
             }
-            x += th * (g_rain > 0.05f ? g_rain : 0.05f);
+            float bed = g_rain > g_rec ? g_rain : g_rec;
+            x += th * (bed > 0.05f ? bed : 0.05f);
             T.t += 1.0f / SR;
             if (T.t > T.dur + 3.0f) T.on = false;
         }
@@ -354,6 +432,29 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
             float foam_in = w * e * e;
             svf(&s_foam, foam_in, svf_f(3500.0f * tone_k), 1.4f);
             x += (s_sea.low * (0.25f + 0.9f * e) * size_gain + s_foam.band * 0.35f * size_gain) * 0.26f * g_ocean;
+        }
+
+        if (g_wind > 1e-4f) {
+            if (--s_wg_left <= 0) {                                /* the next gust: how strong, how long, what pitch */
+                s_wg_target = (0.25f + 0.75f * uni()) * (0.55f + 0.45f * L);
+                s_wg_left = (int)(SR * (1.5f + 5.0f * uni()) * lerp(1.4f, 0.7f, L));
+                s_wf_target = (260.0f + 700.0f * uni()) * (0.8f + 0.5f * L);
+            }
+            s_wg += (s_wg_target - s_wg) * (1.0f / (SR * 2.2f));
+            s_wf += (s_wf_target - s_wf) * (1.0f / (SR * 3.0f));
+            float pk = pink(&s_wpk, w);
+            svf(&s_wbp, pk, svf_f(s_wf * tone_k * (0.6f + 0.8f * s_wg)), 0.45f);
+            float roar = lp(&s_wroar, brown(&s_wbr, w), a_roar);
+            float wx = s_wbp.band * 1.1f * s_wg + roar * 0.7f * (0.35f + 0.65f * s_wg);
+            if (s_wg > 0.55f) {                                    /* a thin whistle at the top of strong gusts */
+                svf(&s_wwh, w, svf_f(s_wf * 2.4f * tone_k), 0.05f);
+                wx += s_wwh.band * 0.06f * (s_wg - 0.55f) * 2.2f;
+            }
+            x += wx * lerp(0.22f, 0.6f, L) * g_wind;
+        }
+
+        if (g_rec > 1e-4f && R.ok) {
+            x += lp(&s_rec_lp, rec_next(), a_rec) * g_recl * 0.8f * g_rec;
         }
 
         if (g_noise > 1e-4f) {

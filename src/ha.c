@@ -161,8 +161,8 @@ typedef struct { const char *comp, *key, *name, *icon, *vt, *extra; char topic; 
 static const ent_t ENTS[] = {
     /* sleep sounds */
     { "switch", "rain_on", "Sleep sounds", "mdi:weather-pouring", "{{ value_json.rain.on }}", SW, 's' },
-    { "select", "rain_kind", "Sleep sound", "mdi:waves", "{{ ['Rain','Ocean','Noise'][value_json.rain.kind] }}",
-      "\"ops\":[\"Rain\",\"Ocean\",\"Noise\"],\"cmd_tpl\":\"{{ ['Rain','Ocean','Noise'].index(value) }}\"", 's' },
+    { "select", "rain_kind", "Sleep sound", "mdi:waves", "{{ ['Rain','Ocean','Noise','Wind','Recording'][value_json.rain.kind] }}",
+      "\"ops\":[\"Rain\",\"Ocean\",\"Noise\",\"Wind\",\"Recording\"],\"cmd_tpl\":\"{{ ['Rain','Ocean','Noise','Wind','Recording'].index(value) }}\"", 's' },
     { "number", "rain_lvl", "Rain intensity", "mdi:weather-rainy", "{{ value_json.rain.lvl }}", "\"min\":1,\"max\":5,\"step\":1,\"mode\":\"slider\"", 's' },
     { "select", "sleep", "Sleep timer", "mdi:timer-sand", "{{ {0:'Off',15:'15 min',30:'30 min',60:'60 min'}[value_json.rain.sleep] }}",
       "\"ops\":[\"Off\",\"15 min\",\"30 min\",\"60 min\"],\"cmd_tpl\":\"{{ {'Off':0,'15 min':15,'30 min':30,'60 min':60}[value] }}\"", 's' },
@@ -202,6 +202,12 @@ static const ent_t ENTS[] = {
       "\"ops\":[\"Auto\",\"Low\",\"Mid\",\"High\"],\"cmd_tpl\":\"{{ ['Auto','Low','Mid','High'].index(value) }}\"", 's' },
     /* panel */
     { "switch", "night", "Night mode", "mdi:weather-night", "{{ value_json.night }}", SW, 's' },
+    /* hardware */
+    { "switch", "speaker", "Speaker", "mdi:speaker", "{{ value_json.hw.speaker }}", SW ",\"ent_cat\":\"config\"", 's' },
+    { "switch", "gestures", "Wave gestures", "mdi:gesture-swipe", "{{ value_json.hw.gestures }}", SW ",\"ent_cat\":\"config\"", 's' },
+    { "sensor", "battery", "Battery", "mdi:battery", "{{ value_json.hw.pct if value_json.hw.power_mon else None }}",
+      "\"unit_of_meas\":\"%\",\"dev_cla\":\"battery\",\"stat_cla\":\"measurement\"", 's' },
+    { "binary_sensor", "mains", "Mains power", "mdi:power-plug", "{{ 'OFF' if value_json.hw.on_battery else 'ON' }}", "\"dev_cla\":\"power\"", 's' },
     { "number", "keylights", "Key lights", "mdi:keyboard", "{{ value_json.keylights }}", PCT ",\"ent_cat\":\"config\"", 's' },
     { "select", "dash", "Dashboard", "mdi:view-dashboard", NULL, NULL, 's' },              /* options built at run time */
     { "button", "cmd_fetch", "Fetch dashboard", "mdi:download", NULL, "\"pl_prs\":\"1\"", 's' },
@@ -227,7 +233,7 @@ static const ent_t ENTS[] = {
     { "sensor", "tess", "Tesserae link", "mdi:monitor-dashboard", "{{ value_json.tess }}", "\"ent_cat\":\"diagnostic\"", 'd' },
     /* events for automations */
     { "event", "event", "Events", "mdi:bell-ring", NULL,
-      "\"evt_typ\":[\"prewake\",\"alarm_ringing\",\"alarm_snoozed\",\"alarm_stopped\",\"thunder\",\"chorus_preview\",\"chorus_preview_stop\"]", 'e' },
+      "\"evt_typ\":[\"prewake\",\"alarm_ringing\",\"alarm_snoozed\",\"alarm_stopped\",\"thunder\",\"chorus_preview\",\"chorus_preview_stop\",\"gesture_left\",\"gesture_right\",\"gesture_up\",\"gesture_down\",\"gesture_wave\",\"on_battery\",\"mains\"]", 'e' },
 };
 #define N_FIXED   ((int)(sizeof ENTS / sizeof ENTS[0]))
 #define N_SLOTS   4
@@ -310,7 +316,7 @@ static bool disc_build(int k, char *topic, size_t tn, char *pl, size_t pn)
     const config_t *cfg = config_get();
     size_t n = (size_t)snprintf(pl, pn, "{\"name\":\"%s\",\"uniq_id\":\"%s_%s\"", name, s_uid, key);
     const char *st = tsel == 'd' ? "diag" : tsel == 'e' ? "event" : "state";
-    bool commands = strcmp(comp, "sensor") && strcmp(comp, "event");
+    bool commands = strcmp(comp, "sensor") && strcmp(comp, "binary_sensor") && strcmp(comp, "event");
     if (strcmp(comp, "button")) n += (size_t)snprintf(pl + n, pn - n, ",\"stat_t\":\"%s/%s\"", C.base, st);
     if (vt[0]) n += (size_t)snprintf(pl + n, pn - n, ",\"val_tpl\":\"%s\"", vt);
     if (commands) n += (size_t)snprintf(pl + n, pn - n, ",\"cmd_t\":\"%s/set/%s\"", C.base, key);
@@ -527,7 +533,7 @@ bool ha_translate(const char *msg, char *name, size_t nn, char *value, size_t vn
     printf("ha: %s = %s\n", key, p);
 
     static const char *const SET[] = { "vol", "rain_on", "rain_lvl", "rain_kind", "sleep", "lights_on", "bright", "colour",
-        "ac_mode", "setpoint", "fan", "night", "keylights", "dash", "patter", "wash", "tone", "wind", "surface", "thunder",
+        "ac_mode", "setpoint", "fan", "night", "keylights", "speaker", "gestures", "dash", "patter", "wash", "tone", "wind", "surface", "thunder",
         "thunder_near", "strike", "bird_vol", "chorus_preview", "alarm_stop", "alarm_snooze", "alarm_add",
         "key_col", "menu_col", "night_col", "knob_light", "auto_night", "clock12", "snooze" };
     for (size_t i = 0; i < sizeof SET / sizeof SET[0]; i++)

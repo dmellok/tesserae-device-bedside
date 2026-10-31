@@ -485,3 +485,22 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
   window only as records decrypt); GitHub's signed asset redirect is ~1 KB.
 - Headless Chrome needs `--disable-features=AudioServiceOutOfProcess,AudioServiceSandbox`
   for `decodeAudioData` to return (for testing the converter).
+
+## 2026-11-01: speaker, battery, gestures, wind, recordings
+
+- `audio.c`: I2S is pico-extras' audio_i2s program built with the
+  `pio_encode_*` helpers (no pioasm in this build), two DMA channels
+  ping-ponging over 2 x 256 frames in SRAM, refilled in a DMA_IRQ_1 shared
+  handler on core 1 from the ring, ~50 ms behind the writer (with a warm-up so
+  it never plays stale ring data). Rendering now runs while the speaker plays
+  as well as for web listeners. Verified on the bench without the amp: the
+  buffers refill (`hw.i2s_fills` in the state JSON); not yet heard.
+- `power.c` and `gesture.c` are untested against hardware (none fitted yet);
+  gesture directions depend on how the sensor is mounted, swap the mapping in
+  `decode()` if up and down come out reversed.
+- `rainsynth.c`: RS_WIND and RS_RECORDING. The recording is decoded in place
+  from flash (store.h format); verified by correlating the web stream with the
+  uploaded file (0.994). `tools/render_rain.c` levels: wind L1/L3/L5 at about
+  -26/-20/-17 dBFS RMS, rain L3 -19.
+- printf here has no float support: format numbers as integers (mV).
+- Menu lists move exactly one row per detent (acceleration only on values).

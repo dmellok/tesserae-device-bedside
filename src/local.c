@@ -30,6 +30,9 @@
 #include "inputs.h"
 #include "ota.h"
 #include "icons.h"
+#include "audio.h"
+#include "power.h"
+#include "gesture.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -222,6 +225,7 @@ static local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
+    .speaker = true, .power_mon = false, .gestures = true, .gest_lr = "lights.toggle", .gest_ud = "vol", .rec = "",
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 static char s_date[40];
@@ -259,7 +263,7 @@ static const char *const SCREEN_NAMES[SCR_COUNT] = { "home", "menu", "rain", "li
 const char *local_screen_name(screen_t s) { return (s >= 0 && s < SCR_COUNT) ? SCREEN_NAMES[s] : "?"; }
 static const char *const AC_MODES[5] = { "Off", "Heat", "Fan", "Cool", "Dry" };
 static const char *const FANS[4]     = { "Auto", "Low", "Mid", "High" };
-static const char *const KINDS[3]    = { "Rain", "Ocean", "Noise" };
+static const char *const KINDS[5]    = { "Rain", "Ocean", "Noise", "Wind", "Recording" };
 static const char *const DASHES[3]   = { "Live", "Bedside", "Tomorrow" };   /* 0: drawn on the device (build_live) */
 /* Key light palette. */
 typedef struct { const char *name; uint8_t rgb[3]; } pal_t;
@@ -349,6 +353,7 @@ static void dash_go(int k)
 }
 static void sound_load(void);
 static void settings_load(void);
+static void ext_load(void);
 
 /* ---- dirty regions ----------------------------------------------------------
  * A list of small rectangles, each painted on its own, so changing one value
@@ -503,7 +508,7 @@ const char *local_label_for_action(const char *spec)
 
 /* ---- the click-wheel UI ---------------------------------------------------------
  * After the iPod. Every control means one thing everywhere:
- *   knob turn      scroll a list, move a value (faster turns go further);
+ *   knob turn      scroll a list one row a detent, move a value (faster turns take bigger steps);
  *                  on the dashboard: volume
  *   knob press     choose (the wheel's centre button)
  *   knob hold      back, the same as MENU
@@ -536,6 +541,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
+    T_SPEAKER, T_POWERMON, T_GESTURES,
 } item_t;
 
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
@@ -607,7 +613,7 @@ static int node_rows(node_t nd, row_def_t *r)
     int n = 0;
     switch (nd) {
     case N_ROOT:
-        r[n++] = (row_def_t){ S_RAIN, K_SUB, "Rain", ICON_CLOUD_RAIN, 0 };
+        r[n++] = (row_def_t){ S_RAIN, K_SUB, "Sound", ICON_CLOUD_RAIN, 0 };
         r[n++] = (row_def_t){ S_LIGHTS, K_SUB, "Lights", ICON_LIGHTBULB, 0 };
         r[n++] = (row_def_t){ S_AC, K_SUB, "A/C", ICON_SNOWFLAKE, 0 };
         r[n++] = (row_def_t){ S_ALARMS, K_SUB, "Alarms", ICON_ALARM, 0 };
@@ -618,8 +624,8 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ T_RAIN, K_TOGGLE, "Playing", ICON_PLAY, 0 };
         r[n++] = (row_def_t){ V_RAIN_LVL, K_VALUE, "Intensity", ICON_CLOUD_RAIN, 0 };
         r[n++] = (row_def_t){ C_RAIN_KIND, K_CHOICE, "Sound", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SURFACE, K_CHOICE, "Falling on", ICON_CLOUD_RAIN, 0 };
-        r[n++] = (row_def_t){ C_THUNDER, K_CHOICE, "Thunder", ICON_CLOUD_LIGHTNING, 0 };
+        if (S.rain_kind == 0) r[n++] = (row_def_t){ C_SURFACE, K_CHOICE, "Falling on", ICON_CLOUD_RAIN, 0 };          /* rain only */
+        if (S.rain_kind == 0 || S.rain_kind == 4) r[n++] = (row_def_t){ C_THUNDER, K_CHOICE, "Thunder", ICON_CLOUD_LIGHTNING, 0 };   /* over rain or a recording */
         r[n++] = (row_def_t){ C_SLEEP, K_CHOICE, "Sleep timer", ICON_MOON, 0 };
         break;
     case N_LIGHTS:
@@ -714,6 +720,9 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
+        r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", ICON_BATTERY_CHARGING, 0 };
+        r[n++] = (row_def_t){ T_GESTURES, K_TOGGLE, "Wave gestures", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", ICON_WIFI_HIGH, 0 };
         r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
@@ -727,7 +736,7 @@ static const char *node_title(node_t nd)
 {
     static char b[24];
     switch (nd) {
-    case N_ROOT: return "Menu"; case N_RAIN: return "Rain"; case N_LIGHTS: return "Lights"; case N_AC: return "A/C";
+    case N_ROOT: return "Menu"; case N_RAIN: return "Sound"; case N_LIGHTS: return "Lights"; case N_AC: return "A/C";
     case N_ALARMS: return "Alarms"; case N_SETTINGS: return "Settings"; case N_CHORUS: return "Dawn chorus";
     case N_ALARM: snprintf(b, sizeof b, "Alarm %d", s_ai + 1); return b;
     case N_DAYS:  snprintf(b, sizeof b, "Alarm %d days", s_ai + 1); return b;
@@ -773,6 +782,7 @@ static bool toggle_get(const row_def_t *r)
     case T_SHOW: return (S.show >> r->arg) & 1;
     case T_AUTOTIME: return S.auto_time;
     case T_AUTOUPD: return S.auto_update;
+    case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon; case T_GESTURES: return S.gestures;
     case T_NIGHT: return S.night; default: return false;
     }
 }
@@ -787,6 +797,9 @@ static void toggle_flip(const row_def_t *r)
     case T_KNOB:   S.knob_light = !S.knob_light; apply_colours(); break;
     case T_SHOW:   S.show ^= 1 << r->arg; overlay_apply(); break;
     case T_AUTOUPD: S.auto_update = !S.auto_update; break;
+    case T_SPEAKER: S.speaker = !S.speaker; publish("config/speaker", S.speaker ? "on" : "off"); break;
+    case T_POWERMON: S.power_mon = !S.power_mon; if (!S.power_mon) S.on_battery = false; break;
+    case T_GESTURES: S.gestures = !S.gestures; publish("config/gestures", S.gestures ? "on" : "off"); break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
     case T_BIRD:   S.birds ^= (uint16_t)(1u << r->arg);
                    if ((S.birds >> r->arg) & 1) { S.audition_bird = r->arg; S.audition++; }   /* let you hear who you added */
@@ -852,7 +865,7 @@ static void value_step(item_t id, int d, int accel)
 static int choice_opts(item_t id, const char *const **o)
 {
     switch (id) {
-    case C_RAIN_KIND: *o = KINDS; return 3;   case C_SLEEP: *o = SLEEPS; return 4;
+    case C_RAIN_KIND: *o = KINDS; return 5;   case C_SLEEP: *o = SLEEPS; return 4;
     case C_COLOUR:    *o = COLOURS; return 2; case C_AC_MODE: *o = MODES4; return 4;
     case C_FAN:       *o = FANS; return 4;    case C_EARLY: *o = EARLY; return 5;
     case C_DASH:      if (!tesserae_pick_count()) { *o = DASHES; return 3; }      /* no list (older server): the rotation */
@@ -963,7 +976,8 @@ static void row_value(const row_def_t *r, char *b, size_t n)
         if (r->id == I_VIEWPORT) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(b, n, "%d x %d", w, h); }
         else if (r->id == I_FWVER) snprintf(b, n, "%s", FW_VERSION);
         else if (r->id == I_MENUKEY) snprintf(b, n, "Fixed");
-        else snprintf(b, n, "%s", S.on_battery ? "Battery" : "Mains");
+        else if (S.on_battery) snprintf(b, n, "Battery %d%%", S.batt_pct);
+        else snprintf(b, n, "Mains");
         break;
     case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing");
                    if (r->id == A_OTACHECK && ota_checked_ms()) { int m = (int)((now_ms() - ota_checked_ms()) / 60000); if (m < 1) snprintf(b, n, "just now"); else snprintf(b, n, "%d min ago", m); }
@@ -1473,7 +1487,7 @@ static void build_list(layer_t *l)
                      : r->kind == K_ACTION ? "press" : r->kind == K_INFO ? "" : "press to change";
     char small[48]; snprintf(small, sizeof small, "%s%s%s", r->kind == K_BACK ? "" : r->label, (hint[0] && r->kind != K_BACK) ? "  " DOT "  " : "", hint);
     if (r->kind == K_SUB && r->id == S_ALARM_ITEM) snprintf(big, sizeof big, "%s", r->label);
-    if (r->id == I_STATUS) { snprintf(big, sizeof big, "%s", S.on_battery ? "Battery" : "Mains"); snprintf(small, sizeof small, "Wi-Fi %s " DOT " %s", net_connected() ? "on" : "off", tesserae_state_name()); }
+    if (r->id == I_STATUS) { if (S.on_battery) snprintf(big, sizeof big, "Battery %d%%", S.batt_pct); else snprintf(big, sizeof big, "Mains"); snprintf(small, sizeof small, "Wi-Fi %s " DOT " %s", net_connected() ? "on" : "off", tesserae_state_name()); }
     if (r->id == I_VIEWPORT) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(small, sizeof small, "at x %d, y %d " DOT " every heartbeat", x, y); }
     if (r->id == I_MENUKEY) { snprintf(big, sizeof big, "Menu"); snprintf(small, sizeof small, "Press: menu or back " DOT " hold: home"); }
     if ((r->id == V_TIME || r->id == V_DATE) && S.auto_time) snprintf(small, sizeof small, "Set automatically " DOT " switch it off to change");
@@ -1945,7 +1959,7 @@ static void list_back(void)
     mark_screen();
 }
 
-void local_init(void) { alarms_load(); sync_alarm_summary(); sound_load(); settings_load(); rebuild(); }
+void local_init(void) { alarms_load(); sync_alarm_summary(); sound_load(); settings_load(); ext_load(); rebuild(); }
 bool local_tick(void) { return false; }
 
 bool local_live_active(void) { return S.dash_page == 0; }
@@ -2193,7 +2207,8 @@ void local_alarm_tick(bool *changed)
 }
 
 /* Speed: detents arriving close together count for more. A slow click moves
- * one row or one step; a quick flick moves several rows, or steps of 3x / 6x. */
+ * one step; a quick flick takes steps of 3x / 6x. Values only: in lists and
+ * choices every detent is exactly one row. */
 static uint32_t s_last_turn_ms;
 static int accel_for(int d)
 {
@@ -2215,8 +2230,7 @@ bool local_turn(int d)
     case M_HOME: volume(d > 0 ? 1 : -1); return true;
     case M_LIST: {
         int *sel = &s_stack[s_depth - 1].sel, n = node_rows(s_stack[s_depth - 1].node, s_rows), old = *sel;
-        int step = acc >= 6 ? 3 : acc >= 3 ? 2 : 1;
-        *sel = clampi(*sel + d * step, 0, n - 1);
+        *sel = clampi(*sel + d, 0, n - 1);          /* one detent, one row: no speed-up in lists */
         if (*sel != old) mark_rows(old, *sel);
         return true; }
     case M_CHOICE: {
@@ -2348,7 +2362,7 @@ bool local_action(const char *id)
     if (!strcmp(id, "back"))          return local_back();
     if (!strcmp(id, "vol.up"))        { volume(+1); return true; }
     if (!strcmp(id, "vol.down"))      { volume(-1); return true; }
-    if (!strcmp(id, "rain.toggle"))   { toggle_flip(&R_T_RAIN); state_changed(); toast(ICON_CLOUD_RAIN, "Rain", S.rain_on ? "On" : "Off"); return true; }
+    if (!strcmp(id, "rain.toggle"))   { toggle_flip(&R_T_RAIN); state_changed(); toast(ICON_CLOUD_RAIN, KINDS[S.rain_kind], S.rain_on ? "On" : "Off"); return true; }
     if (!strcmp(id, "lights.toggle")) { toggle_flip(&R_T_LIGHTS); state_changed(); toast(ICON_LIGHTBULB, "Lights", S.lights_on ? "On" : "Off"); return true; }
     if (!strcmp(id, "ac.toggle"))     { toggle_flip(&R_T_AC); state_changed();
                                         char v[16]; if (S.ac_mode) snprintf(v, sizeof v, "%s %d" DEG, AC_MODES[S.ac_mode], S.sp_x2 / 2); else snprintf(v, sizeof v, "Off");
@@ -2396,7 +2410,7 @@ bool local_set(const char *key, const char *val)
     if (!strcmp(key, "vol"))            { if (v < 0 || v > 10) return false; S.vol = v; publish("config/volume", "%d", v); rebuild(); R_VOL(); return true; }
     else if (!strcmp(key, "rain_on"))   { S.rain_on = v != 0; publish("set/rain", S.rain_on ? "play" : "pause"); }
     else if (!strcmp(key, "rain_lvl"))  { if (v < 1 || v > 5) return false; S.rain_lvl = v; publish("set/rain", "level %d", v); }
-    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 2) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
+    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 4) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
     else if (!strcmp(key, "sleep"))     { if (v != 0 && v != 15 && v != 30 && v != 60) return false; S.sleep_min = v; publish("set/rain", "sleep %d", v); }
     else if (!strcmp(key, "lights_on")) { S.lights_on = v != 0; publish("set/lights", S.lights_on ? "on %d%%" : "off", S.bright); }
     else if (!strcmp(key, "bright"))    { if (v < 5 || v > 100) return false; S.bright = v; S.lights_on = true; publish("set/lights", "on %d%%", v); }
@@ -2432,6 +2446,16 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 1) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "tz"))         { if (v < 0 || v >= N_TZ) return false; S.tz = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
+    else if (!strcmp(key, "speaker"))      { S.speaker = v != 0; publish("config/speaker", S.speaker ? "on" : "off"); return true; }
+    else if (!strcmp(key, "power_mon"))    { S.power_mon = v != 0; if (!S.power_mon && S.on_battery) { S.on_battery = false; state_changed(); } return true; }
+    else if (!strcmp(key, "gestures"))     { S.gestures = v != 0; publish("config/gestures", S.gestures ? "on" : "off"); return true; }
+    else if (!strcmp(key, "gest_lr") || !strcmp(key, "gest_ud")) {
+        bool ok = !strcmp(val, "none") || !strcmp(val, "vol");
+        for (int i = 0; i < N_KEYACT && !ok; i++) ok = !strcmp(val, KEYACT_ID[i]);
+        if (!ok) return false;
+        snprintf(key[5] == 'l' ? S.gest_lr : S.gest_ud, sizeof S.gest_lr, "%s", val); return true;
+    }
+    else if (!strcmp(key, "rec"))          { if (strlen(val) >= sizeof S.rec) return false; snprintf(S.rec, sizeof S.rec, "%s", val); }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
     else if (!strcmp(key, "birds"))     { if (v < 0 || v > BIRDS_ALL) return false; S.birds = (uint16_t)v; }
@@ -2501,7 +2525,7 @@ static void sound_load(void)
 {
     snd_blob_t b;
     if (!config_blob_load(1, SND_MAGIC, &b, sizeof b)) { snd_pack(&s_snd_saved); return; }
-    S.vol = clampi(b.vol, 0, 10); S.rain_kind = clampi(b.rain_kind, 0, 2); S.rain_lvl = clampi(b.rain_lvl, 1, 5); S.surface = clampi(b.surface, 0, 3);
+    S.vol = clampi(b.vol, 0, 10); S.rain_kind = clampi(b.rain_kind, 0, 4); S.rain_lvl = clampi(b.rain_lvl, 1, 5); S.surface = clampi(b.surface, 0, 3);
     S.bird_vol = clampi(b.bird_vol, 1, 10); S.birds = b.birds & BIRDS_ALL;
     if (b.pad != 1) S.birds |= BIRDS_SYNTH;      /* settings from before: switch the new birds on once */
     S.patter = b.patter; S.wash = b.wash; S.tone = b.tone; S.wind = b.wind; S.thunder = b.thunder; S.thunder_near = b.thunder_near;
@@ -2543,8 +2567,72 @@ static void settings_load(void)
     overlay_apply();
 }
 
+/* Hardware settings and the recording (blob slot 5). */
+#define EXT_MAGIC 0x31545845u   /* "EXT1" */
+typedef struct { uint8_t speaker, power_mon, gestures, pad; char gest_lr[24], gest_ud[24], rec[40]; } ext_blob_t;
+static ext_blob_t s_ext_saved;
+static uint32_t   s_ext_changed_at;
+static void ext_pack(ext_blob_t *b)
+{
+    memset(b, 0, sizeof *b);
+    b->speaker = S.speaker; b->power_mon = S.power_mon; b->gestures = S.gestures;
+    memcpy(b->gest_lr, S.gest_lr, sizeof b->gest_lr); memcpy(b->gest_ud, S.gest_ud, sizeof b->gest_ud); memcpy(b->rec, S.rec, sizeof b->rec);
+}
+static void ext_load(void)
+{
+    ext_blob_t b;
+    if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
+        S.speaker = b.speaker; S.power_mon = b.power_mon; S.gestures = b.gestures;
+        b.gest_lr[23] = b.gest_ud[23] = b.rec[39] = 0;
+        memcpy(S.gest_lr, b.gest_lr, sizeof S.gest_lr); memcpy(S.gest_ud, b.gest_ud, sizeof S.gest_ud); memcpy(S.rec, b.rec, sizeof S.rec);
+    }
+    ext_pack(&s_ext_saved);
+}
+
+void local_power(bool on_battery, int pct, bool low)
+{
+    bool was = S.on_battery;
+    int before = S.batt_pct;
+    S.on_battery = on_battery; S.batt_pct = pct;
+    if (on_battery != was) {
+        publish("state/power", on_battery ? "battery %d%%" : "mains", pct);
+        if (on_battery) toast(ICON_BATTERY_CHARGING, "On battery", "");
+        else            toast(ICON_PLUG, "Mains power", "");
+        state_changed();
+    } else if (on_battery && pct != before) {
+        publish("state/power", "battery %d%%", pct);
+        if (low && before >= 15 && pct < 15) toast(ICON_BATTERY_CHARGING, "Battery low", "");
+        state_changed();
+    }
+}
+
+const char *local_gesture(int g)
+{
+    /* any wave snoozes a ringing alarm */
+    if (S.phase == PHASE_RINGING) { snooze(); return "snooze"; }
+    bool ud = g == 3 || g == 4;                       /* GEST_UP, GEST_DOWN */
+    const char *a = ud ? S.gest_ud : S.gest_lr;       /* left, right and a plain wave: side to side */
+    if (!strcmp(a, "none") || !a[0]) return "";
+    if (!strcmp(a, "vol")) {
+        if (!ud) { local_action("vol.up"); return "vol.up"; }
+        local_action(g == 3 ? "vol.up" : "vol.down");
+        return g == 3 ? "vol.up" : "vol.down";
+    }
+    return a;                                          /* main.c runs it, as for a key */
+}
+
 void local_persist_tick(void)
 {
+    {   ext_blob_t now; ext_pack(&now);
+        if (memcmp(&now, &s_ext_saved, sizeof now)) {
+            uint32_t t = now_ms();
+            if (!s_ext_changed_at) s_ext_changed_at = t;
+            else if (t - s_ext_changed_at >= 3000) {
+                s_ext_changed_at = 0;
+                if (config_blob_save(5, EXT_MAGIC, &now, sizeof now)) { s_ext_saved = now; printf("local: hardware settings saved\n"); }
+            }
+        } else s_ext_changed_at = 0;
+    }
     {   set_blob_t now; set_pack(&now);
         if (memcmp(&now, &s_set_saved, sizeof now)) {
             uint32_t t = now_ms();
@@ -2620,6 +2708,10 @@ size_t local_state_json(char *b, size_t cap)
     J("]},");
     J("\"shape\":{\"patter\":%d,\"wash\":%d,\"tone\":%d,\"wind\":%d,\"surface\":%d,\"thunder\":%d,\"thunder_near\":%d},",
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
+    J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
+      "\"gestures\":%d,\"gest_present\":%d,\"gest_lr\":\"%s\",\"gest_ud\":\"%s\",\"rec\":\"%s\"},",
+      S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),
+      S.gestures, gesture_present(), S.gest_lr, S.gest_ud, S.rec);
     J("\"lights\":{\"on\":%d,\"bright\":%d,\"colour\":%d},", S.lights_on, S.bright, S.light_mode);
     J("\"ac\":{\"mode\":%d,\"sp\":%d.%d,\"fan\":%d,\"room\":%d.%d},", S.ac_mode, S.sp_x2 / 2, (S.sp_x2 % 2) * 5, S.fan, S.room_x10 / 10, S.room_x10 % 10);
     J("\"picks\":[");

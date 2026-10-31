@@ -245,7 +245,7 @@ nav .brand,nav .side-foot{display:none}
   <div class="card" style="padding:0;background:none;box-shadow:none">
     <div class="listen" style="margin-top:0;background:var(--card);box-shadow:var(--shadow)">
       <button class="rb" id="listen" aria-label="Listen on this device"><span data-i="play"></span></button>
-      <div class="t" id="listen-t">Listen on this phone<small>Streams the panel's sound until it has a speaker</small></div>
+      <div class="t" id="listen-t">Listen on this phone<small>Streams what the panel is playing to this device</small></div>
       <div class="meter" id="meter"><i></i><i></i><i></i><i></i><i></i></div>
     </div>
   </div>
@@ -254,7 +254,9 @@ nav .brand,nav .side-foot{display:none}
     <div class="ttl"><div class="ic" data-i="cloud-rain"></div><div class="t">Sleep sounds<small id="rain-sub"></small></div>
       <label class="sw"><input type="checkbox" id="rain_on" data-set="rain_on"><span></span></label></div>
     <div class="body">
-      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise"></div>
+      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise,3:Wind,4:Recording"></div>
+      <div id="rec-box" hidden><label class="fld"><span>Recording</span><select id="rec"></select></label>
+        <div class="hint" style="text-align:left;margin-top:6px" id="rec-hint"></div></div>
       <div class="lbl">Intensity</div><div class="seg" data-seg="rain_lvl" data-opts="1:1,2:2,3:3,4:4,5:5"></div>
       <div class="lbl">Sleep timer</div><div class="seg" data-seg="sleep" data-opts="0:Off,15:15m,30:30m,60:60m"></div>
       <details class="more" id="shape"><summary><span data-i="sliders-horizontal"></span>Shape the rain</summary>
@@ -468,6 +470,18 @@ nav .brand,nav .side-foot{display:none}
     <div class="hint" style="text-align:left;margin-top:10px" id="sw-state"></div>
   </div>
 
+  <h2>Hardware</h2>
+  <div class="card" id="c-hw">
+    <div class="row"><div style="flex:1">Speaker<small style="display:block;color:var(--sub);font-size:12px" id="hw-spk"></small></div><label class="sw"><input type="checkbox" id="hw-speaker" data-set="speaker"><span></span></label></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Battery backup<small style="display:block;color:var(--sub);font-size:12px" id="hw-bat"></small></div><label class="sw"><input type="checkbox" id="hw-power" data-set="power_mon"><span></span></label></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Wave gestures<small style="display:block;color:var(--sub);font-size:12px" id="hw-gest"></small></div><label class="sw"><input type="checkbox" id="hw-gestures" data-set="gestures"><span></span></label></div>
+    <div class="grid2">
+      <label class="fld"><span>Wave side to side</span><select id="gest_lr"></select></label>
+      <label class="fld"><span>Wave up and down</span><select id="gest_ud"></select></label>
+    </div>
+    <div class="hint" style="text-align:left;margin-top:10px">Any wave snoozes a ringing alarm. The speaker is a MAX98357A on GP18/19/21 (GP16 switches it off when quiet); battery backup reads the PowerBoost on GP26 to GP28. Turn battery backup on only once it is wired: unconnected, those pins read nonsense.</div>
+  </div>
+
   <h2>Files</h2>
   <div class="card" id="c-files">
     <div class="fbar"><i id="f-used"></i></div>
@@ -617,7 +631,7 @@ $$('[data-sp]').forEach(b=>b.onclick=()=>{
 });
 const spTxt=v=>`${Math.floor(v)}<small>${v%1?'.5':''}°</small>`;
 const volTxt=v=>v===0?'Muted':`${v} of 10`;
-const KINDS=['Rain','Ocean','Noise'], MODES=['Off','Heat','Fan','Cool','Dry'];
+const KINDS=['Rain','Ocean','Noise','Wind','Recording'], MODES=['Off','Heat','Fan','Cool','Dry'];
 function paintCards(){
   $('#c-rain').classList.toggle('off',!$('#rain_on').checked);
   $('#c-lights').classList.toggle('off',!$('#lights_on').checked);
@@ -629,7 +643,7 @@ function renderRoom(){
   const rng=(id,v)=>{if(held(id))return;const r=$('#'+id);r.value=v;fill(r);const o=$('#'+id+'-o');if(o)o.textContent=v+(id==='bird_vol'?'':'%')};
   const chk=(id,v,k=id)=>{if(!held(k))$('#'+id).checked=!!v};
   rng('vol',u.vol); if(!held('vol'))$('#vol-sub').textContent=volTxt(u.vol);
-  chk('rain_on',u.rain.on); segVal('rain_kind',u.rain.kind); segVal('rain_lvl',u.rain.lvl); segVal('sleep',u.rain.sleep);
+  chk('rain_on',u.rain.on); segVal('rain_kind',u.rain.kind); $('#shape').hidden=u.rain.kind!==0; segVal('rain_lvl',u.rain.lvl); segVal('sleep',u.rain.sleep);
   const left=u.rain.sleep_left_s||0;
   $('#rain-sub').textContent=u.rain.on?`${KINDS[u.rain.kind]}, level ${u.rain.lvl}${left?`, stops in ${Math.ceil(left/60)} min`:''}`:'Off';
   chk('lights_on',u.lights.on); rng('bright',u.lights.bright); segVal('colour',u.lights.colour);
@@ -659,7 +673,7 @@ async function listenStart(){
 }
 function listenStop(){AUD.on=false;clearTimeout(AUD.retry);try{AUD.ctl&&AUD.ctl.abort()}catch(e){}
   if(AUD.ctx)AUD.ctx.suspend();cancelAnimationFrame(AUD.raf);$$('#meter i').forEach(i=>i.style.height='3px');
-  listenUI('Listen on this phone',"Streams the panel's sound until it has a speaker")}
+  listenUI('Listen on this phone',"Streams what the panel is playing to this device")}
 async function listenLoop(){
   const ctx=AUD.ctx;
   while(AUD.on){
@@ -827,10 +841,41 @@ function renderHA(){const m=st.mqtt;if(!m)return;
 /* ---- software: releases on GitHub, installed over the air ---- */
 let swSig='';
 function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
+/* ---- hardware (Device tab) and the recording (Room tab) ---- */
+let gestSig='';
+function renderHW(){
+  const h=ui&&ui.hw; if(!h)return;
+  const chk=(id,v,k)=>{if(!held(k))$('#'+id).checked=!!v};
+  chk('hw-speaker',h.speaker,'speaker'); chk('hw-power',h.power_mon,'power_mon'); chk('hw-gestures',h.gestures,'gestures');
+  $('#hw-spk').textContent=!h.speaker?'Off: sound only streams to the web app':h.spk_on?'Playing':'Amp off until there is sound';
+  $('#hw-bat').textContent=!h.power_mon?'Not fitted':h.on_battery?`On battery, ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`:`On mains · battery ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`;
+  $('#hw-gest').textContent=!h.gest_present?'No sensor found on the I2C chain':h.gestures?'On':'Off (the sensor sleeps)';
+  const acts=(ui.panel&&ui.panel.keyacts)||[], sig=JSON.stringify(acts);
+  if(sig!==gestSig){gestSig=sig;
+    const base=[{id:'none',label:'Nothing'}].concat(acts);
+    $('#gest_lr').innerHTML=base.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
+    $('#gest_ud').innerHTML=[{id:'vol',label:'Volume (up is louder)'}].concat(base).map(a=>`<option value="${a.id}">${a.label}</option>`).join('')}
+  ['gest_lr','gest_ud'].forEach(k=>{const e=$('#'+k);if(!held(k)&&e!==document.activeElement)e.value=h[k]});
+  renderRec();
+}
+['gest_lr','gest_ud'].forEach(k=>$('#'+k).onchange=e=>{touch(k,4000);set(k,e.target.value)});
+var recFiles=null,recT=0;   // var: loadFiles() can run (from the first tab) before this line
+async function renderRec(){
+  const h=ui.hw,isRec=ui.rain&&ui.rain.kind===4;
+  $('#rec-box').hidden=!isRec; if(!isRec)return;
+  if(!recFiles||Date.now()-recT>15000){recT=Date.now();try{recFiles=(await(await fetch('/api/files',{cache:'no-store'})).json()).files.filter(f=>/\.adp$/i.test(f.name))}catch(e){recFiles=recFiles||[]}}
+  const sel=$('#rec'),opts=[{v:'',l:'First sound file'}].concat(recFiles.map(f=>({v:f.name,l:f.name.replace(/\.adp$/i,'')+' · '+kb(f.size)})));
+  const html=opts.map(o=>`<option value="${o.v.replace(/"/g,'&quot;')}">${o.l.replace(/</g,'&lt;')}</option>`).join('');
+  if(sel.innerHTML!==html)sel.innerHTML=html;
+  if(!held('rec')&&sel!==document.activeElement)sel.value=h.rec;
+  $('#rec-hint').textContent=recFiles.length?'Loops the sound file; thunder and the sleep timer work as with rain.':'No sound files yet: add one in Device › Files. Until then it plays rain.';
+}
+$('#rec').onchange=e=>{touch('rec',4000);set('rec',e.target.value)};
 /* ---- files: the panel's storage (Device tab) ---- */
 const kb=n=>n>=1048576?(n/1048576).toFixed(n>=10485760?0:1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
 let files=null;
 async function loadFiles(){
+  recFiles=null;
   try{files=await(await fetch('/api/files',{cache:'no-store'})).json()}catch(e){return}
   const f=files,cap=f.capacity||0;
   $('#f-used').style.width=cap?(100*f.used/cap).toFixed(1)+'%':'0';
@@ -1038,7 +1083,7 @@ function renderPanelSettings(){
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
-  renderSoftware(); renderDesk();
+  renderSoftware(); renderDesk(); renderHW();
   renderHome(p);
   const lv=st.live; if(!lv)return;
   if(document.activeElement!==$('#lv-base'))$('#lv-base').value=lv.ss_base;

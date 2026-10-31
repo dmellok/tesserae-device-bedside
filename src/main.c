@@ -64,6 +64,8 @@
 #include "draw.h"
 #include "painter.h"
 #include "audio.h"
+#include "power.h"
+#include "gesture.h"
 #include "ha.h"
 #include "live.h"
 
@@ -1249,6 +1251,18 @@ static void frame_buffer_wait(const uint8_t *buf)
 }
 
 /* Feed the sound generator the current sleep-sound settings. */
+/* The Recording sound's file: the chosen one, or the first sound file stored. */
+static const store_ent_t *recording_file(const char *name)
+{
+    if (name[0]) return store_find(name);
+    for (int i = 0; i < store_count(); i++) {
+        const store_ent_t *e = store_get(i);
+        size_t l = strlen(e->name);
+        if (l > 4 && !strcasecmp(e->name + l - 4, ".adp")) return e;
+    }
+    return NULL;
+}
+
 static void audio_update(void)
 {
     bool changed = false;
@@ -1256,12 +1270,38 @@ static void audio_update(void)
     local_alarm_tick(&changed);
     if (changed) local_flush();
     const local_state_t *ls = local_state();
+    const store_ent_t *rec = ls->rain_kind == RS_RECORDING ? recording_file(ls->rec) : NULL;
     rs_params_t p = { .on = ls->rain_on, .kind = ls->rain_kind, .level = ls->rain_lvl, .volume = ls->vol, .fade = fade,
                       .patter = ls->patter, .wash = ls->wash, .tone = ls->tone, .wind = ls->wind, .surface = ls->surface,
                       .thunder = ls->thunder, .thunder_near = ls->thunder_near, .strike = ls->strike,
                       .chorus = ls->chorus, .birds = ls->birds, .bird_vol = ls->bird_vol,
-                      .audition = ls->audition, .audition_bird = ls->audition_bird };
+                      .audition = ls->audition, .audition_bird = ls->audition_bird,
+                      .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0 };
     audio_set(&p);
+
+    /* The speaker: on while there's something to hear (a bird audition or a
+     * thunder strike plays for a while after it's asked for). */
+    static uint32_t last_aud, last_strike, extra_until;
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (ls->audition != last_aud || ls->strike != last_strike) { last_aud = ls->audition; last_strike = ls->strike; extra_until = now + 15000; }
+    audio_speaker_enable(ls->speaker);
+    audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || (int32_t)(extra_until - now) > 0);
+    audio_speaker_tick();
+
+    /* The PowerBoost, when battery backup is fitted. */
+    if (ls->power_mon && power_tick()) local_power(power_on_battery(), power_percent(), power_low());
+
+    /* Wave gestures. */
+    gesture_enable(ls->gestures);
+    gesture_t g = gesture_poll();
+    static uint32_t last_g;
+    if (g != GEST_NONE && now - last_g > 900) {
+        last_g = now;
+        const char *a = local_gesture((int)g);
+        if (a[0] && strcmp(a, "snooze") && strncmp(a, "vol.", 4)) run_action(a);
+        char ev[24]; snprintf(ev, sizeof ev, "gesture_%s", gesture_name(g)); ha_event(ev);
+        local_flush();
+    }
 }
 
 static void ui_service(void)
@@ -1326,6 +1366,9 @@ int main(void)
     printf("psram: %s (%u bytes)\n", have_psram ? "ready" : "MISSING: dashboard frames need it", (unsigned)psram);
 
     inputs_init();          /* before config_seed() so the stored backlight applies */
+    gesture_init();         /* on the same I2C chain */
+    power_init();
+    audio_init_pins();      /* the amp shut down until there's sound */
     config_seed();
 
     gpio_init(BTN_PIN);      gpio_set_dir(BTN_PIN, GPIO_IN);      gpio_pull_up(BTN_PIN);

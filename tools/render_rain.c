@@ -58,10 +58,10 @@ int main(int argc, char **argv)
     FILE *bf = fopen("assets/birds/birds.ulaw", "rb");
     if (bf) { fread(bird_data, 1, sizeof bird_data, bf); fclose(bf); } else fprintf(stderr, "no assets/birds/birds.ulaw: run from the repo root\n");
     const char *dir = argc > 1 ? argv[1] : ".";
-    const char *names[3] = { "rain", "ocean", "noise" };
+    const char *names[4] = { "rain", "ocean", "noise", "wind" };
     int secs = 12, n = RAIN_SR * secs;
     int16_t *buf = malloc((size_t)n * 2);
-    for (int k = 0; k < 3; k++) for (int l = 1; l <= 5; l += 2) {
+    for (int k = 0; k < 4; k++) for (int l = 1; l <= 5; l += 2) {
         rs_init(1234);
         rs_params_t p = { .on = true, .kind = k, .level = l, .volume = 10, .fade = 1.0f, RS_DEFAULTS };
         for (int i = 0; i < n; i += 220) rs_render(&p, buf + i, (n - i) < 220 ? n - i : 220);
@@ -72,6 +72,13 @@ int main(int argc, char **argv)
                20 * log10(rms / 32768 + 1e-9), 20 * log10(pk / 32768.0 + 1e-9), clip);
         char path[256]; snprintf(path, sizeof path, "%s/%s_l%d.wav", dir, names[k], l);
         wav(path, buf, n);
+    }
+    /* a recording (argv[2], an .adp from the web app), looped past its end */
+    if (argc > 2) {
+        FILE *rf = fopen(argv[2], "rb");
+        static uint8_t rec[4 << 20]; size_t rl = rf ? fread(rec, 1, sizeof rec, rf) : 0;
+        if (rf) fclose(rf);
+        scene(dir, "recording", (rs_params_t){ .on = true, .kind = RS_RECORDING, .level = 3, .volume = 10, .fade = 1, RS_DEFAULTS, .rec = rec, .rec_len = (uint32_t)rl }, 30, -1);
     }
     /* transitions: rain L3 -> ocean -> off, to hear the glides */
     rs_init(99);
