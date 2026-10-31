@@ -42,6 +42,8 @@ void app_command(const char *name, const char *value);
 size_t app_state_json(char *buf, size_t cap);
 /* Called repeatedly while net_init() waits for the WiFi join. */
 void net_set_wait_hook(void (*fn)(void));
+/* PSRAM for upload chunks (64 KB); without it, uploads are refused. */
+void net_set_upload_buffer(uint8_t *buf);
 
 /* Setup mode: scan, then the panel's own open WiFi network (ap_ssid) with a
  * captive setup page at http://192.168.4.1/. */

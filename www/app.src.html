@@ -167,6 +167,21 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 .dl button.on{font-weight:600} .dl button.on svg.i{visibility:visible}
 .dacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
 .dacts .chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer} .dacts svg.i{width:16px;height:16px}
+/* files */
+.fbar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.fbar i{display:block;height:100%;width:0;background:var(--acc);border-radius:99px;transition:width .25s}
+.fcap{font-size:13px;color:var(--sub);margin:8px 0 4px}
+.file{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.file .t{flex:1;min-width:0} .file b{display:block;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file small{font-size:12px;color:var(--sub)}
+.file .rb{width:36px;height:36px} .file .rb svg.i{width:18px;height:18px}
+.file a.chip{text-decoration:none}
+.drop{display:flex;align-items:center;gap:12px;margin-top:12px;padding:14px;border:1.5px dashed var(--line);border-radius:14px;cursor:pointer;transition:background .15s,border-color .15s}
+.drop .ic{width:40px;height:40px;border-radius:12px;background:var(--soft);display:grid;place-items:center}
+.drop .t b{display:block;font-size:15px} .drop .t small{font-size:12px;color:var(--sub)}
+.drop.over{border-color:var(--acc);background:var(--soft)}
+.drop.busy{opacity:.5;pointer-events:none}
+.fprog{margin-top:12px} .fpt{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px} .fpt span:last-child{color:var(--sub);font-variant-numeric:tabular-nums}
 /* panel preview (desktop) */
 .pv{display:none}
 .pv canvas{display:block;width:100%;height:auto;aspect-ratio:1872/1404;border-radius:10px;background:var(--soft);image-rendering:auto}
@@ -453,6 +468,18 @@ nav .brand,nav .side-foot{display:none}
     <div class="hint" style="text-align:left;margin-top:10px" id="sw-state"></div>
   </div>
 
+  <h2>Files</h2>
+  <div class="card" id="c-files">
+    <div class="fbar"><i id="f-used"></i></div>
+    <div class="fcap" id="f-cap">…</div>
+    <div id="f-list"></div>
+    <label class="drop" id="f-drop"><input type="file" id="f-in" hidden>
+      <span class="ic" data-i="plus"></span><span class="t"><b>Add a file</b><small>Choose one, or drop it here</small></span></label>
+    <div class="fprog" id="f-prog" hidden><div class="fpt"><span id="f-pt"></span><span id="f-pp"></span></div><div class="fbar"><i id="f-pb"></i></div></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Convert sounds for the panel<small style="display:block;color:var(--sub);font-size:12px">MP3, WAV, M4A and the like become 22 kHz mono ADPCM (about 0.66 MB a minute), levelled, with the end blended into the start so it loops without a seam</small></div><label class="sw"><input type="checkbox" id="f-conv" checked><span></span></label></div>
+    <div class="hint" style="text-align:left;margin-top:10px">Files live in the flash after the firmware, so updates leave them alone. While a file is written the sound may stutter.</div>
+  </div>
+
   <h2>Panel</h2>
   <div class="card">
     <div class="row"><div style="flex:1">Mirror image</div><label class="sw"><input type="checkbox" id="mirror"><span></span></label></div>
@@ -524,7 +551,7 @@ function tab(t){
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
   $('#title').textContent=TITLES[t]; try{localStorage.tab=t;history.replaceState(null,'','#'+t)}catch(e){}
-  scrollTo(0,0); if(t==='console')logPoll(true);
+  scrollTo(0,0); if(t==='console')logPoll(true); if(t==='device')loadFiles();
 }
 $$('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
 try{const h=location.hash.slice(1),t=TITLES[h]?h:localStorage.tab;if(TITLES[t])tab(t)}catch(e){}
@@ -763,6 +790,130 @@ function renderHA(){const m=st.mqtt;if(!m)return;
 /* ---- software: releases on GitHub, installed over the air ---- */
 let swSig='';
 function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
+/* ---- files: the panel's storage (Device tab) ---- */
+const kb=n=>n>=1048576?(n/1048576).toFixed(n>=10485760?0:1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+let files=null;
+async function loadFiles(){
+  try{files=await(await fetch('/api/files',{cache:'no-store'})).json()}catch(e){return}
+  const f=files,cap=f.capacity||0;
+  $('#f-used').style.width=cap?(100*f.used/cap).toFixed(1)+'%':'0';
+  $('#f-cap').textContent=cap?`${kb(f.used)} of ${kb(cap)} used · ${kb(cap-f.used)} free${f.largest_free<cap-f.used?' ('+kb(f.largest_free)+' in one piece)':''}`:'No file storage on this panel (it needs the partition table, tools/partition.sh).';
+  $('#f-list').innerHTML=f.files.length?f.files.map(x=>{const n=x.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const snd=/\.adp$/i.test(x.name);
+    return `<div class="file"><div class="t"><b>${n}</b><small>${kb(x.size)}${snd?' · panel sound':''}</small></div>
+      ${snd?`<button class="rb" data-fplay="${n}" aria-label="Play">${svg('play')}</button>`:''}
+      <a class="chip" href="/api/file?name=${enc(x.name)}" download="${n}">Save</a>
+      <button class="rb" data-fdel="${n}" aria-label="Delete">${svg('trash')}</button></div>`}).join('')
+    :'<div class="fcap" style="margin:10px 0 0">No files yet.</div>';
+}
+$('#f-list').onclick=async e=>{
+  const d=e.target.closest('[data-fdel]'),p=e.target.closest('[data-fplay]');
+  if(d){if(!confirm(`Delete ${d.dataset.fdel} from the panel?`))return;
+    const r=await(await fetch(`/api/file?name=${enc(d.dataset.fdel)}&delete=1`,{method:'POST'})).json().catch(()=>({ok:false}));
+    toast(r.ok?'Deleted':'Not deleted'+(r.error?': '+r.error:''));loadFiles()}
+  if(p)playAdp(p.dataset.fplay,p);
+};
+/* IMA ADPCM, the format in include/store.h: "ADP1", rate, samples, block bytes; blocks of
+   predictor (int16), step index, 0, then two samples a byte, low nibble first. */
+const STEP=[7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767];
+const IDX=[-1,-1,-1,-1,2,4,6,8];
+function adpEncode(pcm,rate,bb=1024){
+  const per=1+2*(bb-4),nb=Math.ceil(pcm.length/per),out=new Uint8Array(16+nb*bb),dv=new DataView(out.buffer);
+  out.set([65,68,80,49]);dv.setUint32(4,rate,true);dv.setUint32(8,pcm.length,true);dv.setUint32(12,bb,true);
+  let idx=0;
+  for(let b=0;b<nb;b++){
+    const o=16+b*bb,s0=b*per;let pred=pcm[s0]||0;
+    dv.setInt16(o,pred,true);out[o+2]=idx;
+    for(let k=0;k<per-1;k++){
+      const i=s0+1+k,s=i<pcm.length?pcm[i]:pred;
+      let st=STEP[idx],diff=s-pred,c=0;if(diff<0){c=8;diff=-diff}
+      let dq=st>>3;
+      if(diff>=st){c|=4;diff-=st;dq+=st}st>>=1;
+      if(diff>=st){c|=2;diff-=st;dq+=st}st>>=1;
+      if(diff>=st){c|=1;dq+=st}
+      pred+=(c&8)?-dq:dq;pred=pred>32767?32767:pred<-32768?-32768:pred;
+      idx+=IDX[c&7];idx=idx<0?0:idx>88?88:idx;
+      out[o+4+(k>>1)]|=(k&1)?c<<4:c;
+    }
+  }
+  return out;
+}
+function adpDecode(u8){
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  if(dv.getUint32(0,true)!==0x31504441)throw new Error('not a panel sound');
+  const rate=dv.getUint32(4,true),n=dv.getUint32(8,true),bb=dv.getUint32(12,true),per=1+2*(bb-4),out=new Float32Array(n);
+  for(let b=0,w=0;w<n;b++){
+    const o=16+b*bb;let pred=dv.getInt16(o,true),idx=u8[o+2];out[w++]=pred/32768;
+    for(let k=0;k<per-1&&w<n;k++){
+      const c=(u8[o+4+(k>>1)]>>((k&1)*4))&15;let st=STEP[idx],dq=st>>3;
+      if(c&4)dq+=st;if(c&2)dq+=st>>1;if(c&1)dq+=st>>2;
+      pred+=(c&8)?-dq:dq;pred=pred>32767?32767:pred<-32768?-32768:pred;
+      idx+=IDX[c&7];idx=idx<0?0:idx>88?88:idx;out[w++]=pred/32768;
+    }
+  }
+  return {rate,pcm:out};
+}
+let adpCtx=null,adpSrc=null,adpBtn=null;
+async function playAdp(name,btn){
+  if(adpSrc){adpSrc.stop();adpSrc=null;const was=adpBtn;adpBtn.innerHTML=svg('play');adpBtn=null;if(was===btn)return}
+  try{
+    const u8=new Uint8Array(await(await fetch('/api/file?name='+enc(name))).arrayBuffer()),{rate,pcm}=adpDecode(u8);
+    adpCtx=adpCtx||new AudioContext();const ab=adpCtx.createBuffer(1,pcm.length,rate);ab.copyToChannel(pcm,0);
+    adpSrc=adpCtx.createBufferSource();adpSrc.buffer=ab;adpSrc.loop=true;adpSrc.connect(adpCtx.destination);adpSrc.start();
+    adpBtn=btn;btn.innerHTML=svg('pause');
+  }catch(e){toast('Can\'t play: '+e.message)}
+}
+/* Any audio the browser decodes -> 22.05 kHz mono, levelled, the last 2 s blended into the start. */
+async function toPanelSound(file){
+  const RATE=22050,raw=await file.arrayBuffer();
+  const tmp=new OfflineAudioContext(1,1,RATE),dec=await tmp.decodeAudioData(raw);
+  const oc=new OfflineAudioContext(1,Math.ceil(dec.duration*RATE),RATE),src=oc.createBufferSource();
+  src.buffer=dec;src.connect(oc.destination);src.start();
+  const a=(await oc.startRendering()).getChannelData(0);
+  const F=Math.min(Math.floor(2*RATE),Math.floor(a.length/4)),N=a.length-F,m=new Float32Array(N);
+  for(let i=0;i<N;i++)m[i]=a[i];
+  for(let i=0;i<F;i++){const t=i/F;m[i]=a[i]*Math.sin(t*Math.PI/2)+a[N+i]*Math.cos(t*Math.PI/2)}
+  let peak=1e-6;for(let i=0;i<N;i++){const v=Math.abs(m[i]);if(v>peak)peak=v}
+  const g=0.89/peak,pcm=new Int16Array(N);
+  for(let i=0;i<N;i++){const v=Math.round(m[i]*g*32767);pcm[i]=v>32767?32767:v<-32768?-32768:v}
+  return {bytes:adpEncode(pcm,RATE),secs:N/RATE};
+}
+function fprog(t,p){$('#f-prog').hidden=false;$('#f-pt').textContent=t;$('#f-pp').textContent=p==null?'':Math.round(p*100)+'%';$('#f-pb').style.width=((p||0)*100)+'%'}
+async function sendFile(name,bytes){
+  const CH=32768;
+  for(let off=0;off<bytes.length;off+=CH){
+    let r=null;
+    for(let tries=0;!r;tries++){
+      try{r=await(await fetch(`/api/file?name=${enc(name)}&off=${off}&total=${bytes.length}`,{method:'POST',body:bytes.subarray(off,off+CH)})).json()}
+      catch(e){if(tries>=2)throw new Error('lost the panel');await new Promise(z=>setTimeout(z,800))}
+    }
+    if(!r.ok)throw new Error(r.error||'refused');
+    fprog('Sending '+name,Math.min(1,(off+CH)/bytes.length));
+  }
+}
+async function addFile(file){
+  if(!file)return;
+  const drop=$('#f-drop');drop.classList.add('busy');
+  try{
+    let name=file.name.replace(/[\/\\"]/g,'_'),bytes;
+    const isAudio=/^audio\//.test(file.type)||/\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|aif|aiff|caf|webm)$/i.test(name);
+    if(isAudio&&$('#f-conv').checked){
+      fprog('Converting '+name,null);
+      const r=await toPanelSound(file);bytes=r.bytes;name=name.replace(/\.[^.]*$/,'')+'.adp';
+      toast(`${Math.round(r.secs)} s of sound, ${kb(bytes.length)}`);
+    }else bytes=new Uint8Array(await file.arrayBuffer());
+    if(name.length>39)name=name.slice(0,30)+'~'+name.slice(-8);
+    if(files&&bytes.length>files.largest_free+(files.files.find(x=>x.name===name)?.size||0))throw new Error(`${kb(bytes.length)} won't fit (${kb(files.largest_free)} free)`);
+    try{await sendFile(name,bytes)}catch(e){if(/step/.test(e.message)){fprog('Sending '+name+' again',0);await sendFile(name,bytes)}else throw e}
+    fprog('Saved '+name,1);toast('Saved '+name);
+  }catch(e){fprog('Not saved: '+e.message,0);toast('Not saved')}
+  drop.classList.remove('busy');$('#f-in').value='';loadFiles();
+  setTimeout(()=>{$('#f-prog').hidden=true},5000);
+}
+$('#f-in').onchange=e=>addFile(e.target.files[0]);
+['dragenter','dragover'].forEach(k=>$('#f-drop').addEventListener(k,e=>{e.preventDefault();$('#f-drop').classList.add('over')}));
+['dragleave','drop'].forEach(k=>$('#f-drop').addEventListener(k,e=>{e.preventDefault();$('#f-drop').classList.remove('over')}));
+$('#f-drop').addEventListener('drop',e=>addFile(e.dataTransfer.files[0]));
 /* ---- desktop: section groups, the panel preview, the sidebar footer ---- */
 $$('#t-device>h2').forEach(h=>{const g=document.createElement('div'),c=h.nextElementSibling;g.className='grp';h.before(g);g.append(h);if(c)g.append(c)});
 const desk=matchMedia('(min-width:1000px)');

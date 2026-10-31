@@ -1,7 +1,7 @@
 /*
  * ota.c: firmware updates with the RP2350 boot ROM's A/B partitions.
  *
- * Flash holds a partition table (tools/pt.json): A and B, 7 MB each, linked as
+ * Flash holds a partition table (tools/pt.json): A and B, 5.5 MB each, linked as
  * an A/B pair; the config at 15 MB sits outside both. The image is built
  * "try before you buy" (PICO_CRT0_IMAGE_TYPE_TBYB), after Raspberry Pi's
  * pico_w/wifi/ota_update example:
@@ -39,7 +39,7 @@
 #define SECTOR      4096u
 
 static uint8_t   s_work[4096] __attribute__((aligned(4)));   /* boot ROM workarea (3264 was too small for a buy: error -13) */
-static uint8_t   s_sect[SECTOR] __attribute__((aligned(4))); /* one sector in SRAM */
+#define s_sect (config_sector_buf())
 static uint8_t  *s_buf;
 static size_t    s_cap;
 

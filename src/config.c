@@ -145,6 +145,11 @@ static void flash_write(uint32_t off, const uint8_t *data, size_t len)
  * the firmware updater writes the spare partition with this. */
 void config_flash_sector(uint32_t off, const uint8_t *data, size_t len) { flash_write(off, data, len); }
 
+/* A sector of SRAM for staging those writes (flash can't program from PSRAM);
+ * shared by the updater and the file store, which never run at once. */
+static uint8_t s_stage[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
+uint8_t *config_sector_buf(void) { return s_stage; }
+
 /* Master reset: erase the config and every blob sector. The caller reboots;
  * config_seed() then starts again from include/secrets.h. */
 void config_erase_all(void)

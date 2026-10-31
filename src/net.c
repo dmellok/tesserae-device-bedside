@@ -6,19 +6,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "pico/cyw43_arch.h"
 #include "lwip/tcp.h"
 #include "lwip/netif.h"
 #include "audio.h"
 #include "dhcpserver.h"
 #include "dnsserver.h"
+#include "store.h"
 
 extern const uint8_t www_index[];
 extern const uint8_t www_index_end[];
 
 #define HTTP_PORT  80
 #define MAX_CONN   6
-#define REQ_MAX    768
+#define REQ_MAX    1536            /* a browser POST's headers */
+#define PUT_MAX    (64u * 1024)    /* one upload chunk (the web app sends 32 KB) */
 
 typedef struct {
     struct tcp_pcb *pcb;
@@ -36,9 +39,16 @@ typedef struct {
     bool            stream;         /* /audio: endless PCM from the audio ring */
     uint32_t        apos;           /* stream read position (samples) */
     int             idle;           /* tcp_poll ticks without traffic */
+    bool            put;            /* POST /api/file: receiving a chunk into s_put_buf */
+    bool            want_file;      /* a chunk is in, or a delete: done by net_poll() (flash) */
+    uint32_t        clen, got;      /* body: Content-Length, bytes so far */
+    char            fq[160];        /* the request's query */
 } conn_t;
 
 static conn_t          s_conns[MAX_CONN];
+static uint8_t        *s_put_buf;     /* PSRAM, PUT_MAX; one upload at a time */
+static conn_t         *s_put_owner;
+void net_set_upload_buffer(uint8_t *buf) { s_put_buf = buf; }
 static struct tcp_pcb *s_listen;
 static char            s_ip[20];
 static bool          s_setup;
@@ -100,6 +110,7 @@ int net_rssi(void)
 
 static void conn_release(conn_t *c)
 {
+    if (s_put_owner == c) s_put_owner = NULL;
     if (c->is_frame && s_frame_users > 0) s_frame_users--;
     if (c->stream) audio_listener(-1);
     memset(c, 0, sizeof *c);
@@ -210,9 +221,15 @@ static bool query_get(const char *q, const char *key, char *out, size_t cap)
     return false;
 }
 
-static void handle_request(conn_t *c)
+static void handle_request(conn_t *c, size_t hdr_end)
 {
     c->req[c->req_len] = 0;
+    bool post = !strncmp(c->req, "POST ", 5);
+    uint32_t clen = 0;                               /* Content-Length, from the headers only */
+    for (const char *h = c->req; h && h < c->req + hdr_end; h = strstr(h, "\r\n")) {
+        if (*h == '\r') h += 2;
+        if (!strncasecmp(h, "Content-Length:", 15)) { clen = (uint32_t)strtoul(h + 15, NULL, 10); break; }
+    }
     char *eol = strstr(c->req, "\r\n");
     if (eol) *eol = 0;
     char *sp = strchr(c->req, ' ');
@@ -280,6 +297,21 @@ static void handle_request(conn_t *c)
         c->apos = audio_write_pos();
         audio_listener(+1);
         stream_pump(c);
+    } else if (!strcmp(path, "/api/files")) {
+        size_t n = store_json(s_json, sizeof s_json);
+        respond(c, 200, "application/json", s_json, n, true);
+    } else if (!strcmp(path, "/api/file") && !post) {      /* download, straight from flash */
+        char name[STORE_NAME_MAX];
+        const store_ent_t *e = query_get(query, "name", name, sizeof name) ? store_find(name) : NULL;
+        if (!e) { respond(c, 404, "text/plain", "no such file", 12, true); return; }
+        respond(c, 200, "application/octet-stream", store_data(e), e->size, false);
+    } else if (!strcmp(path, "/api/file")) {               /* upload a chunk, or ?delete=1 */
+        snprintf(c->fq, sizeof c->fq, "%s", query);
+        if (strstr(query, "delete=1")) { c->want_file = true; return; }
+        if (!s_put_buf || clen > PUT_MAX) { respond(c, 400, "application/json", "{\"ok\":false,\"error\":\"chunk too big\"}", 37, true); return; }
+        if (s_put_owner && s_put_owner != c) { respond(c, 400, "application/json", "{\"ok\":false,\"error\":\"another upload is running\"}", 48, true); return; }
+        s_put_owner = c; c->put = true; c->clen = clen; c->got = 0;
+        if (!clen) c->want_file = true;
     } else if (!strcmp(path, "/frame")) {
         char v[8];
         int sc = query_get(query, "s", v, sizeof v) ? atoi(v) : 4;
@@ -292,6 +324,17 @@ static void handle_request(conn_t *c)
     }
 }
 
+/* Upload body bytes from p (from offset skip) into the chunk buffer. */
+static void put_take(conn_t *c, struct pbuf *p, u16_t skip)
+{
+    if (c->want_file || skip >= p->tot_len) return;
+    uint32_t n = p->tot_len - skip;
+    if (n > c->clen - c->got) n = c->clen - c->got;
+    pbuf_copy_partial(p, s_put_buf + c->got, (u16_t)n, skip);
+    c->got += n;
+    if (c->got >= c->clen) c->want_file = true;
+}
+
 static err_t on_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 {
     conn_t *c = arg;
@@ -302,13 +345,27 @@ static err_t on_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
     }
     if (c) {
         c->idle = 0;
-        if (c->body == NULL && !c->want_frame && !c->stream) {
+        if (c->put) {
+            put_take(c, p, 0);
+        } else if (c->body == NULL && !c->want_frame && !c->stream && !c->want_file) {
             size_t room = REQ_MAX - 1 - c->req_len;
             size_t n = p->tot_len < room ? p->tot_len : room;
             pbuf_copy_partial(p, c->req + c->req_len, (u16_t)n, 0);
             c->req_len += n;
             c->req[c->req_len] = 0;
-            if (strstr(c->req, "\r\n\r\n") || c->req_len >= REQ_MAX - 1) handle_request(c);
+            char *e = strstr(c->req, "\r\n\r\n");
+            if (e || c->req_len >= REQ_MAX - 1) {
+                size_t hdr_end = e ? (size_t)(e + 4 - c->req) : c->req_len, have = c->req_len;
+                handle_request(c, hdr_end);
+                if (c->put) {                       /* the body's start came with the headers */
+                    size_t b = have - hdr_end;
+                    if (b > c->clen) b = c->clen;
+                    memcpy(s_put_buf, c->req + hdr_end, b);
+                    c->got = (uint32_t)b;
+                    if (c->got >= c->clen) c->want_file = true;
+                    put_take(c, p, (u16_t)n);
+                }
+            }
         }
     }
     tcp_recved(pcb, p->tot_len);
@@ -499,6 +556,35 @@ void net_poll(void)
         cyw43_arch_lwip_begin();
         for (int i = 0; i < MAX_CONN; i++) if (s_conns[i].pcb && s_conns[i].stream) stream_pump(&s_conns[i]);
         cyw43_arch_lwip_end();
+    }
+
+    /* An upload chunk or a delete: flash work, so here in main context. */
+    {
+        conn_t *fc = NULL; struct tcp_pcb *fpcb = NULL;
+        cyw43_arch_lwip_begin();
+        for (int i = 0; i < MAX_CONN; i++) if (s_conns[i].pcb && s_conns[i].want_file) { fc = &s_conns[i]; fpcb = fc->pcb; break; }
+        cyw43_arch_lwip_end();
+        if (fc) {
+            static char res[200];
+            char name[STORE_NAME_MAX] = "", v[16], err[96] = "";
+            query_get(fc->fq, "name", name, sizeof name);
+            int r;
+            if (strstr(fc->fq, "delete=1")) r = store_delete(name) ? 1 : (snprintf(err, sizeof err, "no such file"), -1);
+            else {
+                uint32_t off = query_get(fc->fq, "off", v, sizeof v) ? (uint32_t)strtoul(v, NULL, 10) : 0;
+                uint32_t total = query_get(fc->fq, "total", v, sizeof v) ? (uint32_t)strtoul(v, NULL, 10) : 0;
+                r = store_put(name, off, total, s_put_buf, fc->got, err, sizeof err);
+            }
+            int n = r < 0 ? snprintf(res, sizeof res, "{\"ok\":false,\"error\":\"%s\"}", err)
+                          : snprintf(res, sizeof res, "{\"ok\":true,\"done\":%s}", r ? "true" : "false");
+            cyw43_arch_lwip_begin();
+            if (fc->pcb == fpcb && fc->want_file) {
+                fc->want_file = false; fc->put = false;
+                if (s_put_owner == fc) s_put_owner = NULL;
+                respond(fc, r < 0 ? 400 : 200, "application/json", res, (size_t)n, true);
+            }
+            cyw43_arch_lwip_end();
+        }
     }
 
     /* Serve at most one deferred frame per call: render in main context, hand

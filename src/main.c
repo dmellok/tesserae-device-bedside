@@ -51,7 +51,8 @@
 #include "hardware/structs/watchdog.h"
 #define SETUP_MAGIC 0x5E7A5E7Au          /* watchdog scratch 0: boot into WiFi setup */
 #include "patterns.h"
-#include "images.h"
+#include "store.h"
+#include "patterns.h"
 #include "psram.h"
 #include "menu.h"
 #include "net.h"
@@ -289,7 +290,7 @@ static void content_row(int y, uint8_t out[IT8951_ROW_BYTES])
     const uint8_t *frame = tesserae_frame();
     if (cur_content == CONTENT_DASHBOARD && frame) dash_row(y, out, frame);
     else if (cur_content == CONTENT_WHITE || cur_content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
-    else                                           frame_row(y, out, (void *)sample_card);
+    else                                           IT8951_PATTERNS[3].fn(y, out, NULL);   /* the test card: grey blocks */
 }
 
 static const char *content_name(void)
@@ -342,7 +343,7 @@ static void paint_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
     if (P.content == CONTENT_SETUP || P.content == CONTENT_FLASHING) { setup_row(y, out); return; }
     if (P.content == CONTENT_DASHBOARD && P.frame) dash_row(y, out, P.frame);
     else if (P.content == CONTENT_WHITE || P.content == CONTENT_LIVE) memset(out, 0xFF, IT8951_ROW_BYTES);
-    else                                           frame_row(y, out, (void *)sample_card);
+    else                                           IT8951_PATTERNS[3].fn(y, out, NULL);   /* the test card: grey blocks */
     local_snapshot_row(y, out);
     if (P.banner && P.text[0]) banner_overlay_row(P.text, y, out);
 }
@@ -1348,6 +1349,8 @@ int main(void)
     if (have_psram) ota_init(PSRAM_XIP_BASE + 6u * 1024 * 1024 + 512u * 1024, 1024u * 1024);   /* 1 MB chunks */
     ota_set_version(FW_VERSION);
     ota_boot_check();
+    store_init();
+    if (have_psram) net_set_upload_buffer(PSRAM_XIP_BASE + 5u * 1024 * 1024 + 512u * 1024);   /* 5.5 MB, 64 KB */
     if (have_psram) audio_use_buffer((int16_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024), 4u * AUDIO_SR);   /* ~4 s */
     painter_start(paint_row, audio_core1_start);
     boot_collect();

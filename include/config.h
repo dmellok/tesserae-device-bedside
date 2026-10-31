@@ -80,6 +80,7 @@ void config_set_bind(int input, const char *spec);
 /* Erase one 4 KB flash sector at physical offset `off` and program `len` bytes
  * (<= 4096, from SRAM) into it, with core 1 parked. */
 void config_flash_sector(uint32_t off, const uint8_t *data, size_t len);
+uint8_t *config_sector_buf(void);   /* 4 KB of SRAM to stage a sector in (shared) */
 void config_set_key_label(int key, const char *label);
 const char *config_bind_name(int input);   /* "key1", "key1_hold", "knob_cw", ... */
 void config_set_lights(uint8_t backlight, uint8_t night);

@@ -262,3 +262,17 @@ With Tesserae 0.498 or later, **Menu > Dashboard** (and the Room tab in the web
 app) lists *Live* plus every dashboard bound to this panel (`frames.json`,
 fetched when the menu opens). Picking one shows it now without moving the
 server's rotation; the next poll carries on with the schedule.
+
+## Files on the panel
+
+**Device > Files** in the web app keeps files in the flash after the two
+firmware slots (about 4 MB, `src/store.c`), so updates never touch them and
+OTA downloads stay small. Add one with the button or by dropping it on the
+card. Sounds (MP3, WAV, M4A, ...) are converted in the browser by default to
+22 kHz mono IMA ADPCM (`.adp`, about 0.66 MB a minute; format in
+`include/store.h`), levelled, with the last 2 s blended into the start so the
+file loops without a seam. The play button decodes it back in the browser.
+
+API: `GET /api/files`; `GET /api/file?name=`; `POST /api/file?name=&off=&total=`
+with up to 64 KB of body per chunk, in order, 4 KB aligned;
+`POST /api/file?name=&delete=1`.

@@ -465,3 +465,23 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
 - **Dashboard picker** (Tesserae 0.498 `frames.json`, `/frame?page=`).
 - Diagnostics kept: `https=<url>`, `showsetup`, `wifisetup`, the `loop` phase in
   the state JSON.
+
+## 2026-11-01: file storage, desktop web app
+
+- Slots shrank to 5.5 MB (`tools/pt.json`; firmware is 3.6 MB since the
+  1.3 MB test-card image went, the Test card is now a generated pattern). A
+  panel on the old table keeps working with 1 MB of storage; `tools/partition.sh`
+  moves it to the new one (settings survive).
+- `src/store.c`: region from the partition table's end to the settings at
+  15 MB. Ask the ROM one partition at a time (`PT_INFO_SINGLE_PARTITION`); the
+  all-partitions layout read wrong and put the store inside slot A. Upload
+  chunks land in PSRAM at 5.5 MB and are written from `net_poll()` (main
+  context), never from the lwIP callback. One 4 KB SRAM staging sector is shared
+  with the updater (`config_sector_buf()`); SRAM is at ~98%.
+- USB flashing paints "Updating firmware" first: `tud_cdc_line_coding_cb` is
+  ours (`PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=0`), with a 6 s alarm that
+  resets anyway.
+- OTA lessons: TCP_WND must exceed one 16 KB TLS record (altcp_tls opens the
+  window only as records decrypt); GitHub's signed asset redirect is ~1 KB.
+- Headless Chrome needs `--disable-features=AudioServiceOutOfProcess,AudioServiceSandbox`
+  for `decodeAudioData` to return (for testing the converter).
