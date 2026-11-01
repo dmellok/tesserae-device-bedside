@@ -419,7 +419,7 @@ static void paint_pump(void)
      * repaints the whole screen with GC16 every time. Both keep blacks black. */
     if (cur_content == CONTENT_BOOT) { if (!full) j.mode = IT8951_MODE_DU; }   /* the boot log: fast, black and white */
     else if (local_refresh_mode() == 2) { full = true; j.mode = IT8951_MODE_GC16; }
-    else if (local_refresh_mode() == 1 && j.mode != IT8951_MODE_INIT && j.mode != IT8951_MODE_DU) j.mode = IT8951_MODE_GC16;
+    else if (j.mode == IT8951_MODE_GL16) j.mode = IT8951_MODE_GC16;   /* every mode: GL16 lightens greys pass by pass and is no faster here (723 vs 741 ms) */
     j.kind = full ? PJ_FULL : PJ_AREAS;
     s_job_resets = full && j.mode == IT8951_MODE_GC16;
     {

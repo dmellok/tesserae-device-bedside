@@ -1544,7 +1544,7 @@ static void build_list(layer_t *l)
     if (r->id == T_SETTLEFULL) snprintf(small, sizeof small, "When you stop: the whole screen, cleared first " DOT " flashes");
     if (r->id == C_WFTEMP) { int s = it8951_temp_sensed(); if (s >= 0) snprintf(small, sizeof small, "Board sensor says %d C " DOT " lower = darker", s); else snprintf(small, sizeof small, "Lower = darker, higher = lighter"); }
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
-                                                               : S.refresh_mode == 1 ? "Full quality, just what changed" : "Partial, then a full refresh");
+                                                               : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop");
     if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) snprintf(small, sizeof small, "Key %d, %s " DOT " press to change", s_ki + 1, r->id == C_KEY_HOLD ? "held" : "pressed");
     build_split(l, labels, icons, vals, chev, NULL, n, sel, r->icon, big, small);
 }
