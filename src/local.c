@@ -427,7 +427,7 @@ bool local_take_dirty(local_dirty_t *out)
 #define R_TOPBAR()  mark(0, 0, W, TB_H, IT8951_MODE_GL16)
 static bool ov_active(void);
 static void mark_ov(void);
-static layer_t s_prev_sb;
+static layer_t s_prev_sb, s_prev_body;      /* the strip and live layers before the last rebuild(): changes are marked by what differs */
 static void layer_copy(layer_t *d, const layer_t *s);
 #define R_VOL()     do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
 #define R_SBMID()   do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* the bar */
@@ -1943,6 +1943,7 @@ static void build_toast(layer_t *l)
 static void rebuild(void)
 {
     layer_copy(&s_prev_sb, &L_sb);
+    layer_copy(&s_prev_body, &L_body);
     L_body.on = L_ring.on = false;
     bool ring = S.phase == PHASE_RINGING;
     build_top(&L_top, ring);
@@ -2114,13 +2115,13 @@ static bool local_live_tick_inner(void)
     if (mn != last_min) {
         last_min = mn;
         rebuild();
-        mark(0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);
+        mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);   /* the digits that changed, not the whole header */
         any = true;
     }
     if (sig != last_sig) {
         last_sig = sig;
         rebuild();
-        mark(0, LV_HEAD_Y, W, LV_TL_Y + LV_TL_H - LV_HEAD_Y, IT8951_MODE_GL16);
+        mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_TL_Y + LV_TL_H - LV_HEAD_Y, IT8951_MODE_GL16);
         mark(LV_COL(3), LV_ROW2, LV_COL_W, LV_TILE_H, IT8951_MODE_GL16);
         any = true;
     }
