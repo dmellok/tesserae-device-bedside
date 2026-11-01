@@ -112,6 +112,8 @@ void     it8951_stream_window(int *x0, int *x1);   /* the columns being streamed
 int      it8951_spi_test(int rows);   /* write rows of a pattern, read the memory back: mismatched words, -1 if the panel is down */
 void     it8951_set_rails_off(bool on);   /* panel power off between refreshes (default on); off = rails stay live */
 bool     it8951_rails_off(void);
+bool     it8951_idle_tick(void);        /* main loop, under the painter lock when idle: rails off after 4 s quiet; true if it did */
+bool     it8951_rails_live(void);
 void     it8951_set_spi_hz(uint32_t hz);
 uint32_t it8951_spi_hz(void);
 

@@ -229,22 +229,35 @@ static void write_cmd(uint16_t cmd);
  * on this board; POWER_CTR switches just the panel power and leaves the
  * controller answering. On before each refresh, off once it has finished. */
 static bool s_rails_off_between = true;
-static bool s_rails_on;
+static bool s_rails_on = true;              /* after init the controller has them on */
+static uint32_t s_last_refresh_ms;
 static void panel_power(bool on)
 {
+    if (on == s_rails_on) return;
     write_cmd(CMD_POWER_CTR); write_data(on ? 0x0001 : 0x0000);
     hrdy();                                  /* the controller sequences the PMIC meanwhile */
     if (on) sleep_ms(10);
     s_rails_on = on;
 }
+/* Switching the rails costs ~0.45 s per refresh, so they stay on while paints
+ * keep coming (menu steps) and go off once the panel has been quiet for a
+ * few seconds: it8951_idle_tick() from the main loop. */
 static void rest_panel(void)
 {
-    if (s_rails_off_between) panel_power(false);
+    s_last_refresh_ms = now_ms();
     if (s_standby) write_cmd(CMD_STANDBY);
 }
 static void ready_panel(void) { if (s_rails_off_between) panel_power(true); }
+bool it8951_idle_tick(void)
+{
+    if (!s_rails_off_between || !s_rails_on || !s_up || s_asleep) return false;
+    if (now_ms() - s_last_refresh_ms < 4000) return false;
+    panel_power(false);
+    return true;
+}
+bool it8951_rails_live(void) { return s_rails_on; }
 void it8951_set_standby(bool on) { s_standby = on; printf("it8951: standby between updates %s\n", on ? "on" : "off"); }
-void it8951_set_rails_off(bool on) { s_rails_off_between = on; printf("it8951: panel power off between refreshes %s\n", on ? "on" : "off"); if (!on && !s_rails_on) panel_power(true); }
+void it8951_set_rails_off(bool on) { s_rails_off_between = on; printf("it8951: panel power off when idle %s\n", on ? "on" : "off"); if (!on) panel_power(true); }
 bool it8951_rails_off(void) { return s_rails_off_between; }
 static void apply_temp(void);
 static void white_fill_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx) { (void)y; (void)ctx; memset(out, 0xFF, IT8951_ROW_BYTES); }

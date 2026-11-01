@@ -1334,6 +1334,10 @@ static void ui_service(void)
     }
     if (local_live_tick()) local_flush();
     if (!painter_busy() && local_settle_tick()) local_flush();   /* the knob stopped: menus back to full quality */
+    if (!painter_busy() && !s_flush_pending && it8951_rails_live()) {   /* quiet for a while: the panel's rails off (they drift the image) */
+        painter_lock(); bool off = it8951_idle_tick(); painter_unlock();
+        if (off) printf("it8951: panel power off (idle)\n");
+    }
     switch (local_take_request()) {               /* asked for from the panel's settings */
     case LREQ_REFRESH: printf("paint: full refresh (settings)\n"); local_set_dirty_full(); local_flush(); break;
     case LREQ_RESTART: printf("rebooting (settings)\n"); sleep_ms(200); watchdog_reboot(0, 0, 0); break;
