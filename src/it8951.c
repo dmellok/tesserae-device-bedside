@@ -17,6 +17,7 @@
 /* I80 command set */
 #define CMD_SYS_RUN       0x0001
 #define CMD_STANDBY       0x0002
+#define CMD_POWER_CTR     0x0038   /* panel power (the TPS65185 rails and VCOM): arg 0 off, 1 on; the controller keeps running */
 #define CMD_SLEEP         0x0003
 #define CMD_REG_RD        0x0010
 #define CMD_REG_WR        0x0011
@@ -220,8 +221,31 @@ static bool s_ref_stale;              /* something has been shown since the pane
  * refresh. SYS_RUN in load_begin() powers it back up. */
 static bool s_standby = false;      /* off: on this board HRDY stays low after STANDBY and the next command times out (30 Oct) */
 static void write_cmd(uint16_t cmd);
-static void rest_panel(void) { if (s_standby) write_cmd(CMD_STANDBY); }
+/* The panel's drive rails and VCOM must be off between refreshes: left on,
+ * there is a constant small voltage across the ink while the pixels are
+ * isolated, and the image drifts lighter over minutes to hours (seen on the
+ * E1003 with this glass, and the shape of every fade here: good right after a
+ * paint, faded after the screen had sat). STANDBY would do it but hangs HRDY
+ * on this board; POWER_CTR switches just the panel power and leaves the
+ * controller answering. On before each refresh, off once it has finished. */
+static bool s_rails_off_between = true;
+static bool s_rails_on;
+static void panel_power(bool on)
+{
+    write_cmd(CMD_POWER_CTR); write_data(on ? 0x0001 : 0x0000);
+    hrdy();                                  /* the controller sequences the PMIC meanwhile */
+    if (on) sleep_ms(10);
+    s_rails_on = on;
+}
+static void rest_panel(void)
+{
+    if (s_rails_off_between) panel_power(false);
+    if (s_standby) write_cmd(CMD_STANDBY);
+}
+static void ready_panel(void) { if (s_rails_off_between) panel_power(true); }
 void it8951_set_standby(bool on) { s_standby = on; printf("it8951: standby between updates %s\n", on ? "on" : "off"); }
+void it8951_set_rails_off(bool on) { s_rails_off_between = on; printf("it8951: panel power off between refreshes %s\n", on ? "on" : "off"); if (!on && !s_rails_on) panel_power(true); }
+bool it8951_rails_off(void) { return s_rails_off_between; }
 static void apply_temp(void);
 static void white_fill_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx) { (void)y; (void)ctx; memset(out, 0xFF, IT8951_ROW_BYTES); }
 static int32_t s_vcom_cached = -1;
@@ -526,6 +550,7 @@ static void display(int px, int y, int w, int h, uint8_t mode)
 {
     const uint16_t args[5] = { (uint16_t)px, (uint16_t)y, (uint16_t)w, (uint16_t)h, mode };
     force_temp();                        /* the waveform is picked at display time */
+    ready_panel();
     write_cmd_args(CMD_DPY_AREA, args, 5);
     sleep_ms(20);                        /* let the LUT engine pick the job up */
     wait_display_ready(30000);
@@ -687,6 +712,7 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
         if (a[i][0] + a[i][2] > x1) x1 = a[i][0] + a[i][2];
         if (a[i][1] + a[i][3] > y1) y1 = a[i][1] + a[i][3];
     }
+    ready_panel();
     {
         const int px = s_mirror ? (IT8951_W - x1) : x0;
         const uint16_t args[5] = { (uint16_t)px, (uint16_t)y0, (uint16_t)(x1 - x0), (uint16_t)(y1 - y0), mode };
@@ -707,6 +733,7 @@ void it8951_redisplay_areas(const int (*rects)[4], int n, uint8_t mode)
     if (!ensure_up() || n <= 0) return;
     uint32_t t0 = now_ms();
     wait_display_ready(30000);
+    ready_panel();
     for (int i = 0; i < n && i < 9; i++) {
         int x0 = rects[i][0] & ~15, x1 = (rects[i][0] + rects[i][2] + 15) & ~15;
         if (x0 < 0) x0 = 0;
@@ -719,6 +746,7 @@ void it8951_redisplay_areas(const int (*rects)[4], int n, uint8_t mode)
     }
     sleep_ms(20);
     wait_display_ready(30000);
+    rest_panel();
     s_paints++;
     printf("it8951: second pass over %d area(s) (mode %u) in %lu ms\n", n, mode, (unsigned long)(now_ms() - t0));
 }

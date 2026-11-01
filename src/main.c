@@ -867,6 +867,7 @@ static void exec_command(const char *name, const char *value)
         printf("pattern: %s shown (GC16); 'dashboard' to go back\n", ramp ? "16-step ramp" : "solid black");
     }
     else if (!strcmp(name, "temp"))      { painter_lock(); it8951_set_temp(v); painter_unlock(); }     /* 0 = sensed */
+    else if (!strcmp(name, "epdpower"))  { painter_lock(); it8951_set_rails_off(v != 0); painter_unlock(); }   /* epdpower=1: rails off between refreshes (default); 0: leave them on */
     else if (!strcmp(name, "standby"))   { painter_lock(); it8951_set_standby(v != 0); painter_unlock(); }
     else if (!strcmp(name, "cleanfull")) { it8951_set_clean_full(v != 0); printf("it8951: INIT before full GC16 %s\n", v ? "on" : "off"); }
     else if (!strcmp(name, "vcom"))      { if (v >= 500 && v <= 5000) { painter_lock(); it8951_set_vcom((uint16_t)v); painter_unlock(); } else printf("vcom: expected 500..5000 mV\n"); }
