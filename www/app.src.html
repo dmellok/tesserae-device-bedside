@@ -821,7 +821,7 @@ async function renderRec(){
 }
 $('#rec').onchange=e=>{touch('rec',4000);set('rec',e.target.value)};
 /* ---- files: the panel's storage (Device tab) ---- */
-const kb=n=>n>=1048576?(n/1048576).toFixed(n>=10485760?0:1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+const kb=n=>!n?'0 KB':n>=1048576?(n/1048576).toFixed(n>=10485760?0:1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
 let files=null;
 async function loadFiles(){
   recFiles=null;

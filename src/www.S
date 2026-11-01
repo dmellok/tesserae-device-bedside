@@ -6,4 +6,4 @@ www_index:
 .incbin "www/index.html"
 .global www_index_end
 www_index_end:
-/* www/index.html sha1 389f218df27f5e16107bc1b7abd7e64fa839b3b4 */
+/* www/index.html sha1 d7dde090433848be2091f0e4d03c587c677c119c */
