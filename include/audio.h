@@ -47,5 +47,6 @@ void     audio_speaker_enable(bool on);
 void     audio_speaker_audible(bool audible);
 void     audio_speaker_tick(void);
 bool     audio_speaker_playing(void);
-uint32_t audio_speaker_fills(void);   /* I2S buffers refilled so far (diagnostics) */
+uint32_t audio_speaker_fills(void);
+uint32_t audio_i2s_diag(void);   /* I2S buffers refilled so far (diagnostics) */
 int      audio_cpu_permille(void);       /* render time as a share of core 1 */

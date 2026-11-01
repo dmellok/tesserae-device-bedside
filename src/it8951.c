@@ -372,8 +372,11 @@ bool it8951_probe_blind(unsigned cs, unsigned miso, int mode, it8951_info_t *out
 /* The temperature the controller would sense, and the one we force. E-ink
  * waveforms depend on temperature; the E1003 firmware (same glass) and
  * FastEPD force 14 C, as too warm a LUT is short and under-drives the glass.
- * 0 = let the controller sense it. */
-static int s_force_temp_c = 0;      /* Waveshare's setup: the controller picks the waveform (/api/cmd?temp=N to force) */
+ * 0 = let the controller sense it. Forced here: the controller's sensor is
+ * on the HAT, not the glass, and after a warm day of refreshes it picked a
+ * waveform too warm for 20 C glass and the panel faded (1 Nov 2026; 20
+ * looked best, 24 close, 30 worse). /api/cmd?temp=N to try others. */
+static int s_force_temp_c = 20;
 static int s_sensed_temp_c = -1;
 static void apply_temp(void)
 {

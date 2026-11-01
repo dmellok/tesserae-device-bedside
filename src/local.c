@@ -2651,9 +2651,9 @@ size_t local_state_json(char *b, size_t cap)
     J("]},");
     J("\"shape\":{\"patter\":%d,\"wash\":%d,\"tone\":%d,\"wind\":%d,\"surface\":%d,\"thunder\":%d,\"thunder_near\":%d},",
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
-    J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
+    J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"i2s_diag\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
       "\"rec\":\"%s\"},",
-      S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),
+      S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), (unsigned long)audio_i2s_diag(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),
       S.rec);
     J("\"lights\":{\"on\":%d,\"bright\":%d,\"colour\":%d},", S.lights_on, S.bright, S.light_mode);
     J("\"ac\":{\"mode\":%d,\"sp\":%d.%d,\"fan\":%d,\"room\":%d.%d},", S.ac_mode, S.sp_x2 / 2, (S.sp_x2 % 2) * 5, S.fan, S.room_x10 / 10, S.room_x10 % 10);

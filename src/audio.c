@@ -41,7 +41,8 @@ static uint32_t           s_busy_us, s_win_us, s_cpu_pm;
 static uint32_t          s_i2s_buf[2][I2S_FRAMES];
 static int               s_dma[2] = { -1, -1 };
 static PIO               s_i2s_pio;
-static uint              s_i2s_sm;
+static uint              s_i2s_sm, s_i2s_offset;
+static volatile bool     s_i2s_ready;
 static volatile bool     s_spk_on;        /* core 0: play through the speaker */
 static uint32_t          s_spk_pos;       /* ring read position (samples) */
 static bool              s_spk_was_on;
@@ -83,6 +84,15 @@ static void spk_fill(uint32_t *dst)
 
 static volatile uint32_t s_i2s_fills;     /* buffers refilled: the I2S clock is running */
 uint32_t audio_speaker_fills(void) { return s_i2s_fills; }
+/* Diagnostics: bit 0 the I2S state machine runs, bit 1 ready, bits 8+ the PIO index and SM, bit 16+ clock toggles seen on BCLK. */
+uint32_t audio_i2s_diag(void)
+{
+    if (!s_i2s_ready) return 0;
+    uint32_t en = (s_i2s_pio->ctrl >> s_i2s_sm) & 1u;
+    int toggles = 0; bool last = gpio_get(I2S_BCLK);
+    for (int i = 0; i < 2000; i++) { bool v = gpio_get(I2S_BCLK); if (v != last) { toggles++; last = v; } }
+    return en | 2u | (PIO_NUM(s_i2s_pio) << 8) | (s_i2s_sm << 12) | ((uint32_t)toggles << 16);
+}
 static void __isr on_i2s_dma(void)
 {
     for (int k = 0; k < 2; k++) {
@@ -127,8 +137,25 @@ static void i2s_start(void)
     }
     irq_add_shared_handler(DMA_IRQ_1, on_i2s_dma, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
     irq_set_enabled(DMA_IRQ_1, true);
-    pio_sm_set_enabled(s_i2s_pio, s_i2s_sm, true);
-    dma_channel_start((uint)s_dma[0]);
+    s_i2s_offset = offset;
+    s_i2s_ready = true;
+    dma_channel_start((uint)s_dma[0]);    /* it waits on the TX FIFO until the clock runs */
+}
+
+/* The I2S clock runs only while the amp is on: an idle 1.4 MHz bit clock on the
+ * header is interference the panel's SPI lines don't need. */
+static void i2s_clock(bool on)
+{
+    if (!s_i2s_ready) return;
+    const uint32_t mask = (1u << I2S_BCLK) | (1u << (I2S_BCLK + 1)) | (1u << I2S_DIN);
+    if (on) {
+        pio_sm_restart(s_i2s_pio, s_i2s_sm);
+        pio_sm_exec(s_i2s_pio, s_i2s_sm, pio_encode_jmp(s_i2s_offset + 7));
+        pio_sm_set_enabled(s_i2s_pio, s_i2s_sm, true);
+    } else {
+        pio_sm_set_enabled(s_i2s_pio, s_i2s_sm, false);
+        pio_sm_set_pins_with_mask(s_i2s_pio, s_i2s_sm, 0, mask);   /* park the lines low */
+    }
 }
 
 /* Core 0: the amp follows what's audible, with a tail so fades finish. */
@@ -146,7 +173,8 @@ void audio_speaker_tick(void)
     bool on = want || (s_spk_on && s_spk_enabled && now - s_spk_quiet_since < 3000);   /* let the ~1.2 s fade out play */
     if (on != s_spk_on) {
         s_spk_on = on;
-        gpio_put(AMP_SD, on);
+        if (on) { i2s_clock(true); gpio_put(AMP_SD, 1); }
+        else    { gpio_put(AMP_SD, 0); i2s_clock(false); }
     }
 }
 
