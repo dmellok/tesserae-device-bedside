@@ -615,9 +615,9 @@ record fix stay: they are correct and cheap.
   it, which is why every "fix" looked good right after its repaint.
 - VCOM sweep with that test (same pixels, four partials): -1.30 worse,
   -1.48 (the label) drifting, -1.66 better, -1.85, -2.00, -2.15 and -2.20
-  better still with clean whites, -2.45 greys the whites. Built in as
-  -DEPD_VCOM_MV=2200. If ghosting of old content ever shows, step back
-  towards 2100.
+  better still with clean whites, -2.45 greys the whites. -2.20 darkened the greys
+  over a morning's use, so -2.00 V is built in (-DEPD_VCOM_MV=2000). Drift
+  lighter = go more negative; greys/whites darkening = go back.
 - Firmware: strip changes are marked by diffing the strip layer before and
   after rebuild() (`mark_changed`), so the minute tick refreshes the digits
   only; every partial counts towards a full clean refresh (30 partials or 45
