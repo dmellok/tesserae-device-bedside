@@ -58,6 +58,8 @@ typedef struct {
      * repaints the whole screen with GC16) */
     int  refresh_mode;
     int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
+    bool turn_hints;                   /* menus: the turns needed to reach each row, beside it */
+    bool quick_menus;                  /* menus: knob steps paint black-and-white (fast), full quality once the knob rests */
     bool auto_update;                  /* install the newest stable release overnight */
     /* hardware: play through the speaker; read the PowerBoost (battery backup
      * fitted); and which stored file the Recording sound plays ("" = the
@@ -148,6 +150,8 @@ float local_sleep_tick(bool *changed);
 /* The alarm clock: runs the wake window (the chorus builds), rings, snoozes
  * and previews. Updates S.chorus; sets *changed when the panel needs a repaint. */
 void  local_alarm_tick(bool *changed);
+/* The knob has rested on a menu row: repaint the list and preview in full quality. True = flush. */
+bool  local_settle_tick(void);
 /* Save the sound settings a few seconds after they stop changing. */
 void  local_persist_tick(void);
 /* Read-only views (ha.c). */

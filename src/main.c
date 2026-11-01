@@ -405,25 +405,27 @@ static void paint_pump(void)
     s_flush_pending = false;
 
     local_dirty_t d;
-    bool full = false;
+    bool full = false, all_du = true;
     j.mode = IT8951_MODE_GL16;
     while (local_take_dirty(&d)) {
         if (d.full) { full = true; j.mode = d.mode; continue; }
         if (j.n < PAINTER_MAX_RECTS) { j.rects[j.n][0] = d.x; j.rects[j.n][1] = d.y; j.rects[j.n][2] = d.w; j.rects[j.n][3] = d.h; j.n++; }
         if (d.mode == IT8951_MODE_GC16) j.mode = d.mode;
+        if (d.mode != IT8951_MODE_DU) all_du = false;
     }
     if (!full && !j.n) return;
+    if (!full && all_du) j.mode = IT8951_MODE_DU;       /* menu steps: black and white, ~0.25 s; the settle pass restores the greys */
     /* Screen updates: Clean draws every change with GC16 (just its area), Full
      * repaints the whole screen with GC16 every time. Both keep blacks black. */
     if (cur_content == CONTENT_BOOT) { if (!full) j.mode = IT8951_MODE_DU; }   /* the boot log: fast, black and white */
     else if (local_refresh_mode() == 2) { full = true; j.mode = IT8951_MODE_GC16; }
-    else if (local_refresh_mode() == 1 && j.mode != IT8951_MODE_INIT) j.mode = IT8951_MODE_GC16;
+    else if (local_refresh_mode() == 1 && j.mode != IT8951_MODE_INIT && j.mode != IT8951_MODE_DU) j.mode = IT8951_MODE_GC16;
     j.kind = full ? PJ_FULL : PJ_AREAS;
     s_job_resets = full && j.mode == IT8951_MODE_GC16;
     {
         uint32_t now = to_ms_since_boot(get_absolute_time());
         if (s_job_resets) s_touched = false;
-        else if (now - s_last_input_ms < 3000u && j.mode != IT8951_MODE_GC16) s_touched = true;   /* a partial update the user caused */
+        else if (local_refresh_mode() == 0 && now - s_last_input_ms < 3000u && j.mode != IT8951_MODE_GC16) s_touched = true;   /* Fast mode: a partial update the user caused */
     }
     s_job_counts = j.mode != IT8951_MODE_GC16;          /* GC16 areas leave nothing to clean up */
     s_job_screen = local_epoch() != s_painted_epoch;
@@ -435,6 +437,9 @@ static void paint_pump(void)
         else { s_echo.n = j.n; memcpy(s_echo.rects, j.rects, sizeof j.rects); }
         s_job_echo = true;
     }
+    printf("paint: job %s mode %u, %d rect(s)%s:", full ? "full" : "areas", j.mode, j.n, all_du && !full ? " (quick)" : "");
+    for (int i = 0; i < j.n; i++) printf(" [%d,%d %dx%d]", j.rects[i][0], j.rects[i][1], j.rects[i][2], j.rects[i][3]);
+    printf("\n");
     snapshot();
     painter_submit(&j);
 }
@@ -850,6 +855,7 @@ static void exec_command(const char *name, const char *value)
     else if (!strcmp(name, "clear"))     clear_screen(IT8951_MODE_INIT);
     else if (!strcmp(name, "white"))     clear_screen(IT8951_MODE_GC16);
     else if (!strcmp(name, "sleep"))     { painter_lock(); it8951_sleep(); painter_unlock(); }
+    else if (!strcmp(name, "spitest"))   { painter_lock(); it8951_spi_test(v > 0 ? v : 8); painter_unlock(); local_set_dirty_full(); local_flush(); }
     else if (!strcmp(name, "init"))      { painter_lock(); it8951_init(); painter_unlock(); local_set_dirty_full(); local_flush(); }
     else if (!strcmp(name, "enhance"))   { painter_lock(); it8951_enhance_driving(); painter_unlock(); }
     else if (!strcmp(name, "pattern"))   {     /* diagnostics: INIT, then a full GC16 of solid black or a 16-step ramp */
@@ -1325,6 +1331,7 @@ static void ui_service(void)
         else if (live != last_live || cur_content == CONTENT_BOOT) { last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE)); }
     }
     if (local_live_tick()) local_flush();
+    if (!painter_busy() && local_settle_tick()) local_flush();   /* the knob stopped: menus back to full quality */
     switch (local_take_request()) {               /* asked for from the panel's settings */
     case LREQ_REFRESH: printf("paint: full refresh (settings)\n"); local_set_dirty_full(); local_flush(); break;
     case LREQ_RESTART: printf("rebooting (settings)\n"); sleep_ms(200); watchdog_reboot(0, 0, 0); break;

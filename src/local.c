@@ -142,9 +142,18 @@ static int isqrt_i(int v) { int r = 0; while ((r + 1) * (r + 1) <= v) r++; retur
 static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951_ROW_BYTES])
 {
     if (!l->on || y < l->y || y >= l->y + l->h) return;
-    memset(line + l->x, l->bg, (size_t)l->w);
+    /* Only the columns being streamed: a 59 px gutter beside the menu used to
+     * cost a full-width render of every row. Ops entirely outside are skipped. */
+    int wx0, wx1; it8951_stream_window(&wx0, &wx1);
+    if (wx0 < l->x) wx0 = l->x;
+    if (wx1 > l->x + l->w) wx1 = l->x + l->w;
+    if (wx1 <= wx0) return;
+    memset(line + wx0, l->bg, (size_t)(wx1 - wx0));
     for (int i = 0; i < l->n; i++) {
         const op_t *o = &l->ops[i];
+        if (o->kind == OP_FILL || o->kind == OP_FRAME || o->kind == OP_TEXT || o->kind == OP_RRECT || o->kind == OP_DASH) {
+            if (o->x >= wx1 || o->x + o->w <= wx0) continue;
+        }
         switch (o->kind) {
         case OP_FILL:
             if (y >= o->y && y < o->y + o->h) memset(line + o->x, o->g, (size_t)o->w);
@@ -212,7 +221,7 @@ static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951
             break; }
         }
     }
-    draw_pack(row, l->x, line + l->x, l->w);
+    draw_pack(row, wx0, line + wx0, wx1 - wx0);
 }
 
 /* ---- state ---------------------------------------------------------------- */
@@ -226,11 +235,14 @@ static local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0,
+    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 static char s_date[40];
 static uint32_t s_preview_start_ms, s_preview_len_ms;   /* dawn-chorus preview (local_alarm_tick) */
+static uint32_t s_settle_due;                            /* quick menus: when the full-quality pass is due (0 = none) */
+static bool s_trace_marks = false;                       /* diagnostics: log every dirty rect */
+static bool     s_settle_queued;                         /* its rects are in the dirty queue, not yet painted */
 static void chorus_preview(int seconds);
 
 static layer_t L_top, L_body, L_sb, L_ring;
@@ -374,6 +386,7 @@ uint32_t local_epoch(void) { return s_epoch; }
 static void mark(int x, int y, int w, int h, uint8_t mode)
 {
     if (w <= 0 || h <= 0) return;
+    if (s_trace_marks) printf("local: mark [%d,%d %dx%d] mode %u\n", x, y, w, h, mode);
     for (int i = 0; i < s_dn; i++) {
         local_dirty_t *d = &s_dq[i];
         const int g = 32;   /* near enough: one refresh, and nothing much in between */
@@ -389,11 +402,20 @@ static void mark(int x, int y, int w, int h, uint8_t mode)
     if (s_dn == MAX_DIRTY) { s_dn = 0; mark(0, 0, W, H, IT8951_MODE_GL16); return; }
     s_dq[s_dn++] = (local_dirty_t){ x, y, w, h, mode, false };
 }
+/* A rect that must stay its own job area (not merged with a neighbour): the
+ * turn-count gutter beside two changed rows streams far less than the list. */
+static void mark_apart(int x, int y, int w, int h, uint8_t mode)
+{
+    if (w <= 0 || h <= 0) return;
+    if (s_dn == MAX_DIRTY) { mark(x, y, w, h, mode); return; }
+    s_dq[s_dn++] = (local_dirty_t){ x, y, w, h, mode, false };
+}
 static void mark_full(uint8_t mode) { s_dn = 0; mark(0, 0, W, H, mode); }
 void local_set_dirty_full(void) { mark_full(IT8951_MODE_GC16); }
 bool local_take_dirty(local_dirty_t *out)
 {
     if (!s_dn) return false;
+    s_settle_queued = false;
     *out = s_dq[0];
     out->full = (out->w >= W && out->h >= H);
     memmove(&s_dq[0], &s_dq[1], sizeof(local_dirty_t) * (size_t)(--s_dn));
@@ -546,7 +568,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
-    T_SPEAKER, T_POWERMON,
+    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU,
 } item_t;
 
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
@@ -691,6 +713,8 @@ static int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 3; i++) r[n++] = (row_def_t){ S_KEY, K_SUB, KEY_L[i], ICON_KEYBOARD, i };
         r[n++] = (row_def_t){ C_KNOB_HOLD, K_CHOICE, "Knob hold", ICON_ARROW_U_UP_LEFT, 0 };
         r[n++] = (row_def_t){ I_MENUKEY, K_INFO, "MENU key", ICON_KEYBOARD, 0 };
+        r[n++] = (row_def_t){ T_TURNHINTS, K_TOGGLE, "Turn counts", ICON_LIST, 0 };
+        r[n++] = (row_def_t){ T_QUICKMENU, K_TOGGLE, "Quick menu moves", ICON_PLAY, 0 };
         r[n++] = (row_def_t){ V_KEYS, K_VALUE, "Brightness", ICON_SUN, 0 };
         r[n++] = (row_def_t){ C_KEYCOL, K_CHOICE, "Key colour", ICON_KEYBOARD, 0 };
         r[n++] = (row_def_t){ C_MENUCOL, K_CHOICE, "Menu key colour", ICON_KEYBOARD, 0 };
@@ -787,6 +811,7 @@ static bool toggle_get(const row_def_t *r)
     case T_AUTOTIME: return S.auto_time;
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
+    case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus;
     case T_NIGHT: return S.night; default: return false;
     }
 }
@@ -802,6 +827,8 @@ static void toggle_flip(const row_def_t *r)
     case T_SHOW:   S.show ^= 1 << r->arg; overlay_apply(); break;
     case T_AUTOUPD: S.auto_update = !S.auto_update; break;
     case T_SPEAKER: S.speaker = !S.speaker; publish("config/speaker", S.speaker ? "on" : "off"); break;
+    case T_TURNHINTS: S.turn_hints = !S.turn_hints; break;
+    case T_QUICKMENU: S.quick_menus = !S.quick_menus; break;
     case T_POWERMON: S.power_mon = !S.power_mon; if (!S.power_mon) S.on_battery = false; break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
     case T_BIRD:   S.birds ^= (uint16_t)(1u << r->arg);
@@ -1059,6 +1086,7 @@ void local_set_time(const char *iso)
 #define LIST_W   (W / 2)
 #define LIST_Y   (TB_H + 14)
 static int s_row_h = 116;              /* shrinks for long lists (the days) */
+static int s_list_n;                   /* rows in the list on screen */
 
 static void build_top(layer_t *l, bool inv)
 {
@@ -1467,7 +1495,12 @@ static void build_split(layer_t *l, const char *const *labels, const char *const
         if (chev && chev[i]) { xr -= draw_font_w(F_I, ICON_CARET_RIGHT); op_text(l, xr, y + (s_row_h - F_I->line_h) / 2, F_I, dim, ICON_CARET_RIGHT); xr -= 18; }
         if (check && check[i]) { xr -= draw_font_w(F_IM, ICON_CHECK); op_text(l, xr, y + (s_row_h - F_IM->line_h) / 2, F_IM, fg, ICON_CHECK); xr -= 18; }
         if (vals && vals[i][0]) op_text_r(l, xr, y + (s_row_h - F_LBL->line_h) / 2, F_LBL, dim, vals[i]);
+        if (S.turn_hints && !s) {           /* turns from the highlighted row: clockwise is down */
+            char t[8]; snprintf(t, sizeof t, "%+d", i - sel);
+            op_text_r(l, MARGIN - 12, y + (s_row_h - F_S->line_h) / 2, F_S, G_DARK, t);
+        }
     }
+    s_list_n = n;
     int cx = LIST_W + (W - LIST_W) / 2, y = TB_H + 150;
     if (pv_icon) { op_text_c(l, cx, y, &icon170, G_BLACK, pv_icon); y += icon170.line_h + 30; }
     const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < W - LIST_W - 80 ? F_NUM : F_XL;
@@ -1504,6 +1537,8 @@ static void build_list(layer_t *l)
     if (r->id == A_RELEASE) { const ota_release_t *e = ota_release(r->arg);
         if (e) snprintf(small, sizeof small, "%s " DOT " %s", e->date, s_rel_armed == r->arg ? "press again to install" : "press to install"); }
     if (r->id == A_WIFISETUP) snprintf(small, sizeof small, "Restarts into setup: join its WiFi from a phone");
+    if (r->id == T_TURNHINTS) snprintf(small, sizeof small, "Beside each row: turns to reach it, + clockwise");
+    if (r->id == T_QUICKMENU) snprintf(small, sizeof small, "Steps in black and white, full quality when you stop");
     if (r->id == C_WFTEMP) { int s = it8951_temp_sensed(); if (s >= 0) snprintf(small, sizeof small, "Board sensor says %d C " DOT " lower = darker", s); else snprintf(small, sizeof small, "Lower = darker, higher = lighter"); }
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Partial, then a full refresh");
@@ -1927,18 +1962,44 @@ void local_mark_area(int x, int y, int w, int h, uint8_t mode) { mark(x, y, w, h
 static void mark_screen(void)
 {
     s_epoch++;
+    s_settle_due = 0;                       /* the list is going away */
     rebuild();
     if (s_mode == M_HOME && S.dash_page > 0) { mark(0, 0, W, H, IT8951_MODE_GC16); return; }   /* overlay layouts differ */
     mark(0, 0, W, SB_Y, IT8951_MODE_GC16);
-    mark(0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16);
+    /* The strip stays as it is between the home screen and the menus; marking
+     * it here merged with the content into a full-screen job, which costs an
+     * INIT clear and a flash on every menu open. Its own changes mark it. */
 }
+/* Quick menus: a knob step paints only the list, in DU (black and white, about
+ * a quarter second, no flash); the preview and the greys follow in one GC16
+ * pass once the knob has rested for SETTLE_MS. */
+#define SETTLE_MS 450u
+#define PREVIEW_RECT LIST_W + 3, TB_H + 140, W - LIST_W - 3, 560
 static void mark_rows(int a, int b)
 {
     rebuild();
     int ya = LIST_Y + a * s_row_h, yb = LIST_Y + b * s_row_h;
     int y0 = ya < yb ? ya : yb, y1 = (ya > yb ? ya : yb) + s_row_h;
+    if (S.quick_menus) {
+        if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }   /* a turn beat the full-quality pass: drop it, it will come again */
+        mark_apart(MARGIN - 8, y0, LIST_W - MARGIN + 8, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed */
+        if (S.turn_hints) mark_apart(0, LIST_Y, MARGIN - 8, s_list_n * s_row_h, IT8951_MODE_DU);   /* every row's number moved */
+        else mark_apart(0, y0, MARGIN - 8, y1 - y0, IT8951_MODE_DU);
+        s_settle_due = now_ms() + SETTLE_MS; s_settle_due |= 1u;
+        return;
+    }
     mark(0, y0, LIST_W, y1 - y0, IT8951_MODE_GL16);
-    mark(LIST_W + 3, TB_H + 140, W - LIST_W - 3, 560, IT8951_MODE_GL16);
+    mark(PREVIEW_RECT, IT8951_MODE_GL16);
+}
+bool local_settle_tick(void)
+{
+    if (!s_settle_due || (int32_t)(now_ms() - s_settle_due) < 0) return false;
+    s_settle_due = 0;
+    if (s_mode != M_LIST && s_mode != M_CHOICE) return false;
+    mark(0, LIST_Y, LIST_W, s_list_n * s_row_h, IT8951_MODE_GC16);
+    mark(PREVIEW_RECT, IT8951_MODE_GC16);
+    s_settle_queued = true;
+    return true;
 }
 static void mark_value(void)
 {
@@ -2426,6 +2487,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "power_mon"))    { S.power_mon = v != 0; if (!S.power_mon && S.on_battery) { S.on_battery = false; state_changed(); } return true; }
     else if (!strcmp(key, "rec"))          { if (strlen(val) >= sizeof S.rec) return false; snprintf(S.rec, sizeof S.rec, "%s", val); }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
+    else if (!strcmp(key, "turn_hints"))   { S.turn_hints = v != 0; if (s_mode == M_LIST || s_mode == M_CHOICE) mark_screen(); return true; }
+    else if (!strcmp(key, "quick_menus"))  { S.quick_menus = v != 0; return true; }
     else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
     else if (!strcmp(key, "birds"))     { if (v < 0 || v > BIRDS_ALL) return false; S.birds = (uint16_t)v; }
@@ -2541,13 +2604,14 @@ static void settings_load(void)
 
 /* Hardware settings and the recording (blob slot 5). */
 #define EXT_MAGIC 0x31545845u   /* "EXT1" */
-typedef struct { uint8_t speaker, power_mon, rsv0, pad; char rsv1[48], rec[40]; } ext_blob_t;   /* rsv: the gesture settings, removed (kept so saved settings still load) */
+typedef struct { uint8_t speaker, power_mon, rsv0, pad; char rsv1[48], rec[40]; } ext_blob_t;   /* rsv0: menu flags; rsv1: the gesture settings, removed (kept so saved settings still load) */
 static ext_blob_t s_ext_saved;
 static uint32_t   s_ext_changed_at;
 static void ext_pack(ext_blob_t *b)
 {
     memset(b, 0, sizeof *b);
     b->speaker = S.speaker; b->power_mon = S.power_mon;
+    b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2));   /* bits set = off, so older blobs read as on */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 static void ext_load(void)
@@ -2555,6 +2619,7 @@ static void ext_load(void)
     ext_blob_t b;
     if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
         S.speaker = b.speaker; S.power_mon = b.power_mon;
+        S.turn_hints = !(b.rsv0 & 1); S.quick_menus = !(b.rsv0 & 2);
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
@@ -2654,8 +2719,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"quick_menus\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.quick_menus, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

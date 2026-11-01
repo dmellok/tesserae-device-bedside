@@ -108,6 +108,8 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
  * speed takes effect at the next it8951_init(). */
 void     it8951_set_mirror(bool mirror);
 bool     it8951_mirror(void);
+void     it8951_stream_window(int *x0, int *x1);   /* the columns being streamed now (whole width when idle) */
+int      it8951_spi_test(int rows);   /* write rows of a pattern, read the memory back: mismatched words, -1 if the panel is down */
 void     it8951_set_spi_hz(uint32_t hz);
 uint32_t it8951_spi_hz(void);
 

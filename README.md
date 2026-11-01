@@ -301,3 +301,15 @@ chip, recording playback and level limits in the sound engine, SHA-256 and
 release version ordering. GitHub runs them on every push before the firmware
 build. On this Mac the Makefile picks the MacOSX26 SDK (the 27 one won't link
 host code).
+
+## Menus: quick moves and turn counts
+
+- **Quick menu moves** (Settings > Keys and knob; web app Controls card; on by
+  default): a knob step repaints only the rows that changed, in the panel's
+  two-level mode (about 0.6 s). Once the knob rests for half a second the list
+  and the preview repaint in full quality. Off: every step is a full-quality
+  paint (about 1.5 s).
+- **Turn counts** (same places; on by default): beside each row, the knob
+  turns to reach it from the highlighted one; + is clockwise.
+- Opening or closing a menu repaints the content area in one pass without the
+  INIT clear (no flash), about 1.8 s.

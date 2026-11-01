@@ -20,6 +20,9 @@
 #define CMD_SLEEP         0x0003
 #define CMD_REG_RD        0x0010
 #define CMD_REG_WR        0x0011
+#define CMD_MEM_BST_RD_T  0x0012   /* burst read trigger: addr lo, addr hi, count lo, count hi (words) */
+#define CMD_MEM_BST_RD_S  0x0013   /* then the data */
+#define CMD_MEM_BST_END   0x0015
 #define CMD_LD_IMG_AREA   0x0021
 #define CMD_LD_IMG_END    0x0022
 #define CMD_DPY_AREA      0x0034
@@ -534,6 +537,11 @@ static void display(int px, int y, int w, int h, uint8_t mode)
 /* Stream rows y..y+h-1, logical columns x..x+w-1 (widened to 16 px) into the
  * controller's image buffer, without refreshing. Returns the aligned
  * rectangle in logical coordinates through *ax..*ah. */
+/* The columns being streamed right now, so a row generator can skip work
+ * outside them (a narrow area costs rows, not width, otherwise). */
+static int s_win_x0 = 0, s_win_x1 = IT8951_W;
+void it8951_stream_window(int *x0, int *x1) { *x0 = s_win_x0; *x1 = s_win_x1; }
+
 static bool load_area(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, int *ax, int *ay, int *aw, int *ah)
 {
     if (!ensure_up()) return false;
@@ -545,14 +553,69 @@ static bool load_area(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, i
     const int lw = x1 - x0, lh = y1 - y0;
     const int px = s_mirror ? (IT8951_W - x0 - lw) : x0;        /* panel-space x */
     uint8_t row[IT8951_ROW_BYTES];
+    s_win_x0 = x0; s_win_x1 = x1;
     load_begin(px, y0, lw, lh);
     for (int yy = y0; yy < y1; yy++) {
         fn(yy, row, ctx);
         load_row(row + x0 / 2, lw / 2, yy);
     }
     load_end();
+    s_win_x0 = 0; s_win_x1 = IT8951_W;
     *ax = x0; *ay = y0; *aw = lw; *ah = lh;
     return true;
+}
+
+/* SPI link check: write `rows` rows of a known pattern into the controller's
+ * image buffer (no refresh), read them back with a memory burst read, and
+ * count the mismatches. Writes are otherwise never verified; this is how a
+ * faster SPI clock is proven safe without eyes on the glass. */
+static void test_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx)
+{
+    uint32_t seed = (uint32_t)(uintptr_t)ctx + (uint32_t)y * 2654435761u;
+    for (int i = 0; i < IT8951_ROW_BYTES; i++) { seed = seed * 1103515245u + 12345u; out[i] = (uint8_t)(seed >> 16); }
+}
+int it8951_spi_test(int rows)
+{
+    if (!ensure_up()) return -1;
+    if (rows < 1) rows = 1;
+    if (rows > 8) rows = 8;                              /* 8 rows = 7.5 KB of SRAM for the read-back */
+    const int y0 = 0;                                    /* the top rows: the address is the buffer base, no arithmetic to doubt */
+    uint32_t seed = now_ms() | 1u;
+    int ax, ay, aw, ah;
+    if (!load_area(0, y0, IT8951_W, rows, test_row, (void *)(uintptr_t)seed, &ax, &ay, &aw, &ah)) return -1;
+    wait_display_ready(5000);
+    const uint32_t addr = s_info.img_addr + (uint32_t)y0 * IT8951_ROW_BYTES;
+    const uint32_t cnt = (uint32_t)rows * IT8951_ROW_BYTES / 2;        /* words */
+    static uint16_t got[8 * IT8951_ROW_BYTES / 2 + 4];
+    const uint16_t args[4] = { (uint16_t)(addr & 0xFFFF), (uint16_t)(addr >> 16), (uint16_t)(cnt & 0xFFFF), (uint16_t)(cnt >> 16) };
+    write_cmd_args(CMD_MEM_BST_RD_T, args, 4);
+    write_cmd(CMD_MEM_BST_RD_S);
+    read_words(got, cnt + 4);                            /* a few extra, in case the data starts a word late */
+    write_cmd(CMD_MEM_BST_END);
+    s_ref_stale = true;                                  /* the buffer no longer matches the glass there */
+
+    /* What we expect, in the two byte orders the memory might hold. */
+    static uint16_t exp_a[8 * IT8951_ROW_BYTES / 2], exp_b[8 * IT8951_ROW_BYTES / 2];
+    uint8_t row[IT8951_ROW_BYTES], wire[IT8951_ROW_BYTES];
+    for (int r = 0; r < rows; r++) {
+        test_row(y0 + r, row, (void *)(uintptr_t)seed);
+        row_to_wire(row, IT8951_ROW_BYTES, wire);
+        for (int k = 0; k < IT8951_ROW_BYTES; k += 2) {
+            exp_a[r * IT8951_ROW_BYTES / 2 + k / 2] = (uint16_t)((wire[k] << 8) | wire[k + 1]);
+            exp_b[r * IT8951_ROW_BYTES / 2 + k / 2] = (uint16_t)((wire[k + 1] << 8) | wire[k]);
+        }
+    }
+    int best = (int)cnt, best_off = 0, best_order = 0;
+    for (int off = 0; off <= 4; off++) for (int order = 0; order < 2; order++) {
+        const uint16_t *e = order ? exp_b : exp_a;
+        int bad = 0;
+        for (uint32_t i = 0; i < cnt; i++) if (got[i + off] != e[i]) bad++;
+        if (bad < best) { best = bad; best_off = off; best_order = order; }
+    }
+    printf("it8951: SPI test at %lu Hz: %d of %lu words wrong (data starts %d word(s) late, byte order %s; first read %04x %04x %04x, expected %04x %04x %04x)\n",
+           (unsigned long)it8951_spi_hz(), best, (unsigned long)cnt, best_off, best_order ? "swapped" : "as sent",
+           got[0], got[1], got[2], exp_a[0], exp_a[1], exp_a[2]);
+    return best;
 }
 
 /* GC16 works out every pixel's drive from the image the controller holds as
@@ -601,9 +664,21 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
     if (!loaded) return;
     uint32_t t1 = now_ms();
     force_temp();
+    /* One refresh over the rectangles' bounding box. The controller queues
+     * DPY_AREAs and runs the waveform once per area, so N areas cost N
+     * refreshes (4 areas: 2.8 s); a partial update only drives pixels whose
+     * value changed, so one box over the loaded areas gives the same picture
+     * in one run. */
+    int x0 = IT8951_W, y0 = IT8951_H, x1 = 0, y1 = 0;
     for (int i = 0; i < loaded; i++) {
-        const int px = s_mirror ? (IT8951_W - a[i][0] - a[i][2]) : a[i][0];
-        const uint16_t args[5] = { (uint16_t)px, (uint16_t)a[i][1], (uint16_t)a[i][2], (uint16_t)a[i][3], mode };
+        if (a[i][0] < x0) x0 = a[i][0];
+        if (a[i][1] < y0) y0 = a[i][1];
+        if (a[i][0] + a[i][2] > x1) x1 = a[i][0] + a[i][2];
+        if (a[i][1] + a[i][3] > y1) y1 = a[i][1] + a[i][3];
+    }
+    {
+        const int px = s_mirror ? (IT8951_W - x1) : x0;
+        const uint16_t args[5] = { (uint16_t)px, (uint16_t)y0, (uint16_t)(x1 - x0), (uint16_t)(y1 - y0), mode };
         write_cmd_args(CMD_DPY_AREA, args, 5);
     }
     s_ref_stale = true;

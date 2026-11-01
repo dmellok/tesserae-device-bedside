@@ -535,3 +535,38 @@ Keep the forced value within ~5 C of the real glass temperature: too low is
 over-drive (ghosting over time), not damage; wrong VCOM is what damages panels.
 Also: Screen updates must be Clean, not Fast (Fast's GL16 partials accumulate
 for ~40 min before cleanup). Research sources in the session transcript.
+
+## 2026-11-01: navigation speed, and what the references say about the fade
+
+Reference material read: IT8951 datasheet (V0.2.4.3), Waveshare IT8951 HAT
+schematic and example code, E Ink's AF waveform mode declaration, the TPS65185
+datasheet, and the E1003 / ESPHome / FrameOS / Seeed / FastEPD drivers for
+this glass (extracts in the session scratchpad). Findings that changed code:
+- **DPY_AREA is queued, not parallel.** N areas in one job cost N waveform
+  runs (4 areas: 2.8 s). `it8951_update_areas` now loads each area and
+  refreshes their bounding box once; a partial update only drives pixels
+  whose value changed, so the picture is identical.
+- **Rendering was full-width per row**: a 59 px gutter cost a full render of
+  every row it spans (570 ms). `layer_row` now clips to the columns being
+  streamed (`it8951_stream_window`).
+- **Menu open merged the content and the strip** (5 px apart, merge gap 32)
+  into a full-screen job, which took the INIT clear and a flash every time.
+  `mark_screen` no longer marks the strip.
+- Quick menu steps: DU on the changed rows plus the turn-count gutter as
+  separate load areas (one refresh), 183 + 441 ms; a GC16 settle pass over
+  list + preview 450 ms after the knob rests (dropped if a turn beats it).
+  DU on this panel at 20 C forced is 441 ms (E Ink's typical: 260 at 25 C).
+- SPI: 18.75 MHz (the next integer divider) fails the GET_DEV_INFO handshake;
+  12.5 MHz is the ceiling. `spitest` (memory burst read-back, cmd 0x0012/13/15)
+  reads real image memory but not the rows just loaded; the address unit or
+  the FIFO protocol is still wrong, so it is a diagnostic in progress.
+- Not applied, with reasons: Enhanced driving (reg 0x0038 = 0x0602) is for
+  blur from a long FPC per Waveshare, not contrast; A2 would halve the step
+  time but needs black/white source pixels and the rows carry anti-aliased
+  greys; STANDBY between refreshes (what Waveshare's demo and the E1003 do)
+  hangs HRDY on this board, and the driver comment's claim that SYS_RUN
+  washes the image out over minutes was not reproduced. If a fade ever
+  appears minutes after a paint with the temperature forced, try
+  POWER_SEQ (cmd 0x0038 arg 0) after each refresh.
+- Job trace: every submitted paint logs `paint: job <full|areas> mode M, N
+  rect(s)`; `s_trace_marks` in local.c logs every dirty rect.

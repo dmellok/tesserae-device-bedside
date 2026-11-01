@@ -419,6 +419,8 @@ nav .brand,nav .side-foot{display:none}
     <div class="kmap" id="kmap"></div>
     <div class="grid2" id="kbinds"></div>
     <div class="hint" style="text-align:left">A key with a hold action waits half a second to tell a press from a hold. MENU is fixed: press for the menu or back, hold for home.</div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Quick menu moves<small style="display:block;color:var(--sub);font-size:12px">Knob steps paint in black and white (about a quarter second); full quality once the knob rests</small></div><label class="sw"><input type="checkbox" id="quick_menus" data-set="quick_menus"><span></span></label></div>
     <div class="lbl">Hardware</div>
     <dl id="hw"></dl>
     <div class="lbl">BOOT button</div>
@@ -1073,6 +1075,8 @@ function renderPanelSettings(){
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
+  if(!held('turn_hints'))$('#turn_hints').checked=!!p.turn_hints;
+  if(!held('quick_menus'))$('#quick_menus').checked=!!p.quick_menus;
   if(p.temp_sensed!=null)$('#wf-hint').textContent=`Forcing ${p.temp_forced} °C. ${p.temp_sensed>=0?`The board's own sensor reads ${p.temp_sensed} °C.`:"The board's own sensor can't be read."} The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. Lower is darker; keep it within a few degrees of the room.`;
   renderSoftware(); renderDesk(); renderHW();
   renderHome(p);
