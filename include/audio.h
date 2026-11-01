@@ -16,7 +16,7 @@
 #include "rainsynth.h"
 
 #define AUDIO_SR    RAIN_SR
-#define AUDIO_RING  16384u               /* samples: ~0.74 s (the SRAM ring without PSRAM) */
+#define AUDIO_RING  4096u                /* samples: ~0.19 s, the SRAM ring until audio_use_buffer() gives it PSRAM */
 /* Use a bigger ring (PSRAM), before core 1 starts: a long stall on core 0 (a
  * frame download) then no longer gaps the web stream. */
 void     audio_use_buffer(int16_t *buf, uint32_t samples);

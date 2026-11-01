@@ -9,7 +9,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Host tests (tests/): the alarm, the file store, recordings, SHA-256 and
+  # version ordering, built with the runner's gcc. No Pico SDK needed.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host tests
+        run: make -C tests
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

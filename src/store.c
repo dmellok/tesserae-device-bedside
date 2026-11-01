@@ -5,13 +5,18 @@
 
 #include <stdio.h>
 #include <string.h>
+#ifdef STORE_HOST                         /* tests/: a simulated flash chip and boot ROM */
+#include "store_host.h"
+#else
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "boot/picobin.h"
 #include "hardware/flash.h"
 #include "config.h"
-
 #define FLASH_RAW  ((const uint8_t *)XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE)
+extern char __flash_binary_end;
+#define STORE_IMAGE_END() ((uint32_t)(uintptr_t)&__flash_binary_end - XIP_BASE)
+#endif
 #define SECTOR     4096u
 #define STORE_END  (15u * 1024 * 1024)       /* the settings start here (config.c) */
 #define DIR_MAGIC  0x31524944u               /* "DIR1" */
@@ -42,6 +47,7 @@ bool store_ready(void) { return s_data != 0; }
 
 void store_init(void)
 {
+    s_base = s_data = 0;                     /* until the region checks out */
     /* The partitions' furthest sector. PT_INFO: word 0 echoes the flags, word 1
      * holds the count (bits 0-7) and whether a table is present (bit 8). Then
      * one partition at a time: word 0 the flags, word 1 its location. */
@@ -60,8 +66,7 @@ void store_init(void)
         if ((last + 1) * SECTOR > end) end = (last + 1) * SECTOR;
     }
     /* Never under the running firmware, whatever the table says. */
-    extern char __flash_binary_end;
-    uint32_t img_end = (uint32_t)(uintptr_t)&__flash_binary_end - XIP_BASE;
+    uint32_t img_end = STORE_IMAGE_END();
     if (end < 1024u * 1024 || end < img_end) { printf("store: partitions end at 0x%06lx, implausible; no file storage\n", (unsigned long)end); return; }
     if (!end || end + 4 * SECTOR > STORE_END) { printf("store: no room after the partitions\n"); return; }
     s_base = end; s_data = end + 2 * SECTOR;

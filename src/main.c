@@ -1025,22 +1025,19 @@ size_t app_state_json(char *buf, size_t cap)
     return n < cap ? n : cap - 1;
 }
 
-/* Preview: the composite generator decimated by `scale`. Lives in PSRAM past
- * the frame buffer when we have it (any scale), else a small SRAM buffer
- * (scale >= 4). */
-#define PREVIEW_SRAM_BYTES ((IT8951_W / 4 / 2) * (IT8951_H / 4))      /* 82 KB */
+/* Preview: the composite generator decimated by `scale`, in PSRAM past the
+ * frame buffers. Without PSRAM there is no preview (nor dashboards). */
 #define PREVIEW_PSRAM_OFF  (4u * 1024 * 1024)
-static uint8_t  preview_sram[PREVIEW_SRAM_BYTES];
 static size_t   preview_len;
-static uint8_t *preview_buf = preview_sram;
+static uint8_t *preview_buf;
 
 const uint8_t *app_render_preview(int scale, size_t *len)
 {
     if (scale == 0) { *len = preview_len; return preview_len ? preview_buf : NULL; }
+    if (!have_psram) { *len = 0; return NULL; }
     if (scale < 2) scale = 2;
     if (scale > 8) scale = 8;
-    if (!have_psram && scale < 4) scale = 4;
-    preview_buf = have_psram ? PSRAM_XIP_BASE + PREVIEW_PSRAM_OFF : preview_sram;
+    preview_buf = PSRAM_XIP_BASE + PREVIEW_PSRAM_OFF;
 
     int w = (IT8951_W / scale) & ~1, h = IT8951_H / scale;
     uint8_t *dst = preview_buf;

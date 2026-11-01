@@ -292,3 +292,12 @@ on the panel and in the web app's **Hardware** card, and in Home Assistant.
 
 Sleep sounds gained **Wind** and **Recording** (loops a sound file from Device >
 Files; thunder and the sleep timer work over it as over rain).
+
+## Tests
+
+`make -C tests` builds and runs the host tests (plain C, no Pico SDK): the
+alarm decisions (`src/alarm_sched.c`), the file store on a simulated flash
+chip, recording playback and level limits in the sound engine, SHA-256 and
+release version ordering. GitHub runs them on every push before the firmware
+build. On this Mac the Makefile picks the MacOSX26 SDK (the 27 one won't link
+host code).

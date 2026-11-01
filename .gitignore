@@ -4,3 +4,4 @@
 include/secrets.h
 include/wifi_secrets.h
 .DS_Store
+tests/build/

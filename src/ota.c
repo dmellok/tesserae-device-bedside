@@ -198,14 +198,6 @@ static uint32_t s_checked;
 static const char *s_running = "";
 void ota_set_version(const char *running) { s_running = running ? running : ""; }
 
-int ota_version_cmp(const char *a, const char *b)
-{
-    int x[3] = { 0 }, y[3] = { 0 };
-    sscanf(a, "%d.%d.%d", &x[0], &x[1], &x[2]); sscanf(b, "%d.%d.%d", &y[0], &y[1], &y[2]);
-    for (int i = 0; i < 3; i++) if (x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
-    return 0;
-}
-
 bool ota_releases_fetch(void)
 {
     if (!s_buf) return false;

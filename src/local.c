@@ -30,6 +30,7 @@
 #include "inputs.h"
 #include "ota.h"
 #include "icons.h"
+#include "alarm_sched.h"
 #include "audio.h"
 #include "power.h"
 
@@ -547,7 +548,6 @@ typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_
 
 /* ---- alarms ---- */
 #define MAX_ALARMS 4
-typedef struct { int h, m; bool on; uint8_t days[7]; int early; } alarm_t;
 static alarm_t s_alarms[MAX_ALARMS] = { { 6, 30, true, {1,1,1,1,1,0,0}, 15 } };
 static int s_nalarms = 1, s_ai;       /* count; the alarm being edited */
 static int s_ki;                      /* the key being set (0..2) */
@@ -2063,10 +2063,7 @@ static bool clock_now(int *wday, int *sec, int64_t *minute)
 {
     int64_t e = utc_now();
     if (!e) return false;
-    int64_t l = e + tz_offset_at(e);
-    *wday = (int)(((l / 86400) + 3) % 7);           /* 1 Jan 1970 was a Thursday; 0 = Monday */
-    *sec = (int)(l % 86400);
-    *minute = l / 60;
+    alarm_split_time(e + tz_offset_at(e), wday, sec, minute);
     return true;
 }
 
@@ -2080,22 +2077,8 @@ static bool next_alarm(int *idx, int32_t *delta_s)
         for (int i = 0; i < s_nalarms; i++) if (s_alarms[i].on) { *idx = i; return true; }
         return false;
     }
-    int now_w = wday * 86400 + sec;
-    int32_t best = 0x7FFFFFFF;
-    for (int i = 0; i < s_nalarms; i++) {
-        if (!s_alarms[i].on) continue;
-        bool any = false; for (int d = 0; d < 7; d++) any |= s_alarms[i].days[d];
-        int a = s_alarms[i].h * 3600 + s_alarms[i].m * 60;
-        for (int d = 0; d < 7; d++) {
-            if (any && !s_alarms[i].days[d]) continue;
-            int32_t delta = ((d * 86400 + a) - now_w + 7 * 86400) % (7 * 86400);
-            if (delta == 0) delta = 7 * 86400;
-            if (delta < best) { best = delta; *idx = i; }
-        }
-    }
-    if (*idx < 0) return false;
-    *delta_s = best;
-    return true;
+    *idx = alarm_next(s_alarms, s_nalarms, wday * 86400 + sec, false, delta_s);
+    return *idx >= 0;
 }
 
 static void ring(int i)
@@ -2118,8 +2101,7 @@ static void stop_alarm(void)
     S.phase = PHASE_IDLE; s_snooze_until_ms = 0;
     int i = s_ring_alarm; s_ring_alarm = -1;
     if (i >= 0 && i < s_nalarms) {
-        bool once = true; for (int d = 0; d < 7; d++) if (s_alarms[i].days[d]) once = false;
-        if (once) { s_alarms[i].on = false; alarms_save(); sync_alarm_summary(); }
+        if (alarm_is_once(&s_alarms[i])) { s_alarms[i].on = false; alarms_save(); sync_alarm_summary(); }
     }
     publish("event", "alarm_stopped"); go_home();
 }
@@ -2138,8 +2120,7 @@ void local_alarm_tick(bool *changed)
         static int last_in = -1;
         int wd, sc; int64_t mn;
         if (S.auto_night && clock_now(&wd, &sc, &mn)) {
-            int from = (20 + S.auto_night) * 60, until = 7 * 60, m = sc / 60;
-            int in = (m >= from || m < until) ? 1 : 0;
+            int in = alarm_auto_night_in(S.auto_night, sc / 60) ? 1 : 0;
             if (in != last_in) {
                 last_in = in;
                 if ((bool)in != S.night) {
@@ -2168,28 +2149,16 @@ void local_alarm_tick(bool *changed)
     }
     int wday, sec; int64_t minute;
     if (!clock_now(&wday, &sec, &minute)) { S.chorus = c; return; }
-    int now_w = wday * 86400 + sec, best = -1;
-    int32_t best_delta = 0x7FFFFFFF;
-    for (int i = 0; i < s_nalarms; i++) {
-        if (!s_alarms[i].on) continue;
-        bool any = false; for (int d = 0; d < 7; d++) any |= s_alarms[i].days[d];
-        int a = s_alarms[i].h * 3600 + s_alarms[i].m * 60;
-        for (int d = 0; d < 7; d++) {
-            if (any && !s_alarms[i].days[d]) continue;
-            int32_t delta = ((d * 86400 + a) - now_w + 7 * 86400) % (7 * 86400);   /* seconds until it */
-            if (delta > 7 * 86400 - 60) delta -= 7 * 86400;                       /* in its minute: just passed */
-            if (delta < best_delta) { best_delta = delta; best = i; }
-        }
-    }
+    int32_t best_delta;
+    int best = alarm_next(s_alarms, s_nalarms, wday * 86400 + sec, true, &best_delta);
     if (best >= 0 && best_delta <= 0 && minute - s_fired_min > 1) {
         s_fired_min = minute;
         ring(best); if (changed) *changed = true; S.chorus = 1.0f; return;
     }
     if (best >= 0 && best_delta > 0) {
-        int win = (s_alarms[best].early > 0 ? s_alarms[best].early : 10) * 60;
+        int win = alarm_window_s(&s_alarms[best]);
         if (best_delta <= win) {
-            float pr = 1.0f - (float)best_delta / (float)win;
-            float w = 0.05f + 0.75f * powf(pr, 1.2f);
+            float w = alarm_chorus_level(best_delta, win);
             if (w > c) c = w;
             if (S.phase == PHASE_IDLE) {
                 S.phase = PHASE_PREWAKE; S.lights_on = true; S.bright = 30;

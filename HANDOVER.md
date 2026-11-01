@@ -504,3 +504,16 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
   -26/-20/-17 dBFS RMS, rain L3 -19.
 - printf here has no float support: format numbers as integers (mV).
 - Menu lists move exactly one row per detent (acceleration only on values).
+
+## 2026-11-01: SRAM and host tests
+
+- SRAM 98.4 % -> 78 %: the 82 KB SRAM preview fallback is gone (no PSRAM =
+  no preview) and the SRAM audio ring is 4096 samples (PSRAM replaces it at
+  boot). Next-biggest if more is needed: the local UI draw lists (L_*/P_*,
+  8 x 20 KB), read per row by the painter on core 1.
+- `src/alarm_sched.c`: the alarm decisions pulled out of local.c, unchanged in
+  behaviour; verified on the panel with a one-off alarm (prewake, chorus
+  0.08 -> 0.74 over a 1 min window, rang on the minute).
+- `tests/`: 31 tests, 202 checks. Each was checked by breaking the code it
+  guards (mutation check), including the store free-space bug of 1 Nov.
+  `store.c` builds for the host with `-DSTORE_HOST` against `tests/host/`.
