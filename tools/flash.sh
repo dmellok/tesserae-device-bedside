@@ -10,6 +10,7 @@ PY=${PY:-$HOME/.platformio/penv/bin/python}
 UF2=.pio/build/pimoroni_pico_plus_2w/firmware.uf2
 SECS=${1:-90}
 
+touch src/main.c            # the build stamp (__DATE__/__TIME__) lives there: make it the real build time
 "$PIO" run
 
 # Which A/B slot is booting: the load must go there. picotool picks a slot of
