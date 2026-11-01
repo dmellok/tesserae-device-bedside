@@ -169,7 +169,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--hat);outline-offset
   </div>
 
   <h2>Suggested allocation for the next phases</h2>
-  <p>The handover lists three things still to wire: the MAX98357A amplifier over I2S, the PowerBoost 1000C mains and battery sense lines, and nothing else on the header (the APDS-9960 joins the Qw/ST chain). This plan uses the verified pins for anything analogue and the Pi header's own PCM pins for I2S, which keeps the splitter labels honest.</p>
+  <p>The handover lists two things still to wire: the MAX98357A amplifier over I2S and the PowerBoost 1000C mains and battery sense lines. This plan uses the verified pins for anything analogue and the Pi header's own PCM pins for I2S, which keeps the splitter labels honest.</p>
   <div class="two">
     <div class="card">
       <h3>MAX98357A (I2S, three signals)</h3>
@@ -203,7 +203,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--hat);outline-offset
         <tr><td class="m">GP8</td><td class="m">24 · CE0</td><td><span class="chip hat">HAT</span></td><td>IT8951 chip select (<code>EPD_PIN_CS</code>)</td></tr>
         <tr><td class="m">GP17</td><td class="m">11 · BCM17</td><td><span class="chip hat">HAT</span></td><td>IT8951 reset, active low</td></tr>
         <tr><td class="m">GP1</td><td class="m">18 · BCM24</td><td><span class="chip hat">HAT</span></td><td>IT8951 HRDY. BCM24 is re-routed here because GP24 is a radio pin. Also costs UART0 RX, which stdio over USB does not need</td></tr>
-        <tr><td class="m">GP4 / GP5</td><td class="m">7 / 29 (if 1:1)</td><td><span class="chip shared">I2C0</span></td><td>Qw/ST connector: seesaw encoder (0x36), NeoKey 1x4 (0x30), APDS-9960 later. The same GPs probably surface on the Pi header as BCM4/BCM5, so those two splitter pins are the I2C bus, not spares. Hang more I2C devices there, nothing else</td></tr>
+        <tr><td class="m">GP4 / GP5</td><td class="m">7 / 29 (if 1:1)</td><td><span class="chip shared">I2C0</span></td><td>Qw/ST connector: seesaw encoder (0x36), NeoKey 1x4 (0x30). The same GPs probably surface on the Pi header as BCM4/BCM5, so those two splitter pins are the I2C bus, not spares. Hang more I2C devices there, nothing else</td></tr>
         <tr><td class="m">GP15</td><td class="m">10 · RXD</td><td><span class="chip res">firmware</span></td><td><code>BTN_PIN</code>: optional bench push-button to GND, pulled up, idle high. Free to reassign once the NeoKey covers that job</td></tr>
         <tr><td class="m">GP23 GP24 GP25 GP29</td><td class="m">—</td><td><span class="chip unk">radio</span></td><td>RM2 wireless module (REG_ON, DATA, CS, CLK). Not on the header at all</td></tr>
         <tr><td class="m">GP45</td><td class="m">—</td><td><span class="chip res">board</span></td><td>BOOT button, active low; firmware reads it as a second user button</td></tr>

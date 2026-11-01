@@ -474,12 +474,7 @@ nav .brand,nav .side-foot{display:none}
   <div class="card" id="c-hw">
     <div class="row"><div style="flex:1">Speaker<small style="display:block;color:var(--sub);font-size:12px" id="hw-spk"></small></div><label class="sw"><input type="checkbox" id="hw-speaker" data-set="speaker"><span></span></label></div>
     <div class="row" style="margin-top:16px"><div style="flex:1">Battery backup<small style="display:block;color:var(--sub);font-size:12px" id="hw-bat"></small></div><label class="sw"><input type="checkbox" id="hw-power" data-set="power_mon"><span></span></label></div>
-    <div class="row" style="margin-top:16px"><div style="flex:1">Wave gestures<small style="display:block;color:var(--sub);font-size:12px" id="hw-gest"></small></div><label class="sw"><input type="checkbox" id="hw-gestures" data-set="gestures"><span></span></label></div>
-    <div class="grid2">
-      <label class="fld"><span>Wave side to side</span><select id="gest_lr"></select></label>
-      <label class="fld"><span>Wave up and down</span><select id="gest_ud"></select></label>
-    </div>
-    <div class="hint" style="text-align:left;margin-top:10px">Any wave snoozes a ringing alarm. The speaker is a MAX98357A on GP18/19/21 (GP16 switches it off when quiet); battery backup reads the PowerBoost on GP26 to GP28. Turn battery backup on only once it is wired: unconnected, those pins read nonsense.</div>
+    <div class="hint" style="text-align:left;margin-top:10px">The speaker is a MAX98357A on GP18/19/21 (GP16 switches it off when quiet); battery backup reads the PowerBoost on GP26 to GP28. Turn battery backup on only once it is wired: unconnected, those pins read nonsense.</div>
   </div>
 
   <h2>Files</h2>
@@ -842,23 +837,14 @@ function renderHA(){const m=st.mqtt;if(!m)return;
 let swSig='';
 function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
 /* ---- hardware (Device tab) and the recording (Room tab) ---- */
-let gestSig='';
 function renderHW(){
   const h=ui&&ui.hw; if(!h)return;
   const chk=(id,v,k)=>{if(!held(k))$('#'+id).checked=!!v};
-  chk('hw-speaker',h.speaker,'speaker'); chk('hw-power',h.power_mon,'power_mon'); chk('hw-gestures',h.gestures,'gestures');
+  chk('hw-speaker',h.speaker,'speaker'); chk('hw-power',h.power_mon,'power_mon');
   $('#hw-spk').textContent=!h.speaker?'Off: sound only streams to the web app':h.spk_on?'Playing':'Amp off until there is sound';
   $('#hw-bat').textContent=!h.power_mon?'Not fitted':h.on_battery?`On battery, ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`:`On mains · battery ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`;
-  $('#hw-gest').textContent=!h.gest_present?'No sensor found on the I2C chain':h.gestures?'On':'Off (the sensor sleeps)';
-  const acts=(ui.panel&&ui.panel.keyacts)||[], sig=JSON.stringify(acts);
-  if(sig!==gestSig){gestSig=sig;
-    const base=[{id:'none',label:'Nothing'}].concat(acts);
-    $('#gest_lr').innerHTML=base.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
-    $('#gest_ud').innerHTML=[{id:'vol',label:'Volume (up is louder)'}].concat(base).map(a=>`<option value="${a.id}">${a.label}</option>`).join('')}
-  ['gest_lr','gest_ud'].forEach(k=>{const e=$('#'+k);if(!held(k)&&e!==document.activeElement)e.value=h[k]});
   renderRec();
 }
-['gest_lr','gest_ud'].forEach(k=>$('#'+k).onchange=e=>{touch(k,4000);set(k,e.target.value)});
 var recFiles=null,recT=0;   // var: loadFiles() can run (from the first tab) before this line
 async function renderRec(){
   const h=ui.hw,isRec=ui.rain&&ui.rain.kind===4;

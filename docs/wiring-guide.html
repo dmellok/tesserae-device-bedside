@@ -136,8 +136,8 @@ a:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
   </div>
 
   <div class="card">
-    <h2>3 · Qw/ST chain: encoder, NeoKey 1x4, APDS-9960</h2>
-    <div class="sub">Three STEMMA QT cables, daisy-chained from the Pico Plus 2 W's Qw/ST socket. Nothing on the splitter is used.</div>
+    <h2>3 · Qw/ST chain: encoder and NeoKey 1x4</h2>
+    <div class="sub">Two STEMMA QT cables, daisy-chained from the Pico Plus 2 W's Qw/ST socket. Nothing on the splitter is used.</div>
     <div class="split">
       <div class="diag" id="qt"></div>
       <div>
@@ -146,14 +146,13 @@ a:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
           <tbody>
             <tr><td class="m">1</td><td>Pico Qw/ST (GP4 SDA, GP5 SCL, 3V3, GND)</td><td>I2C rotary encoder, either QT socket</td><td class="m">0x36</td></tr>
             <tr><td class="m">2</td><td>encoder, other QT socket</td><td>NeoKey 1x4, either QT socket</td><td class="m">0x30</td></tr>
-            <tr><td class="m">3</td><td>NeoKey, other QT socket</td><td>APDS-9960</td><td class="m">0x39 (fixed)</td></tr>
           </tbody>
         </table></div>
         <dl class="kv" style="margin-top:10px">
           <dt>cable colours</dt><dd>black GND, red 3.3 V, blue SDA, yellow SCL (same on every QT cable)</dd>
-          <dt>address jumpers</dt><dd>leave all unbridged on the encoder and NeoKey; the three addresses do not collide</dd>
+          <dt>address jumpers</dt><dd>leave all unbridged on the encoder and NeoKey; the two addresses do not collide</dd>
           <dt>INT pins</dt><dd>unused; the firmware polls over I2C</dd>
-          <dt>pull-ups</dt><dd>each board carries its own 10 kΩ pair; three boards on 300 mm total is fine at 400 kHz</dd>
+          <dt>pull-ups</dt><dd>each board carries its own 10 kΩ pair; two boards on 200 mm total is fine at 400 kHz</dd>
           <dt>order</dt><dd>any; chain in whatever order suits the enclosure</dd>
         </dl>
         <div class="note"><p><strong>Also appears on the splitter.</strong> If the adapter is 1:1 for BCM4 and BCM5, pins 7 and 29 on the splitter are this same bus. Do not put anything but I2C devices on them.</p></div>
@@ -291,7 +290,7 @@ strip('hat','IT8951 HAT (via splitter)',[
 
 // Qw/ST chain
 (function(){
-  const W=560,H=150; const boxes=[['Pico Plus 2 W','Qw/ST socket'],['Rotary encoder','0x36'],['NeoKey 1x4','0x30'],['APDS-9960','0x39']];
+  const W=560,H=150; const boxes=[['Pico Plus 2 W','Qw/ST socket'],['Rotary encoder','0x36'],['NeoKey 1x4','0x30']];
   let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="I2C chain">`;
   const bw=112, gap=30, y=40;
   boxes.forEach((b,i)=>{const x=14+i*(bw+gap);
@@ -339,7 +338,6 @@ strip('hat','IT8951 HAT (via splitter)',[
   box(770,130,110,60,'FRS 5 X','8 Ω speaker');
   box(580,250,100,50,'Encoder','0x36');
   box(700,250,100,50,'NeoKey 1x4','0x30');
-  box(820,250,70,50,'APDS','0x39');
   wire('140,45 160,45 160,80 180,80','p5'); lbl(145,38,'5 V in');
   wire('140,135 160,135 160,100 180,100','p3'); lbl(145,128,'Bat');
   wire('330,90 355,90 355,50 380,50','p5'); lbl(335,82,'5.2 V ▶ SS14');

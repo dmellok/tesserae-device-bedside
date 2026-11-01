@@ -65,7 +65,6 @@
 #include "painter.h"
 #include "audio.h"
 #include "power.h"
-#include "gesture.h"
 #include "ha.h"
 #include "live.h"
 
@@ -1290,18 +1289,6 @@ static void audio_update(void)
 
     /* The PowerBoost, when battery backup is fitted. */
     if (ls->power_mon && power_tick()) local_power(power_on_battery(), power_percent(), power_low());
-
-    /* Wave gestures. */
-    gesture_enable(ls->gestures);
-    gesture_t g = gesture_poll();
-    static uint32_t last_g;
-    if (g != GEST_NONE && now - last_g > 900) {
-        last_g = now;
-        const char *a = local_gesture((int)g);
-        if (a[0] && strcmp(a, "snooze") && strncmp(a, "vol.", 4)) run_action(a);
-        char ev[24]; snprintf(ev, sizeof ev, "gesture_%s", gesture_name(g)); ha_event(ev);
-        local_flush();
-    }
 }
 
 static void ui_service(void)
@@ -1366,7 +1353,6 @@ int main(void)
     printf("psram: %s (%u bytes)\n", have_psram ? "ready" : "MISSING: dashboard frames need it", (unsigned)psram);
 
     inputs_init();          /* before config_seed() so the stored backlight applies */
-    gesture_init();         /* on the same I2C chain */
     power_init();
     audio_init_pins();      /* the amp shut down until there's sound */
     config_seed();

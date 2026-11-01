@@ -232,8 +232,8 @@ overlay mechanism is proven.
    Mapping table and saved to flash; "button:<name>" sends a server button
    wake. Unverified on the boards (no hardware session yet); the first thing
    to check is the seesaw HW_ID read (0x87 expected for both ATtiny817
-   boards) and the encoder's direction sign. **APDS-9960 gesture sensor not
-   started.** The web page's virtual controller drives the same bindings, so
+   boards) and the encoder's direction sign. **The APDS-9960 gesture sensor was
+   dropped (1 Nov 2026: not wanted).** The web page's virtual controller drives the same bindings, so
    the mapping can be set up and tested before the keys are soldered.
 3. **Audio (Phases 2 and 4).** MAX98357A over I2S from PIO (pico-extras has
    `audio_i2s`); check the GPIO splitter's free pins against the pin map above.
@@ -486,7 +486,7 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
 - Headless Chrome needs `--disable-features=AudioServiceOutOfProcess,AudioServiceSandbox`
   for `decodeAudioData` to return (for testing the converter).
 
-## 2026-11-01: speaker, battery, gestures, wind, recordings
+## 2026-11-01: speaker, battery, wind, recordings
 
 - `audio.c`: I2S is pico-extras' audio_i2s program built with the
   `pio_encode_*` helpers (no pioasm in this build), two DMA channels
@@ -495,9 +495,9 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
   it never plays stale ring data). Rendering now runs while the speaker plays
   as well as for web listeners. Verified on the bench without the amp: the
   buffers refill (`hw.i2s_fills` in the state JSON); not yet heard.
-- `power.c` and `gesture.c` are untested against hardware (none fitted yet);
-  gesture directions depend on how the sensor is mounted, swap the mapping in
-  `decode()` if up and down come out reversed.
+- `power.c` is untested against hardware (not wired yet). A gesture sensor
+  (APDS-9960) driver was written then removed the same day: not wanted. The
+  hardware settings blob keeps its bytes as reserved so saved settings load.
 - `rainsynth.c`: RS_WIND and RS_RECORDING. The recording is decoded in place
   from flash (store.h format); verified by correlating the web stream with the
   uploaded file (0.994). `tools/render_rain.c` levels: wind L1/L3/L5 at about

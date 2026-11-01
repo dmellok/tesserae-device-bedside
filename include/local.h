@@ -59,11 +59,9 @@ typedef struct {
     int  refresh_mode;
     bool auto_update;                  /* install the newest stable release overnight */
     /* hardware: play through the speaker; read the PowerBoost (battery backup
-     * fitted); the gesture sensor and what its side-to-side and up/down
-     * swipes do (key action ids, or "vol": up louder, down quieter); and which
-     * stored file the Recording sound plays ("" = the first sound file) */
-    bool speaker, power_mon, gestures;
-    char gest_lr[24], gest_ud[24];
+     * fitted); and which stored file the Recording sound plays ("" = the
+     * first sound file) */
+    bool speaker, power_mon;
     char rec[40];
 } local_state_t;
 
@@ -73,8 +71,6 @@ typedef struct { int x, y, w, h; uint8_t mode; bool full; } local_dirty_t;
 void local_init(void);
 /* The PowerBoost's readings (power.h), when battery backup is fitted. */
 void local_power(bool on_battery, int pct, bool low);
-/* A swipe from the gesture sensor (gesture.h). Returns the action it ran ("" if none). */
-const char *local_gesture(int g);
 local_state_t *local_state(void);
 screen_t       local_screen(void);
 const char    *local_screen_name(screen_t s);

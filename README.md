@@ -197,7 +197,7 @@ box: ~0.2 s + ~0.2 s. Controller reports LUT `M841_TFA5210`, image buffer
   that window (the encoder's delta register still accumulates detents, so
   turns are not lost, only delayed). Move the client to core 1 or make it
   event driven.
-- The APDS-9960 gesture sensor from the BOM is not wired in.
+- The APDS-9960 gesture sensor was dropped from the build (1 Nov 2026).
 - Weather on the device's own Weather page is sample data.
 - Nothing is published over MQTT yet; the alarm does not actually fire.
 - Plain `http://` only. The server must be reachable by IP or a name the
@@ -277,7 +277,7 @@ API: `GET /api/files`; `GET /api/file?name=`; `POST /api/file?name=&off=&total=`
 with up to 64 KB of body per chunk, in order, 4 KB aligned;
 `POST /api/file?name=&delete=1`.
 
-## Speaker, battery backup, gestures
+## Speaker and battery backup
 
 Wired as in `docs/wiring-guide.html`; each has a switch in **Settings > Device**
 on the panel and in the web app's **Hardware** card, and in Home Assistant.
@@ -289,9 +289,6 @@ on the panel and in the web app's **Hardware** card, and in Home Assistant.
   LBO on GP28, each through a 100 k / 100 k divider. Off by default: unwired
   ADC pins float. On: the strip shows the battery when mains drops, toasts on
   the change, and HA gets a Battery sensor and a Mains power binary sensor.
-- **Wave gestures** (APDS-9960 at 0x39 on the Qw/ST chain): side to side and up
-  and down each run an action (defaults: lights on/off; volume, up is louder).
-  Any wave snoozes a ringing alarm. Gestures also reach HA as events.
 
 Sleep sounds gained **Wind** and **Recording** (loops a sound file from Device >
 Files; thunder and the sleep timer work over it as over rain).

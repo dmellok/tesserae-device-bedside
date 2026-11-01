@@ -204,7 +204,6 @@ static const ent_t ENTS[] = {
     { "switch", "night", "Night mode", "mdi:weather-night", "{{ value_json.night }}", SW, 's' },
     /* hardware */
     { "switch", "speaker", "Speaker", "mdi:speaker", "{{ value_json.hw.speaker }}", SW ",\"ent_cat\":\"config\"", 's' },
-    { "switch", "gestures", "Wave gestures", "mdi:gesture-swipe", "{{ value_json.hw.gestures }}", SW ",\"ent_cat\":\"config\"", 's' },
     { "sensor", "battery", "Battery", "mdi:battery", "{{ value_json.hw.pct if value_json.hw.power_mon else None }}",
       "\"unit_of_meas\":\"%\",\"dev_cla\":\"battery\",\"stat_cla\":\"measurement\"", 's' },
     { "binary_sensor", "mains", "Mains power", "mdi:power-plug", "{{ 'OFF' if value_json.hw.on_battery else 'ON' }}", "\"dev_cla\":\"power\"", 's' },
@@ -233,7 +232,7 @@ static const ent_t ENTS[] = {
     { "sensor", "tess", "Tesserae link", "mdi:monitor-dashboard", "{{ value_json.tess }}", "\"ent_cat\":\"diagnostic\"", 'd' },
     /* events for automations */
     { "event", "event", "Events", "mdi:bell-ring", NULL,
-      "\"evt_typ\":[\"prewake\",\"alarm_ringing\",\"alarm_snoozed\",\"alarm_stopped\",\"thunder\",\"chorus_preview\",\"chorus_preview_stop\",\"gesture_left\",\"gesture_right\",\"gesture_up\",\"gesture_down\",\"gesture_wave\",\"on_battery\",\"mains\"]", 'e' },
+      "\"evt_typ\":[\"prewake\",\"alarm_ringing\",\"alarm_snoozed\",\"alarm_stopped\",\"thunder\",\"chorus_preview\",\"chorus_preview_stop\",\"on_battery\",\"mains\"]", 'e' },
 };
 #define N_FIXED   ((int)(sizeof ENTS / sizeof ENTS[0]))
 #define N_SLOTS   4
@@ -533,7 +532,7 @@ bool ha_translate(const char *msg, char *name, size_t nn, char *value, size_t vn
     printf("ha: %s = %s\n", key, p);
 
     static const char *const SET[] = { "vol", "rain_on", "rain_lvl", "rain_kind", "sleep", "lights_on", "bright", "colour",
-        "ac_mode", "setpoint", "fan", "night", "keylights", "speaker", "gestures", "dash", "patter", "wash", "tone", "wind", "surface", "thunder",
+        "ac_mode", "setpoint", "fan", "night", "keylights", "speaker", "dash", "patter", "wash", "tone", "wind", "surface", "thunder",
         "thunder_near", "strike", "bird_vol", "chorus_preview", "alarm_stop", "alarm_snooze", "alarm_add",
         "key_col", "menu_col", "night_col", "knob_light", "auto_night", "clock12", "snooze" };
     for (size_t i = 0; i < sizeof SET / sizeof SET[0]; i++)

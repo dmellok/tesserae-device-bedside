@@ -32,7 +32,6 @@
 #include "icons.h"
 #include "audio.h"
 #include "power.h"
-#include "gesture.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -225,7 +224,7 @@ static local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .gestures = true, .gest_lr = "lights.toggle", .gest_ud = "vol", .rec = "",
+    .speaker = true, .power_mon = false, .rec = "",
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 static char s_date[40];
@@ -541,7 +540,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
-    T_SPEAKER, T_POWERMON, T_GESTURES,
+    T_SPEAKER, T_POWERMON,
 } item_t;
 
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
@@ -722,7 +721,6 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", ICON_BATTERY_CHARGING, 0 };
-        r[n++] = (row_def_t){ T_GESTURES, K_TOGGLE, "Wave gestures", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", ICON_WIFI_HIGH, 0 };
         r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
@@ -782,7 +780,7 @@ static bool toggle_get(const row_def_t *r)
     case T_SHOW: return (S.show >> r->arg) & 1;
     case T_AUTOTIME: return S.auto_time;
     case T_AUTOUPD: return S.auto_update;
-    case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon; case T_GESTURES: return S.gestures;
+    case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_NIGHT: return S.night; default: return false;
     }
 }
@@ -799,7 +797,6 @@ static void toggle_flip(const row_def_t *r)
     case T_AUTOUPD: S.auto_update = !S.auto_update; break;
     case T_SPEAKER: S.speaker = !S.speaker; publish("config/speaker", S.speaker ? "on" : "off"); break;
     case T_POWERMON: S.power_mon = !S.power_mon; if (!S.power_mon) S.on_battery = false; break;
-    case T_GESTURES: S.gestures = !S.gestures; publish("config/gestures", S.gestures ? "on" : "off"); break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
     case T_BIRD:   S.birds ^= (uint16_t)(1u << r->arg);
                    if ((S.birds >> r->arg) & 1) { S.audition_bird = r->arg; S.audition++; }   /* let you hear who you added */
@@ -2448,13 +2445,6 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
     else if (!strcmp(key, "speaker"))      { S.speaker = v != 0; publish("config/speaker", S.speaker ? "on" : "off"); return true; }
     else if (!strcmp(key, "power_mon"))    { S.power_mon = v != 0; if (!S.power_mon && S.on_battery) { S.on_battery = false; state_changed(); } return true; }
-    else if (!strcmp(key, "gestures"))     { S.gestures = v != 0; publish("config/gestures", S.gestures ? "on" : "off"); return true; }
-    else if (!strcmp(key, "gest_lr") || !strcmp(key, "gest_ud")) {
-        bool ok = !strcmp(val, "none") || !strcmp(val, "vol");
-        for (int i = 0; i < N_KEYACT && !ok; i++) ok = !strcmp(val, KEYACT_ID[i]);
-        if (!ok) return false;
-        snprintf(key[5] == 'l' ? S.gest_lr : S.gest_ud, sizeof S.gest_lr, "%s", val); return true;
-    }
     else if (!strcmp(key, "rec"))          { if (strlen(val) >= sizeof S.rec) return false; snprintf(S.rec, sizeof S.rec, "%s", val); }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
@@ -2569,22 +2559,21 @@ static void settings_load(void)
 
 /* Hardware settings and the recording (blob slot 5). */
 #define EXT_MAGIC 0x31545845u   /* "EXT1" */
-typedef struct { uint8_t speaker, power_mon, gestures, pad; char gest_lr[24], gest_ud[24], rec[40]; } ext_blob_t;
+typedef struct { uint8_t speaker, power_mon, rsv0, pad; char rsv1[48], rec[40]; } ext_blob_t;   /* rsv: the gesture settings, removed (kept so saved settings still load) */
 static ext_blob_t s_ext_saved;
 static uint32_t   s_ext_changed_at;
 static void ext_pack(ext_blob_t *b)
 {
     memset(b, 0, sizeof *b);
-    b->speaker = S.speaker; b->power_mon = S.power_mon; b->gestures = S.gestures;
-    memcpy(b->gest_lr, S.gest_lr, sizeof b->gest_lr); memcpy(b->gest_ud, S.gest_ud, sizeof b->gest_ud); memcpy(b->rec, S.rec, sizeof b->rec);
+    b->speaker = S.speaker; b->power_mon = S.power_mon;
+    memcpy(b->rec, S.rec, sizeof b->rec);
 }
 static void ext_load(void)
 {
     ext_blob_t b;
     if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
-        S.speaker = b.speaker; S.power_mon = b.power_mon; S.gestures = b.gestures;
-        b.gest_lr[23] = b.gest_ud[23] = b.rec[39] = 0;
-        memcpy(S.gest_lr, b.gest_lr, sizeof S.gest_lr); memcpy(S.gest_ud, b.gest_ud, sizeof S.gest_ud); memcpy(S.rec, b.rec, sizeof S.rec);
+        S.speaker = b.speaker; S.power_mon = b.power_mon;
+        b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
 }
@@ -2604,21 +2593,6 @@ void local_power(bool on_battery, int pct, bool low)
         if (low && before >= 15 && pct < 15) toast(ICON_BATTERY_CHARGING, "Battery low", "");
         state_changed();
     }
-}
-
-const char *local_gesture(int g)
-{
-    /* any wave snoozes a ringing alarm */
-    if (S.phase == PHASE_RINGING) { snooze(); return "snooze"; }
-    bool ud = g == 3 || g == 4;                       /* GEST_UP, GEST_DOWN */
-    const char *a = ud ? S.gest_ud : S.gest_lr;       /* left, right and a plain wave: side to side */
-    if (!strcmp(a, "none") || !a[0]) return "";
-    if (!strcmp(a, "vol")) {
-        if (!ud) { local_action("vol.up"); return "vol.up"; }
-        local_action(g == 3 ? "vol.up" : "vol.down");
-        return g == 3 ? "vol.up" : "vol.down";
-    }
-    return a;                                          /* main.c runs it, as for a key */
 }
 
 void local_persist_tick(void)
@@ -2709,9 +2683,9 @@ size_t local_state_json(char *b, size_t cap)
     J("\"shape\":{\"patter\":%d,\"wash\":%d,\"tone\":%d,\"wind\":%d,\"surface\":%d,\"thunder\":%d,\"thunder_near\":%d},",
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
     J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
-      "\"gestures\":%d,\"gest_present\":%d,\"gest_lr\":\"%s\",\"gest_ud\":\"%s\",\"rec\":\"%s\"},",
+      "\"rec\":\"%s\"},",
       S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),
-      S.gestures, gesture_present(), S.gest_lr, S.gest_ud, S.rec);
+      S.rec);
     J("\"lights\":{\"on\":%d,\"bright\":%d,\"colour\":%d},", S.lights_on, S.bright, S.light_mode);
     J("\"ac\":{\"mode\":%d,\"sp\":%d.%d,\"fan\":%d,\"room\":%d.%d},", S.ac_mode, S.sp_x2 / 2, (S.sp_x2 % 2) * 5, S.fan, S.room_x10 / 10, S.room_x10 % 10);
     J("\"picks\":[");
