@@ -540,6 +540,13 @@ static void display(int px, int y, int w, int h, uint8_t mode)
 /* The columns being streamed right now, so a row generator can skip work
  * outside them (a narrow area costs rows, not width, otherwise). */
 static int s_win_x0 = 0, s_win_x1 = IT8951_W;
+/* DU and A2 can only show black or white, but the controller records the
+ * values it was given as the image on the glass, and every later paint
+ * drives from that record. Loading greys for a DU refresh leaves the record
+ * wrong (a black pixel on record as dark grey is under-driven next time: the
+ * panel fades). So those loads carry the pixels as the glass will show them. */
+static bool s_load_bw;
+static inline uint8_t bw_byte(uint8_t b) { return (uint8_t)(((b & 0xF0) >= 0x80 ? 0xF0 : 0x00) | ((b & 0x0F) >= 0x08 ? 0x0F : 0x00)); }
 void it8951_stream_window(int *x0, int *x1) { *x0 = s_win_x0; *x1 = s_win_x1; }
 
 static bool load_area(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, int *ax, int *ay, int *aw, int *ah)
@@ -557,6 +564,7 @@ static bool load_area(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, i
     load_begin(px, y0, lw, lh);
     for (int yy = y0; yy < y1; yy++) {
         fn(yy, row, ctx);
+        if (s_load_bw) for (int k = x0 / 2; k < x1 / 2; k++) row[k] = bw_byte(row[k]);
         load_row(row + x0 / 2, lw / 2, yy);
     }
     load_end();
@@ -631,6 +639,7 @@ bool it8951_clean_full(void) { return s_clean_full; }
 static void paint(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, uint8_t mode)
 {
     int ax, ay, aw, ah;
+    s_load_bw = (mode == IT8951_MODE_DU || mode == IT8951_MODE_A2);
     if (s_clean_full && mode == IT8951_MODE_GC16 && s_ref_stale && x <= 0 && y <= 0 && w >= IT8951_W && h >= IT8951_H) {
         printf("it8951: INIT first: the controller's reference is stale\n");
         paint(0, 0, IT8951_W, IT8951_H, white_fill_row, NULL, IT8951_MODE_INIT);
@@ -656,11 +665,13 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
 {
     int a[8][4], loaded = 0;
     uint32_t t0 = now_ms();
+    s_load_bw = (mode == IT8951_MODE_DU || mode == IT8951_MODE_A2);
     for (int i = 0; i < n && loaded < 8; i++) {
         int ax, ay, aw, ah;
         if (!load_area(rects[i][0], rects[i][1], rects[i][2], rects[i][3], fn, ctx, &ax, &ay, &aw, &ah)) continue;
         a[loaded][0] = ax; a[loaded][1] = ay; a[loaded][2] = aw; a[loaded][3] = ah; loaded++;
     }
+    s_load_bw = false;
     if (!loaded) return;
     uint32_t t1 = now_ms();
     force_temp();
