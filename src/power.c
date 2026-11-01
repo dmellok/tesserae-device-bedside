@@ -53,7 +53,11 @@ bool power_tick(void)
     s_usb = u; s_lbo = l;
     bool on_batt = s_usb < MAINS_V;
     int  pct = lipo_percent(s_bat);
-    bool low = on_batt && (s_lbo < 1.0f || s_bat < 3.4f);
+    /* Low: the PowerBoost's LBO line (once it has shown a real battery voltage,
+     * so an unwired, floating pin can't raise a false alarm), or the cell itself. */
+    static bool lbo_wired;
+    if (s_lbo > 2.8f) lbo_wired = true;
+    bool low = on_batt && (s_bat < 3.4f || (lbo_wired && s_lbo < 1.0f));
     /* Hysteresis on the percentage so the badge doesn't flicker between two values. */
     if (s_pct < 0 || pct >= s_pct + 2 || pct <= s_pct - 2 || on_batt != s_on_batt) s_pct = pct;
     bool changed = on_batt != s_on_batt || low != s_low;
