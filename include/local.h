@@ -60,6 +60,7 @@ typedef struct {
     int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
     bool turn_hints;                   /* menus: the turns needed to reach each row, beside it */
     bool quick_menus;                  /* menus: knob steps paint black-and-white (fast), full quality once the knob rests */
+    bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
     bool auto_update;                  /* install the newest stable release overnight */
     /* hardware: play through the speaker; read the PowerBoost (battery backup
      * fitted); and which stored file the Recording sound plays ("" = the
