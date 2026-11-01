@@ -12,6 +12,17 @@ SECS=${1:-90}
 
 "$PIO" run
 
+# Which A/B slot is booting: the load must go there. picotool picks a slot of
+# its own otherwise, and the firmware wipes the other slot at boot, so a load
+# into the wrong one is erased and the old build keeps running.
+SLOT=$(curl -s -m 3 "http://${BEDSIDE_IP:-192.168.50.216}/api/state" 2>/dev/null | "$PY" -c 'import json,sys;print(json.load(sys.stdin)["ota"]["slot"])' 2>/dev/null || echo "")
+PART=""; case "$SLOT" in 0|1) PART="-p $SLOT"; echo "flash: the panel boots from slot $SLOT";; esac
+
+# Only with the panel on this Mac's USB: the BOOTSEL request over WiFi leaves
+# it in the bootloader otherwise, until it is power-cycled.
+if [ ! -d /Volumes/RP2350 ] && [ -z "$(ls /dev/cu.usbmodem* 2>/dev/null)" ] && ! "$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool" info >/dev/null 2>&1; then
+  echo "flash: the panel is not on this Mac's USB; plug it in first (or it would sit in the bootloader)"; exit 1
+fi
 if [ ! -d /Volumes/RP2350 ] && [ -n "${BEDSIDE_IP:-192.168.50.216}" ]; then
   # Over WiFi first: the firmware's web API reboots into the bootloader.
   if curl -s -m 3 -X POST "http://${BEDSIDE_IP:-192.168.50.216}/api/cmd?bootsel" >/dev/null 2>&1; then
@@ -25,7 +36,7 @@ PICOTOOL="$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotoo
 for i in $(seq 1 20); do "$PICOTOOL" info >/dev/null 2>&1 && break; sleep 0.5; done
 if "$PICOTOOL" info >/dev/null 2>&1; then
   echo "flash: loading with picotool"
-  "$PICOTOOL" load -x "$UF2" 2>&1 | grep -v "Loading into Flash" || true
+  "$PICOTOOL" load -x $PART "$UF2" 2>&1 | grep -v "Loading into Flash" || true
   sleep 3
   PORT=""
   for i in $(seq 1 40); do PORT=$(ls /dev/cu.usbmodem* 2>/dev/null | head -1); [ -n "$PORT" ] && break; sleep 0.5; done

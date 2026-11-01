@@ -570,3 +570,17 @@ this glass (extracts in the session scratchpad). Findings that changed code:
   POWER_SEQ (cmd 0x0038 arg 0) after each refresh.
 - Job trace: every submitted paint logs `paint: job <full|areas> mode M, N
   rect(s)`; `s_trace_marks` in local.c logs every dirty rect.
+
+## 2026-11-01, evening: USB loads were landing in the wrong slot
+
+With the A/B table, `picotool load` picks a partition itself; the firmware
+wipes the other slot at boot, so a load into the non-booting slot was erased
+and the previous build kept running. Several of today's builds never ran
+because of this. `tools/flash.sh` now asks the panel which slot boots
+(`ota.slot` in /api/state) and loads with `-p <slot>`; it also refuses to
+request BOOTSEL unless the panel is on this Mac's USB (otherwise it sits in
+the bootloader until power-cycled). Every build is stamped (`build` in
+/api/state and the boot line): check it after every flash.
+Also: DU/A2 loads now carry black-and-white pixels so the controller's
+"image on the glass" record is right; loading greys for a DU refresh left
+later paints under-driving (faded) wherever the menus had been.

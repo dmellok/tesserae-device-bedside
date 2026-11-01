@@ -1000,6 +1000,7 @@ size_t app_state_json(char *buf, size_t cap)
     ADD("\"live\":"); n += live_json(buf + n, cap > n ? cap - n : 0); ADD(",");
     { extern volatile int g_flash_step;
       ADD("\"loop\":{\"phase\":\"%s\",\"n\":%lu,\"flash_step\":%d},", (const char *)s_phase, (unsigned long)s_loops, g_flash_step); }
+    ADD("\"build\":\"%s %s\",", __DATE__, __TIME__);
     ADD("\"ota\":{\"state\":\"%s\",\"pct\":%d,\"err\":\"%s\",\"to\":\"%s\",\"slot\":%d,\"ab\":%d,\"checked_s\":%ld,\"rel\":[",
         ota_state_name(), ota_percent(), ota_error(), ota_target_version(), ota_boot_partition(), ota_partitioned() ? 1 : 0,
         ota_checked_ms() ? (long)((to_ms_since_boot(get_absolute_time()) - ota_checked_ms()) / 1000) : -1L);
@@ -1350,7 +1351,7 @@ int main(void)
     stdio_set_driver_enabled(&s_log_drv, true);   /* the web console's copy of the log */
     painter_init();
     sleep_ms(1500);
-    printf("\ntesserae-device-bedside %s: Pico Plus 2 W + Waveshare 10.3\" IT8951, Tesserae client\n", FW_VERSION);
+    printf("\ntesserae-device-bedside %s (built %s %s): Pico Plus 2 W + Waveshare 10.3\" IT8951, Tesserae client\n", FW_VERSION, __DATE__, __TIME__);
 
     size_t psram = psram_init(PSRAM_CS_PIN_PLUS2);
     have_psram = (psram >= IT8951_FRAME_BYTES);
