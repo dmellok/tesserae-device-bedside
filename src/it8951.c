@@ -624,44 +624,43 @@ int it8951_spi_test(int rows)
 {
     if (!ensure_up()) return -1;
     if (rows < 1) rows = 1;
-    if (rows > 8) rows = 8;                              /* 8 rows = 7.5 KB of SRAM for the read-back */
-    const int y0 = 0;                                    /* the top rows: the address is the buffer base, no arithmetic to doubt */
+    if (rows > 4) rows = 4;
+    /* The controller keeps one BYTE per pixel (a 4-bit load is expanded, value
+     * << 4), so a row is IT8951_W bytes in its memory and a burst read returns
+     * two pixels per word: (pixel0 << 8) | pixel1. */
+    const int y0 = 0;
     uint32_t seed = now_ms() | 1u;
     int ax, ay, aw, ah;
     if (!load_area(0, y0, IT8951_W, rows, test_row, (void *)(uintptr_t)seed, &ax, &ay, &aw, &ah)) return -1;
     wait_display_ready(5000);
-    const uint32_t addr = s_info.img_addr + (uint32_t)y0 * IT8951_ROW_BYTES;
-    const uint32_t cnt = (uint32_t)rows * IT8951_ROW_BYTES / 2;        /* words */
-    static uint16_t got[8 * IT8951_ROW_BYTES / 2 + 4];
+    const uint32_t addr = s_info.img_addr + (uint32_t)y0 * IT8951_W;
+    const uint32_t cnt = (uint32_t)rows * IT8951_W / 2;              /* words */
+    static uint16_t got[4 * IT8951_W / 2];
     const uint16_t args[4] = { (uint16_t)(addr & 0xFFFF), (uint16_t)(addr >> 16), (uint16_t)(cnt & 0xFFFF), (uint16_t)(cnt >> 16) };
     write_cmd_args(CMD_MEM_BST_RD_T, args, 4);
     write_cmd(CMD_MEM_BST_RD_S);
-    read_words(got, cnt + 4);                            /* a few extra, in case the data starts a word late */
+    read_words(got, cnt);
     write_cmd(CMD_MEM_BST_END);
-    s_ref_stale = true;                                  /* the buffer no longer matches the glass there */
-
-    /* What we expect, in the two byte orders the memory might hold. */
-    static uint16_t exp_a[8 * IT8951_ROW_BYTES / 2], exp_b[8 * IT8951_ROW_BYTES / 2];
-    uint8_t row[IT8951_ROW_BYTES], wire[IT8951_ROW_BYTES];
+    s_ref_stale = true;
+    uint8_t row[IT8951_ROW_BYTES];
+    int bad = 0, first_bad = -1;
+    uint16_t fb_got = 0, fb_exp = 0;
     for (int r = 0; r < rows; r++) {
         test_row(y0 + r, row, (void *)(uintptr_t)seed);
-        row_to_wire(row, IT8951_ROW_BYTES, wire);
-        for (int k = 0; k < IT8951_ROW_BYTES; k += 2) {
-            exp_a[r * IT8951_ROW_BYTES / 2 + k / 2] = (uint16_t)((wire[k] << 8) | wire[k + 1]);
-            exp_b[r * IT8951_ROW_BYTES / 2 + k / 2] = (uint16_t)((wire[k + 1] << 8) | wire[k]);
+        for (int x = 0; x < IT8951_W; x += 2) {
+            /* pixel x is the high nibble of row[x/2] (draw.h), x+1 the low; mirrored panels reverse the row */
+            int lx0 = s_mirror ? IT8951_W - 1 - x : x, lx1 = s_mirror ? IT8951_W - 2 - x : x + 1;
+            uint8_t p0 = (lx0 & 1) ? (row[lx0 >> 1] & 0x0F) : (row[lx0 >> 1] >> 4);
+            uint8_t p1 = (lx1 & 1) ? (row[lx1 >> 1] & 0x0F) : (row[lx1 >> 1] >> 4);
+            uint16_t exp = (uint16_t)((p0 << 12) | (p1 << 4));
+            uint16_t g = got[r * IT8951_W / 2 + x / 2];
+            if (g != exp) { if (first_bad < 0) { first_bad = r * IT8951_W + x; fb_got = g; fb_exp = exp; } bad++; }
         }
     }
-    int best = (int)cnt, best_off = 0, best_order = 0;
-    for (int off = 0; off <= 4; off++) for (int order = 0; order < 2; order++) {
-        const uint16_t *e = order ? exp_b : exp_a;
-        int bad = 0;
-        for (uint32_t i = 0; i < cnt; i++) if (got[i + off] != e[i]) bad++;
-        if (bad < best) { best = bad; best_off = off; best_order = order; }
-    }
-    printf("it8951: SPI test at %lu Hz: %d of %lu words wrong (data starts %d word(s) late, byte order %s; first read %04x %04x %04x, expected %04x %04x %04x)\n",
-           (unsigned long)it8951_spi_hz(), best, (unsigned long)cnt, best_off, best_order ? "swapped" : "as sent",
-           got[0], got[1], got[2], exp_a[0], exp_a[1], exp_a[2]);
-    return best;
+    printf("it8951: SPI write check at %lu Hz: %d of %lu pixel pairs wrong", (unsigned long)it8951_spi_hz(), bad, (unsigned long)cnt);
+    if (bad) printf(" (first at pixel %d: got %04x, expected %04x)", first_bad, fb_got, fb_exp);
+    printf("%s\n", bad == 0 ? " (clean)" : "");
+    return bad;
 }
 
 /* GC16 works out every pixel's drive from the image the controller holds as

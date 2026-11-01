@@ -427,8 +427,10 @@ bool local_take_dirty(local_dirty_t *out)
 #define R_TOPBAR()  mark(0, 0, W, TB_H, IT8951_MODE_GL16)
 static bool ov_active(void);
 static void mark_ov(void);
-#define R_VOL()     do { if (ov_active()) mark_ov(); else mark(0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
-#define R_SBMID()   do { if (ov_active()) mark_ov(); else mark(0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* the whole bar */
+static layer_t s_prev_sb;
+static void layer_copy(layer_t *d, const layer_t *s);
+#define R_VOL()     do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
+#define R_SBMID()   do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* the bar */
 
 /* ---- MQTT placeholders (Phase 3) -------------------------------------------- */
 static void publish(const char *topic, const char *fmt, ...)
@@ -1697,7 +1699,37 @@ static void viewport(int *x, int *y, int *w, int *h)
     default: *x = 0; *y = 0; *w = W; *h = H; break;
     }
 }
-static void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark(x, y, w, h, IT8951_MODE_GL16); }
+/* An op's footprint on the panel. */
+static void op_bbox(const op_t *o, int *x, int *y, int *w, int *h)
+{
+    switch (o->kind) {
+    case OP_CIRCLE: case OP_RING: *x = o->x - o->w; *y = o->y - o->w; *w = 2 * o->w + 2; *h = 2 * o->w + 2; break;
+    case OP_LINE: { int x0 = o->w < 0 ? o->x + o->w : o->x, y0 = o->h < 0 ? o->y + o->h : o->y;
+                    *x = x0 - o->border; *y = y0 - o->border; *w = (o->w < 0 ? -o->w : o->w) + 2 * o->border + 1; *h = (o->h < 0 ? -o->h : o->h) + 2 * o->border + 1; break; }
+    default: *x = o->x; *y = o->y; *w = o->w; *h = o->h; break;
+    }
+}
+/* Mark what changed between two builds of a layer: the footprint of every op
+ * that differs, old and new. If the layers don't line up (a different number
+ * of ops, another region), fall back to the whole rect given. */
+static void mark_changed(const layer_t *prev, const layer_t *now, int fx, int fy, int fw, int fh, uint8_t mode)
+{
+    if (prev->n != now->n || prev->x != now->x || prev->y != now->y || prev->w != now->w || prev->h != now->h || prev->on != now->on || prev->bg != now->bg) {
+        mark(fx, fy, fw, fh, mode); return;
+    }
+    int changed = 0;
+    for (int i = 0; i < now->n; i++) {
+        const op_t *a = &prev->ops[i], *b = &now->ops[i];
+        if (a->kind == b->kind && a->g == b->g && a->border == b->border && a->font == b->font && a->x == b->x && a->y == b->y &&
+            a->w == b->w && a->h == b->h && !strcmp(a->text, b->text)) continue;
+        int x, y, w, h;
+        op_bbox(a, &x, &y, &w, &h); mark(x - 4, y - 4, w + 8, h + 8, mode);
+        op_bbox(b, &x, &y, &w, &h); mark(x - 4, y - 4, w + 8, h + 8, mode);
+        changed++;
+    }
+    (void)changed;
+}
+static void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark_changed(&s_prev_sb, &L_sb, x, y, w, h, IT8951_MODE_GL16); }
 /* The overlay settings changed: tell Tesserae what the dashboard has now. */
 static void overlay_apply(void)
 {
@@ -1904,8 +1936,13 @@ static void build_toast(layer_t *l)
     op_text(l, x, ty + F_M->line_h + 8, vf, G_BLACK, v);
 }
 
+/* The strip layer as it was before the last rebuild(), so a change can be
+ * marked by what actually differs (the clock's digits) rather than the whole
+ * bar: every partial refresh wears the pixels it covers slightly lighter on
+ * this panel, so unchanged pixels must not be refreshed again and again. */
 static void rebuild(void)
 {
+    layer_copy(&s_prev_sb, &L_sb);
     L_body.on = L_ring.on = false;
     bool ring = S.phase == PHASE_RINGING;
     build_top(&L_top, ring);

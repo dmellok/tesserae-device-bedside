@@ -602,3 +602,26 @@ tool, the paint test is (load it, `r`, look).
 Known: a 1 MHz full-frame load in the paint test hangs/crashes the board
 (unresolved; 12.5 MHz is fine). The temperature forcing, VCOM check and DU
 record fix stay: they are correct and cheap.
+
+## 2026-11-02: the fade, measured and tuned
+
+- `spitest` works now (the controller keeps one byte per pixel, so the burst
+  read returns 4-bit loads expanded): 18,720 pixels, five passes, all exact
+  at 12.5 MHz. The data path is clean; the fade is on the glass side.
+- Caught in the act: a partial GC16 refresh of an area lightens it a little
+  every time, even with identical pixels and even in the bare Waveshare
+  sequence (`test_paint` `r` then `a` x4). The clock's minute tick did this to
+  the strip every minute; menus and tiles likewise. A full INIT + GC16 resets
+  it, which is why every "fix" looked good right after its repaint.
+- VCOM sweep with that test (same pixels, four partials): -1.30 worse,
+  -1.48 (the label) drifting, -1.66 better, -1.85, -2.00, -2.15 and -2.20
+  better still with clean whites, -2.45 greys the whites. Built in as
+  -DEPD_VCOM_MV=2200. If ghosting of old content ever shows, step back
+  towards 2100.
+- Firmware: strip changes are marked by diffing the strip layer before and
+  after rebuild() (`mark_changed`), so the minute tick refreshes the digits
+  only; every partial counts towards a full clean refresh (30 partials or 45
+  minutes, idle 20 s, home screen); panel rails off after 4 s idle.
+- Custom waveforms: possible in principle (the table lives in the HAT's
+  flash, replaceable with the IT8951 USB tool) but E Ink's files are
+  proprietary and per-lot; a wrong waveform can damage the panel. Not pursued.

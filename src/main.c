@@ -370,6 +370,7 @@ static uint32_t s_last_input_ms;
 static bool     s_touched;
 static bool     s_job_screen;           /* the job in flight changes page */
 static bool     s_job_counts, s_job_resets;
+static uint32_t s_last_full_ms;                 /* when a full INIT + GC16 was last submitted */
 /* A screen change or full refresh comes out faded on this glass until a
  * second pass runs the waveform over it again; the image is still in the
  * controller, so the pass costs only the waveform. */
@@ -422,12 +423,13 @@ static void paint_pump(void)
     else if (j.mode == IT8951_MODE_GL16) j.mode = IT8951_MODE_GC16;   /* every mode: GL16 lightens greys pass by pass and is no faster here (723 vs 741 ms) */
     j.kind = full ? PJ_FULL : PJ_AREAS;
     s_job_resets = full && j.mode == IT8951_MODE_GC16;
+    if (s_job_resets) s_last_full_ms = to_ms_since_boot(get_absolute_time());
     {
         uint32_t now = to_ms_since_boot(get_absolute_time());
         if (s_job_resets) s_touched = false;
         else if (local_refresh_mode() == 0 && now - s_last_input_ms < 3000u && j.mode != IT8951_MODE_GC16) s_touched = true;   /* Fast mode: a partial update the user caused */
     }
-    s_job_counts = j.mode != IT8951_MODE_GC16;          /* GC16 areas leave nothing to clean up */
+    s_job_counts = !full;                               /* every partial wears its area slightly lighter on this panel: count them all */
     s_job_screen = local_epoch() != s_painted_epoch;
     s_painted_epoch = local_epoch();
     if (s_echo_mode != 0xFF && s_job_screen && !full) {      /* menus; a full refresh has its INIT */
@@ -458,9 +460,13 @@ static void cleanup_if_idle(void)
         local_flush_now();
         return;
     }
-    if (s_partials >= 40 && !painter_busy() && now - s_last_input_ms > 20000 && local_screen() == SCR_HOME) {
-        printf("paint: GC16 clean-up after %lu partial updates\n", (unsigned long)s_partials);
-        s_partials = 0;
+    /* Residual drift from partials: a full INIT + GC16 resets it. After 30 of
+     * them, or 45 minutes with any, once the panel has been idle 20 s (the
+     * flash is just the panel, no light, so nights are fine). */
+    bool due = s_partials >= 30 || (s_partials > 0 && now - s_last_full_ms > 45u * 60u * 1000u);
+    if (due && !painter_busy() && !s_flush_pending && now - s_last_input_ms > 20000 && local_screen() == SCR_HOME) {
+        printf("paint: full clean refresh after %lu partial updates\n", (unsigned long)s_partials);
+        s_partials = 0; s_last_full_ms = now;
         local_set_dirty_full();
         local_flush_now();
     }

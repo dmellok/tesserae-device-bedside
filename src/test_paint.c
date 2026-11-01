@@ -22,6 +22,10 @@
  *   e        Waveshare's "enhanced driving" (reg 0x0038 = 0x0602)
  *   i        reset and re-init the controller
  *   z<Hz>    SPI clock, e.g. z9375000 (re-inits)
+ *   a        partial: reload the SAME pixels into the bottom-left 704x125 and refresh that area (mode m)
+ *   A        the same partial without reloading (display only)
+ *   n<N>     N partials ('a') two seconds apart, to watch for drift
+ *   g        full GC16 of the current pattern with no INIT (a "second pass")
  */
 #include <stdio.h>
 #include <string.h>
@@ -49,6 +53,7 @@ static uint32_t img_addr;
 static int  bpp = 4, mode = 2, packed = 1;
 static int  force_temp = 0;
 static uint32_t spi_hz = 12500000;
+static int  last_pat = 0;
 
 /* ---- the I80-over-SPI protocol, as Waveshare does it ---- */
 static void busy(void) { while (!epd_hrdy()) tight_loop_contents(); }
@@ -121,8 +126,41 @@ static void load_row(const uint8_t *bytes, int n)        /* n bytes = n/2 words,
 }
 static void load_end(void) { if (packed) epd_cs(false); wcmd(CMD_LD_IMG_END); }
 
+static void load_begin_area(int x, int y, int w, int h)
+{
+    wait_lut();
+    wreg(REG_LISAR + 2, (uint16_t)(img_addr >> 16));
+    wreg(REG_LISAR, (uint16_t)(img_addr & 0xFFFF));
+    uint16_t a0 = (uint16_t)((0 << 8) | ((bpp == 8 ? 3 : 2) << 4) | 0);
+    wcmd(CMD_LD_IMG_AREA); wdat(a0); wdat((uint16_t)x); wdat((uint16_t)y); wdat((uint16_t)w); wdat((uint16_t)h);
+    if (packed) { busy(); epd_cs(true); epd_spi_write16(0x0000); busy(); }
+}
+/* A partial of the current pattern over (x, y, w, h): the same pixels the full
+ * paint put there, so the controller sees old == new for every pixel. */
+static void paint_area(pat_t p, int x, int y, int w, int h, bool reload)
+{
+    uint32_t t0 = to_ms_since_boot(get_absolute_time());
+    static uint8_t row[W];
+    if (reload) {
+        load_begin_area(x, y, w, h);
+        for (int yy = y; yy < y + h; yy++) {
+            if (bpp == 8) { for (int i = 0; i < w; i++) row[i] = (uint8_t)(grey_at(p, x + i, yy) * 17); load_row(row, w); }
+            else { for (int i = 0; i < w; i += 2) row[i / 2] = (uint8_t)((grey_at(p, x + i, yy) << 4) | grey_at(p, x + i + 1, yy)); load_row(row, w / 2); }
+        }
+        load_end();
+    }
+    uint32_t t1 = to_ms_since_boot(get_absolute_time());
+    if (force_temp > 0) temp_force(force_temp);
+    wcmd(CMD_DPY_AREA); wdat((uint16_t)x); wdat((uint16_t)y); wdat((uint16_t)w); wdat((uint16_t)h); wdat((uint16_t)mode);
+    sleep_ms(20);
+    wait_lut();
+    printf("partial %dx%d at %d,%d%s, mode %d: load %lu ms, refresh %lu ms\n", w, h, x, y, reload ? " (same pixels reloaded)" : " (display only)", mode,
+           (unsigned long)(t1 - t0), (unsigned long)(to_ms_since_boot(get_absolute_time()) - t1));
+}
+
 static void paint(pat_t p, bool init_first)
 {
+    last_pat = (int)p;
     uint32_t t0 = to_ms_since_boot(get_absolute_time());
     if (init_first) {
         wait_lut();
@@ -179,6 +217,10 @@ int main(void)
             case 'b': paint(PAT_BLACK, true); break;
             case 'w': paint(PAT_WHITE, true); break;
             case 'k': paint(PAT_CHECK, true); break;
+            case 'a': paint_area((pat_t)last_pat, 0, H - 125, 704, 125, true); break;
+            case 'A': paint_area((pat_t)last_pat, 0, H - 125, 704, 125, false); break;
+            case 'n': for (int i = 0; i < (arg > 0 ? arg : 3); i++) { paint_area((pat_t)last_pat, 0, H - 125, 704, 125, true); sleep_ms(2000); } break;
+            case 'g': paint((pat_t)last_pat, false); break;
             case 'c': wait_lut(); wcmd(CMD_DPY_AREA); wdat(0); wdat(0); wdat(W); wdat(H); wdat(0); wait_lut(); printf("INIT clear done\n"); break;
             case '4': bpp = 4; printf("4 bpp packed pixels\n"); break;
             case '8': bpp = 8; printf("8 bpp pixels\n"); break;
