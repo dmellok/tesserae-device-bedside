@@ -584,3 +584,21 @@ the bootloader until power-cycled). Every build is stamped (`build` in
 Also: DU/A2 loads now carry black-and-white pixels so the controller's
 "image on the glass" record is right; loading greys for a DU refresh left
 later paints under-driving (faded) wherever the menus had been.
+
+## 2026-11-01, late: the fade was the ribbon cable
+
+`src/test_paint.c` (`pio run -e paintest`, load with `picotool load -x -p
+<booting slot>`) drives the controller with Waveshare's reference sequence and
+nothing else; commands over USB serial paint wedges/black/white/checker and
+change one thing at a time (bpp, packed write, temperature, VCOM, mode,
+enhanced driving, SPI clock). With it, the 16-step wedge was still faded and
+streaky: not our paint path. Reseating the panel's FPC (ribbon) cable fixed
+it: same wedge, same settings, black black and 16 clean steps. A marginal
+FPC explains the whole history (came and went with handling, warmth and
+time; every software change only ever helped "a bit"). After reseating with
+power on, the controller needed a reset (`i`) before paints showed.
+If it fades again: reseat the FPC first, then `tools/flash.sh` is not the
+tool, the paint test is (load it, `r`, look).
+Known: a 1 MHz full-frame load in the paint test hangs/crashes the board
+(unresolved; 12.5 MHz is fine). The temperature forcing, VCOM check and DU
+record fix stay: they are correct and cheap.
