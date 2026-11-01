@@ -497,6 +497,10 @@ nav .brand,nav .side-foot{display:none}
       <option value="0">Fast: partial, then a full refresh when you stop</option>
       <option value="1">Clean: full quality, just the part that changed</option>
       <option value="2">Full: the whole screen, every change</option></select></label>
+    <label class="fld"><span>Waveform temperature</span><select data-pset="wf_temp">
+      <option value="0">Default (20 °C)</option><option value="14">14 °C</option><option value="16">16 °C</option><option value="18">18 °C</option>
+      <option value="22">22 °C</option><option value="24">24 °C</option><option value="26">26 °C</option><option value="28">28 °C</option><option value="30">30 °C</option></select></label>
+    <div class="hint" style="text-align:left;margin-top:6px" id="wf-hint">The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. This forces the value. Lower is darker; keep it within a few degrees of the room.</div>
     <div class="grid2" style="margin-top:14px">
       <button class="btn" data-cmd="white">Full refresh</button>
       <button class="btn" data-cmd="card">Test card</button>
@@ -1069,6 +1073,7 @@ function renderPanelSettings(){
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
+  if(p.temp_sensed!=null)$('#wf-hint').textContent=`Forcing ${p.temp_forced} °C. ${p.temp_sensed>=0?`The board's own sensor reads ${p.temp_sensed} °C.`:"The board's own sensor can't be read."} The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. Lower is darker; keep it within a few degrees of the room.`;
   renderSoftware(); renderDesk(); renderHW();
   renderHome(p);
   const lv=st.live; if(!lv)return;

@@ -517,3 +517,21 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
 - `tests/`: 31 tests, 202 checks. Each was checked by breaking the code it
   guards (mutation check), including the store free-space bug of 1 Nov.
   `store.c` builds for the host with `-DSTORE_HOST` against `tests/host/`.
+
+## 2026-11-01: the fade, found
+
+The IT8951 picks its waveform by temperature, and its sensor (an SE95 on the
+HAT, per Waveshare's schematic) measures the board, not the glass. The board
+warms with every refresh, so after a warm day it chose a hotter, shorter table
+and under-drove 20 C glass: a uniform fade, worse the longer it ran, and
+"reboots into a good or bad state" because the single force at init could be
+missed. Now: temperature read properly (cmd 0x0040 arg 0 answers TWO words,
+sensor then forced; we had read one), the force re-sent before every display
+(as Seeed/FrameOS do for this glass), VCOM checked before each paint with a
+re-init and full repaint if the controller lost its settings, and the forced
+value a saved setting (Settings > Device > Waveform temp; web app Panel card;
+`wf_temp` 0 = default 20). Bench: sensor 23 C with the room at 20.
+Keep the forced value within ~5 C of the real glass temperature: too low is
+over-drive (ghosting over time), not damage; wrong VCOM is what damages panels.
+Also: Screen updates must be Clean, not Fast (Fast's GL16 partials accumulate
+for ~40 min before cleanup). Research sources in the session transcript.

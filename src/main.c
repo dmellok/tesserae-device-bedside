@@ -850,7 +850,7 @@ static void exec_command(const char *name, const char *value)
     else if (!strcmp(name, "clear"))     clear_screen(IT8951_MODE_INIT);
     else if (!strcmp(name, "white"))     clear_screen(IT8951_MODE_GC16);
     else if (!strcmp(name, "sleep"))     { painter_lock(); it8951_sleep(); painter_unlock(); }
-    else if (!strcmp(name, "init"))      { painter_lock(); it8951_init(); painter_unlock(); }
+    else if (!strcmp(name, "init"))      { painter_lock(); it8951_init(); painter_unlock(); local_set_dirty_full(); local_flush(); }
     else if (!strcmp(name, "enhance"))   { painter_lock(); it8951_enhance_driving(); painter_unlock(); }
     else if (!strcmp(name, "pattern"))   {     /* diagnostics: INIT, then a full GC16 of solid black or a 16-step ramp */
         bool ramp = !strcmp(value, "ramp");
@@ -893,9 +893,9 @@ static void exec_command(const char *name, const char *value)
     else if (!strcmp(name, "enter"))     handle_key('\r');   /* the console's Enter: a knob press */
     else if (!strcmp(name, "spidrive"))  {     /* <mA>[f]: 2/4/8/12, 'f' = fast slew; re-inits the panel link */
         epd_io_set_drive(v, strchr(value, 'f') != NULL);
-        painter_lock(); it8951_init(); painter_unlock();
+        painter_lock(); it8951_init(); painter_unlock(); local_set_dirty_full(); local_flush();
     }
-    else if (!strcmp(name, "spihz"))     { if (v >= 1000000 && v <= 24000000) { painter_lock(); it8951_set_spi_hz((uint32_t)v); it8951_init(); painter_unlock(); } }
+    else if (!strcmp(name, "spihz"))     { if (v >= 1000000 && v <= 24000000) { painter_lock(); it8951_set_spi_hz((uint32_t)v); it8951_init(); painter_unlock(); local_set_dirty_full(); local_flush(); } }
     else if (!strcmp(name, "longpress")) { if (v >= 150 && v <= 5000) tune_long_press_ms = (uint32_t)v; }
     else if (!strcmp(name, "banner"))    { tune_banner = (v != 0); banner_update(); }
     else if (!strcmp(name, "diag"))      { painter_lock(); diag_pins(); it8951_probe_matrix(); it8951_init(); painter_unlock(); }
@@ -1283,6 +1283,12 @@ static void audio_update(void)
     audio_speaker_enable(ls->speaker);
     audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || (int32_t)(extra_until - now) > 0);
     audio_speaker_tick();
+
+    /* The waveform temperature from the settings (0 = the firmware default). */
+    {   int want = ls->wf_temp > 0 ? ls->wf_temp : 20;
+        if (want != it8951_temp_forced()) { painter_lock(); it8951_set_temp(want); painter_unlock(); }
+        if (it8951_reinit_pending()) { printf("paint: full repaint after the controller re-init\n"); local_set_dirty_full(); local_flush(); }
+    }
 
     /* The PowerBoost, when battery backup is fitted. */
     if (ls->power_mon && power_tick()) local_power(power_on_battery(), power_percent(), power_low());

@@ -30,6 +30,7 @@
 #include "inputs.h"
 #include "ota.h"
 #include "icons.h"
+#include "it8951.h"
 #include "alarm_sched.h"
 #include "audio.h"
 #include "power.h"
@@ -225,7 +226,7 @@ static local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .rec = "",
+    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 static char s_date[40];
@@ -279,6 +280,10 @@ const char *local_palette_name(int i) { return (i >= 0 && i < N_PAL) ? PAL[i].na
 static const char *const AUTONIGHT[4] = { "Off", "21:00 to 07:00", "22:00 to 07:00", "23:00 to 07:00" };
 static const char *const CLOCKF[2]    = { "24-hour", "12-hour" };
 static const char *const SNOOZES[4]   = { "5 min", "9 min", "10 min", "15 min" };
+/* Waveform temperature: the controller's own sensor is on the HAT, not the glass */
+#define N_WFTEMP 9
+static const char *const WFTEMPS[N_WFTEMP] = { "Default (20)", "14 C", "16 C", "18 C", "22 C", "24 C", "26 C", "28 C", "30 C" };
+static const int         WFTEMP_V[N_WFTEMP] = { 0, 14, 16, 18, 22, 24, 26, 28, 30 };
 static const int SNOOZE_V[4] = { 5, 9, 10, 15 };
 static const char *const RESETS[2]    = { "Keep everything", "Reset everything" };
 static local_req_t s_req;
@@ -539,7 +544,7 @@ typedef enum {
     S_HOMESCR, S_NIGHTG, S_KEYS, S_KEY, S_TIMEG, S_DEVICE,
     C_OVERLAY, T_SHOW, C_ATNIGHT, I_VIEWPORT, C_NIGHTKEYS,
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
-    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, A_WIFISETUP,
+    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
     T_SPEAKER, T_POWERMON,
 } item_t;
@@ -717,6 +722,7 @@ static int node_rows(node_t nd, row_def_t *r)
     case N_DEVICE:
         r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", ICON_GEAR, 0 };
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
+        r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", ICON_THERMOMETER, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
@@ -881,6 +887,7 @@ static int choice_opts(item_t id, const char *const **o)
     case C_KNOB_HOLD: *o = KNOBACT_NAME; return N_KNOBACT;
     case C_TZ:        *o = TZ_NAMES; return N_TZ;
     case C_REFRESHMODE: *o = REFRESHES; return 3;
+    case C_WFTEMP:    *o = WFTEMPS; return N_WFTEMP;
     default: *o = NULL; return 0;
     }
 }
@@ -916,6 +923,7 @@ static int choice_get(item_t id)
         return b[0] ? -1 : 0; }
     case C_TZ:        return S.tz;
     case C_REFRESHMODE: return S.refresh_mode;
+    case C_WFTEMP: { for (int i = 0; i < N_WFTEMP; i++) if (WFTEMP_V[i] == S.wf_temp) return i; return 0; }
     default:          return 0;
     }
 }
@@ -947,6 +955,7 @@ static void choice_set(item_t id, int k)
     case C_KNOB_HOLD: config_set_bind(CONFIG_BIND_KNOB_HOLD, KNOBACT_ID[k]); config_save(); break;
     case C_TZ:        S.tz = k; rebuild(); break;
     case C_REFRESHMODE: S.refresh_mode = k; s_req = LREQ_REFRESH; break;   /* one clean refresh now */
+    case C_WFTEMP:      S.wf_temp = WFTEMP_V[k]; s_req = LREQ_REFRESH; break;
     case C_THUNDER:   if (k == 0) S.thunder = 0;
                       else if (k == 1) { if (!S.thunder) S.thunder = 35; S.thunder_near = 20; }
                       else { if (S.thunder < 60) S.thunder = 70; S.thunder_near = 75; }
@@ -1495,6 +1504,7 @@ static void build_list(layer_t *l)
     if (r->id == A_RELEASE) { const ota_release_t *e = ota_release(r->arg);
         if (e) snprintf(small, sizeof small, "%s " DOT " %s", e->date, s_rel_armed == r->arg ? "press again to install" : "press to install"); }
     if (r->id == A_WIFISETUP) snprintf(small, sizeof small, "Restarts into setup: join its WiFi from a phone");
+    if (r->id == C_WFTEMP) { int s = it8951_temp_sensed(); if (s >= 0) snprintf(small, sizeof small, "Board sensor says %d C " DOT " lower = darker", s); else snprintf(small, sizeof small, "Lower = darker, higher = lighter"); }
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Partial, then a full refresh");
     if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) snprintf(small, sizeof small, "Key %d, %s " DOT " press to change", s_ki + 1, r->id == C_KEY_HOLD ? "held" : "pressed");
@@ -2416,6 +2426,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "power_mon"))    { S.power_mon = v != 0; if (!S.power_mon && S.on_battery) { S.on_battery = false; state_changed(); } return true; }
     else if (!strcmp(key, "rec"))          { if (strlen(val) >= sizeof S.rec) return false; snprintf(S.rec, sizeof S.rec, "%s", val); }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
+    else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
     else if (!strcmp(key, "birds"))     { if (v < 0 || v > BIRDS_ALL) return false; S.birds = (uint16_t)v; }
     else if (!strcmp(key, "bird_vol"))  { if (v < 1 || v > 10) return false; S.bird_vol = v; return true; }
@@ -2506,6 +2517,7 @@ static void set_pack(set_blob_t *b)
     b->knob = S.knob_light; b->auto_night = (uint8_t)S.auto_night; b->clock12 = S.clock12; b->snooze = (uint8_t)S.snooze_min;
     b->night_keys = (uint8_t)S.night_keys; b->overlay = (uint8_t)S.overlay; b->show = (uint8_t)S.show; b->at_night = (uint8_t)S.at_night;
     b->tz = (uint8_t)S.tz; b->auto_time = S.auto_time; b->refresh_mode = (uint8_t)S.refresh_mode; b->auto_update = S.auto_update;
+    b->pad[0] = (uint8_t)S.wf_temp;
 }
 static void settings_load(void)
 {
@@ -2513,6 +2525,7 @@ static void settings_load(void)
     if (config_blob_load(4, SET2_MAGIC, &b, sizeof b)) {
         S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 4; S.show = b.show & 0x1F; S.at_night = b.at_night % 2;
         S.tz = b.tz % N_TZ; S.auto_time = b.auto_time; S.refresh_mode = b.refresh_mode % 3; S.auto_update = b.auto_update == 1;
+        S.wf_temp = b.pad[0] <= 50 ? b.pad[0] : 0;
     } else if (config_blob_load(4, SET_MAGIC, &o, sizeof o)) {
         memset(&b, 0, sizeof b); memcpy(&b, &o, 7);           /* the SET1 fields; Mk II ones stay at their defaults */
     } else b.snooze = 0, b.knob = 2;
@@ -2641,8 +2654,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

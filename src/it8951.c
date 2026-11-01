@@ -377,30 +377,72 @@ bool it8951_probe_blind(unsigned cs, unsigned miso, int mode, it8951_info_t *out
  * waveform too warm for 20 C glass and the panel faded (1 Nov 2026; 20
  * looked best, 24 close, 30 worse). /api/cmd?temp=N to try others. */
 static int s_force_temp_c = 20;
-static int s_sensed_temp_c = -1;
+static int s_sensed_temp_c = -1, s_forced_rb = -1;
+static bool s_reinit_pending;
+
+/* Command 0x0040: arg 0 = get, which answers TWO words (the sensor's reading,
+ * then the last forced value); arg 1 = force. Every driver for this glass
+ * (Seeed, FrameOS, Zephyr) re-sends the force before each display, since it
+ * lives in the controller's RAM and the controller can miss it; so does this one. */
+static void read_temp(void)
+{
+    uint16_t t[2] = { 0xFFFF, 0xFFFF };
+    write_cmd(CMD_TEMP); write_data(0x0000);
+    sleep_ms(5);                                         /* the sensor read is slow; HRDY alone has not been enough */
+    read_words(t, 2);
+    s_sensed_temp_c = t[0] <= 85 ? (int)(int16_t)t[0] : -1;
+    s_forced_rb     = t[1] <= 85 ? (int)(int16_t)t[1] : -1;
+}
+static void force_temp(void)
+{
+    if (s_force_temp_c <= 0) return;
+    write_cmd(CMD_TEMP); write_data(0x0001); write_data((uint16_t)s_force_temp_c);
+}
 static void apply_temp(void)
 {
-    write_cmd(CMD_TEMP); write_data(0x0000);
-    s_sensed_temp_c = (int)read_word();
-    if (s_force_temp_c > 0) { write_cmd(CMD_TEMP); write_data(0x0001); write_data((uint16_t)s_force_temp_c); }
-    if (s_sensed_temp_c > 60) s_sensed_temp_c = -1;     /* no reading: this board echoes the last word (the VCOM) */
-    if (s_sensed_temp_c >= 0) printf("it8951: temperature sensed %d C, waveform at %d C%s\n", s_sensed_temp_c,
-                                     s_force_temp_c > 0 ? s_force_temp_c : s_sensed_temp_c, s_force_temp_c > 0 ? " (forced)" : "");
-    else printf("it8951: no temperature reading; waveform at %d C%s\n", s_force_temp_c, s_force_temp_c > 0 ? " (forced)" : " (controller default)");
+    read_temp();
+    int before = s_sensed_temp_c;
+    force_temp();
+    read_temp();
+    if (s_sensed_temp_c >= 0 || s_forced_rb >= 0)
+        printf("it8951: temperature: sensor %d C (board, not the glass), forced %d C, controller reports forced %d C\n",
+               before, s_force_temp_c, s_forced_rb);
+    else printf("it8951: temperature: no readback from this firmware; waveform forced to %d C\n", s_force_temp_c);
 }
 void it8951_set_temp(int c)
 {
     s_force_temp_c = c < 0 ? 0 : c > 50 ? 50 : c;
     if (s_up && !s_asleep) apply_temp();
 }
+int  it8951_temp_forced_rb(void) { return s_forced_rb; }
+bool it8951_reinit_pending(void) { bool p = s_reinit_pending; s_reinit_pending = false; return p; }
 int it8951_temp_forced(void) { return s_force_temp_c; }
 int it8951_temp_sensed(void) { return s_sensed_temp_c; }
 
+/* Before a paint: the controller must be up, and still holding its settings.
+ * A controller that reset itself (brown-out, a glitch) comes back with its
+ * own VCOM and no forced temperature, and every paint after that is faded
+ * until a reboot. Two disagreeing VCOM reads in a row means a re-init, and
+ * main.c then repaints the whole screen. */
 static bool ensure_up(void)
 {
-    if (s_up && !s_asleep) return true;
-    printf("it8951: controller %s, re-initialising\n", s_asleep ? "asleep" : "not up");
-    return it8951_init();
+    if (!(s_up && !s_asleep)) {
+        printf("it8951: controller %s, re-initialising\n", s_asleep ? "asleep" : "not up");
+        return it8951_init();
+    }
+    int32_t want = s_vcom_mv;
+#ifdef EPD_VCOM_MV
+    if (want < 0) want = EPD_VCOM_MV;
+#endif
+    if (want > 0) {
+        uint16_t v = it8951_get_vcom();
+        if (v != (uint16_t)want && it8951_get_vcom() != (uint16_t)want) {
+            printf("it8951: VCOM reads %u mV, expected %ld: the controller lost its settings, re-initialising\n", v, (long)want);
+            s_reinit_pending = true;
+            return it8951_init();
+        }
+    }
+    return true;
 }
 
 /* ---- image load + refresh ------------------------------------------------ */
@@ -480,6 +522,7 @@ static void load_end(void)
 static void display(int px, int y, int w, int h, uint8_t mode)
 {
     const uint16_t args[5] = { (uint16_t)px, (uint16_t)y, (uint16_t)w, (uint16_t)h, mode };
+    force_temp();                        /* the waveform is picked at display time */
     write_cmd_args(CMD_DPY_AREA, args, 5);
     sleep_ms(20);                        /* let the LUT engine pick the job up */
     wait_display_ready(30000);
@@ -557,6 +600,7 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
     }
     if (!loaded) return;
     uint32_t t1 = now_ms();
+    force_temp();
     for (int i = 0; i < loaded; i++) {
         const int px = s_mirror ? (IT8951_W - a[i][0] - a[i][2]) : a[i][0];
         const uint16_t args[5] = { (uint16_t)px, (uint16_t)a[i][1], (uint16_t)a[i][2], (uint16_t)a[i][3], mode };

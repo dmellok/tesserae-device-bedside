@@ -57,6 +57,7 @@ typedef struct {
      * 1 clean (every change with GC16, just its area), 2 full (every change
      * repaints the whole screen with GC16) */
     int  refresh_mode;
+    int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
     bool auto_update;                  /* install the newest stable release overnight */
     /* hardware: play through the speaker; read the PowerBoost (battery backup
      * fitted); and which stored file the Recording sound plays ("" = the

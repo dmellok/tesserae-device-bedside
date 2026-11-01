@@ -129,7 +129,9 @@ void it8951_enhance_driving(void);
 /* Waveform temperature: force c degrees (0 = the controller senses it). */
 void it8951_set_temp(int c);
 int  it8951_temp_forced(void);
-int  it8951_temp_sensed(void);
+int  it8951_temp_sensed(void);       /* the HAT's sensor (board temperature), -1 unknown */
+int  it8951_temp_forced_rb(void);    /* the forced value the controller reports, -1 unknown */
+bool it8951_reinit_pending(void);    /* true once after ensure_up re-initialised the controller: repaint everything */
 /* INIT before a full-screen GC16 once anything has been shown (on by default). */
 void it8951_set_clean_full(bool on);
 /* Run the waveform again over rects (as loaded, 16 px aligned) without loading
