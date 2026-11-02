@@ -28,7 +28,7 @@ and gotchas so none of today's discovery has to be repeated.*
 > proposal's mock-up was built on both sides: server pages "Bedside"
 > (`34e7775087ac`, live Open-Meteo weather for Carlton) and "Bedside ·
 > Tomorrow" (`14a3610dc061`) in rotation `bedside_pages`, Albert Sans cached
-> on the server; and `src/local.c` on the device (top bar with date / chips /
+> on the server; and `src/ui_*.c` on the device (top bar with date / chips /
 > key labels, menu sheet, Dashboards picker, AC / Lights / Sound / Alarm /
 > Weather / Status / Keys pages, volume bar, wake-up note, alarm screen) with
 > the mock-up's knob and key grammar. Verified on the glass: key toggles
@@ -38,7 +38,7 @@ and gotchas so none of today's discovery has to be repeated.*
 > review: text moved from scaled Font24 to anti-aliased Albert Sans bitmaps
 > (`tools/gen_font.py`, `src/fonts/`, ~500 KB in flash) so the key labels are
 > one size (34 px) and the pages read like the mock-up; and inputs are
-> coalesced in `main.c` (a burst of detents or presses updates the state and
+> coalesced in `src/paint.c` (a burst of detents or presses updates the state and
 > paints once) so refreshes no longer bank up.
 >
 > **UI, final direction (29 Oct, night).** After several rejected concepts
@@ -47,7 +47,7 @@ and gotchas so none of today's discovery has to be repeated.*
 > list menu on the right, pages full width with labelled quick keys, orange =
 > Menu / Back / Stop, and a dedicated status bar along the bottom with the
 > volume. Phosphor Bold icons (bitmaps in `src/fonts/icon34.c`, `icon46.c`,
-> codes in `include/icons.h`). Implemented in `src/local.c`; the server pages
+> codes in `include/icons.h`). Implemented in `src/ui_*.c`; the server pages
 > now leave 150 px at the top and 130 px at the bottom for the device's bars.
 > The 1200-baud reset stopped working on the board that evening (picotool's
 > reset too); `tools/flash.sh` now asks the firmware for the bootloader over
@@ -274,7 +274,7 @@ overlay mechanism is proven.
 ## 2026-10-29: panel driver on core 1
 
 - **What moved.** `src/painter.c` runs the IT8951 on core 1: streaming pixels and waiting out each refresh. Core 0 keeps the knob, keys, network and UI state and stays responsive during paints. In a stress test, state requests during paints answered in under 100 ms.
-- **Jobs.** One at a time. Core 0's `paint_pump()` in `src/main.c` submits the next job only when core 1 is idle, so changes made during a paint are painted once, as their latest state. Ten volume changes in half a second produced three paints.
+- **Jobs.** One at a time. Core 0's `paint_pump()` in `src/paint.c` submits the next job only when core 1 is idle, so changes made during a paint are painted once, as their latest state. Ten volume changes in half a second produced three paints.
 - **Snapshot.** Core 1 paints from a frozen copy of the UI draw lists (`local_snapshot()`, about 80 KB SRAM) and of the content, frame pointer and banner. Core 0 can rebuild freely. Each core has its own scratch line, because the web preview renders on core 0 at the same time.
 - **Page changes.** While a page-change paint runs, input stays unread and is dropped at the end, as before. During small updates, input acts immediately.
 - **Frame buffers.** Tesserae waits before downloading into the buffer core 1 is still painting (`tesserae_set_buffer_guard`).
@@ -321,7 +321,7 @@ overlay mechanism is proven.
 
 ## 2026-10-30: live dashboard (D1), new status bar, more settings
 
-- **Live dashboard.** Dashboard 0, "Live", is drawn by the panel (`build_live()` in `src/local.c`) over a white page (`CONTENT_LIVE` in main.c). Dashboards 1 and 2 are the server's rotation. The keys cycle Live, Bedside, Tomorrow. Server frames that arrive while Live is up are kept for later.
+- **Live dashboard.** Dashboard 0, "Live", is drawn by the panel (`build_live()` in `src/ui_live.c`) over a white page (`CONTENT_LIVE` in `src/screens.c`). Dashboards 1 and 2 are the server's rotation. The keys cycle Live, Bedside, Tomorrow. Server frames that arrive while Live is up are kept for later.
   - **Layout,** from mock-up D1: the clock in a new 214 px light face, the next alarm with a countdown ("on Monday" when more than a day away), and the dawn chorus start. Below that, the tonight timeline: now, when the sleep timer stops the sound, sleep, the chorus, sunrise (computed on the device, NOAA equations, location in the web app), then the alarm. Then seven soft tiles: outside with an hourly rain chart, bedroom with a 12-hour trend, washing, security, bins, next event and A/C. A tile turns black only when it needs you.
   - **Drawing.** New ops: `OP_RRECT` (rounded fill), `OP_LINE` (thick segment) and `OP_DASH` (dashed rule). New fonts: `clock214` and `ui72`.
   - **Refresh.** The header repaints each minute (GL16). The header and timeline repaint when the alarms, sleep timer or sound change. A tile repaints when its value changes.
@@ -347,7 +347,7 @@ Design and rules: https://claude.ai/artifact/Gxywayio7myr4sh2UwxMxH. Compiles cl
 (`pio run`, RAM 87.1%). Flashed 30 Oct: strip, confirmation box and grouped Settings checked from the web preview; physical key holds and the card layouts not yet tried by hand.
 
 - **Home screen.** On a server dashboard (not Live) the top bar and status bar are
-  gone: the dashboard plus one overlay (`build_overlay()` in `src/local.c`). Strip
+  gone: the dashboard plus one overlay (`build_overlay()` in `src/ui_overlay.c`). Strip
   176 px along the bottom (default), cards down the left (432 px), cards along
   the bottom (324 px), or off. Items are one line each (icon + value): clock,
   alarm, sound, room, connection; default clock, alarm, sound. "At night: Clock
@@ -355,7 +355,7 @@ Design and rules: https://claude.ai/artifact/Gxywayio7myr4sh2UwxMxH. Compiles cl
   layout.
 - **Viewport.** `tesserae_set_viewport()` from `overlay_apply()`; sent on the
   heartbeat as `viewport`; frames of the viewport's size are accepted and placed
-  by `dash_row()` in main.c (docs/tesserae.md). The server side is not done.
+  by `dash_row()` in `src/screens.c` (docs/tesserae.md). The server side is not done.
 - **Confirmations.** `toast()`: a box over everything for 1.5 s after a key
   action or a volume change on the home screen, drawn in the ring layer (now
   composited last), expired in `local_live_tick()`.
@@ -388,7 +388,7 @@ Settings → Device → **Screen updates** (web app: Device → Panel; `set=refr
 saved in the SET2 blob's `refresh_mode` byte): **Fast** (partial GL16/A2, then GC16 once
 input settles: the old behaviour), **Clean** (every change painted with GC16, just its
 areas), **Full** (every change repaints the whole panel with GC16). Applied in
-`paint_pump()` in main.c. Clean is the default (Kayden found it best; Full "didn't seem to work" on the glass, cause not yet known). Under Full, each change is ~1.5 s with
+`paint_pump()` in `src/paint.c`. Clean is the default (Kayden found it best; Full "didn't seem to work" on the glass, cause not yet known). Under Full, each change is ~1.5 s with
 a flash (two paints for a key action: the change, then the confirmation clearing).
 
 ## 2026-10-30: faded full refreshes (driver fix, flashed)
@@ -459,7 +459,7 @@ Compared with Waveshare's EPD_IT8951.c and the E1003 driver in tesserae-device-f
   (`src/psram_heap.c`). Handshake ~1.5 s. Certificate dates are not checked.
 - **PSRAM map**: frame 0, download 2 MB, preview 4 MB, heap 4.5-5.5 MB, audio
   6 MB, OTA chunk 6.5-7.5 MB, frames.json 7.5 MB, log 7.75 MB (64 KB).
-- **Boot screen** (CONTENT_BOOT in main.c): the official lockup
+- **Boot screen** (CONTENT_BOOT in `src/screens.c`): the official lockup
   (`assets/brand/`, `tools/gen_logo.py`) and the boot log; WiFi joins async.
 - **WiFi setup** (net.c, vendored DHCP/DNS servers): see README.
 - **Dashboard picker** (Tesserae 0.498 `frames.json`, `/frame?page=`).
@@ -569,7 +569,7 @@ this glass (extracts in the session scratchpad). Findings that changed code:
   appears minutes after a paint with the temperature forced, try
   POWER_SEQ (cmd 0x0038 arg 0) after each refresh.
 - Job trace: every submitted paint logs `paint: job <full|areas> mode M, N
-  rect(s)`; `s_trace_marks` in local.c logs every dirty rect.
+  rect(s)`; `s_trace_marks` in `src/ui_core.c` logs every dirty rect.
 
 ## 2026-11-01, evening: USB loads were landing in the wrong slot
 
@@ -637,3 +637,31 @@ any partial happened (all modes; SETTLE_MS), and every N minutes while idle
 first refresh after powering them up looked weak, which made the fade look
 bimodal (`epdpower=1` re-enables idle power-off to test). Screen-updates mode
 is now cosmetic: GL16 is never used, and the settle refresh runs in every mode.
+
+## 2026-11-02, afternoon: modular firmware
+
+`src/local.c` (2,800 lines) and `src/main.c` (1,500) are now eleven modules, one
+per concern, with the public API unchanged (`include/local.h`). Behaviour is
+identical: the split was mechanical (cut along the section comments, `static`
+dropped only from what crosses a file, declared in one internal header each),
+then compiled and flashed. Flash grew 1 KB (lost cross-module inlining).
+
+- **The UI** (`src/ui_*.c`, sharing `include/ui_internal.h`): `ui_core.c` state,
+  option tables, dirty regions, `rebuild()`, the repaint regions, init and the
+  ticks; `ui_draw.c` the draw list and row rendering; `ui_menu.c` the
+  click-wheel menus (tree, row model, top bar, navigation, every input);
+  `ui_live.c` the Live dashboard, status bar, date and clock; `ui_overlay.c`
+  the home-screen overlay, toasts, the update card; `ui_alarm.c` the alarm
+  clock, dawn chorus and sleep timer; `ui_api.c` the web app's direct control,
+  ha.c views, settings persistence, power and the state JSON.
+- **The application** (sharing `include/app_internal.h`): `main.c` boot, the
+  main loop, inputs and bindings, config seeding, the sound glue; `screens.c`
+  content kinds, boot and setup screens, the banner, `composite_row()`;
+  `paint.c` the painter's snapshot and pump, the clean-refresh policy, clears
+  and full repaints; `commands.c` the serial and web command set, state JSON
+  and preview, the console log, field diagnostics.
+- Each header lists its shared variables and functions under the module that
+  defines them. Something used by one module only stays `static` in it. When
+  a function moves between modules, move its declaration to the new group.
+- The build stamp (`APP_BUILD`, main.c) is the one thing `tools/flash.sh`
+  touches to refresh; the state JSON reads it from there.
