@@ -47,6 +47,10 @@ the web page. Audio, battery sensing and MQTT follow (see
 
 The protocol as used here is written up in [docs/tesserae.md](docs/tesserae.md).
 
+![How the code is put together](docs/architecture.png)
+
+*One box per module family, arrows follow the data (source: [docs/architecture.html](docs/architecture.html), rendered with headless Chrome at 2x). The file table below says what each module does.*
+
 ## Build and flash
 
 Needs [PlatformIO](https://platformio.org/) (the `maxgerhardt` RP2350 platform
