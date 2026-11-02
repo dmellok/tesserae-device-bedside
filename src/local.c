@@ -753,7 +753,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", ICON_GEAR, 0 };
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", ICON_THERMOMETER, 0 };
-        r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", ICON_ARROW_CLOCKWISE, 0 };
+        r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", ICON_SUN, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
