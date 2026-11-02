@@ -36,7 +36,7 @@ const int KEY_CX[4] = { 1204, 1372, 1543, 1711 };
 /* ---- state ---------------------------------------------------------------- */
 local_state_t S = {
     .alarm_h = 6, .alarm_m = 30, .alarm_on = true, .days = {1,1,1,1,1,0,0}, .offset_min = 15,
-    .rain_on = true, .rain_lvl = 3, .rain_kind = 0, .sleep_min = 0,
+    .rain_on = false, .rain_lvl = 3, .rain_kind = 0, .sleep_min = 0,     /* quiet until asked: the panel must not start playing on its own after a power cut at night */
     .lights_on = false, .bright = 40, .light_mode = 0,
     .ac_mode = 3, .sp_x2 = 44, .room_x10 = 234, .fan = 0,
     .vol = 6, .night = false, .on_battery = false, .batt_pct = 92,
