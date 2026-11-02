@@ -304,7 +304,7 @@ static void audio_update(void)
                       .patter = ls->patter, .wash = ls->wash, .tone = ls->tone, .wind = ls->wind, .surface = ls->surface,
                       .thunder = ls->thunder, .thunder_near = ls->thunder_near, .strike = ls->strike,
                       .chorus = ls->chorus, .birds = ls->birds, .bird_vol = ls->bird_vol,
-                      .audition = ls->audition, .audition_bird = ls->audition_bird,
+                      .audition = ls->audition, .audition_bird = ls->audition_bird, .bird_soft = ls->bird_soft, .test = ls->test,
                       .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0 };
     audio_set(&p);
 
@@ -313,9 +313,14 @@ static void audio_update(void)
     static uint32_t last_aud, last_strike, extra_until;
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (ls->audition != last_aud || ls->strike != last_strike) { last_aud = ls->audition; last_strike = ls->strike; extra_until = now + 15000; }
+    if (ls->test && (int32_t)(ls->test_until - now) <= 0) local_state()->test = 0;   /* the test sound stops itself */
     audio_speaker_enable(ls->speaker);
-    audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || (int32_t)(extra_until - now) > 0);
+    audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || ls->test || (int32_t)(extra_until - now) > 0);
     audio_speaker_tick();
+    /* The speaker's tone stage follows the settings (spk_dsp.h). */
+    static spk_tune_t tuned = { .gain_db = 99 };
+    spk_tune_t t = { ls->spk_gain, ls->spk_bass, ls->spk_treble, ls->spk_soft, ls->spk_hpf, ls->spk_limit };
+    if (memcmp(&t, &tuned, sizeof t)) { tuned = t; audio_speaker_tune(&t); }
 
     /* The waveform temperature from the settings (0 = the firmware default). */
     {   int want = ls->wf_temp > 0 ? ls->wf_temp : 20;

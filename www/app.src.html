@@ -11,6 +11,9 @@
 <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M38 14a18 18 0 1 0 12 30A20 20 0 0 1 38 14z' fill='%23f4f2ee'/%3E%3C/svg%3E">
 <title>Bedside</title>
+<script>/* A wide screen with a mouse gets the desktop app (/desktop) unless asked for this layout (?m, or its "Phone layout" link). */
+if(!/[?&]m\b/.test(location.search)&&localStorage.getItem('layout')!=='phone'&&matchMedia('(min-width:1024px) and (pointer:fine)').matches)location.replace('/desktop');
+if(/[?&]m\b/.test(location.search))localStorage.setItem('layout','phone');</script>
 <style>
 :root{
   --bg:#f4f2ee; --card:#fff; --ink:#1b1b1a; --sub:#6d6a64; --line:#e4e0d8; --soft:#ece9e3;
@@ -188,6 +191,7 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 .pv .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--sub)}
 .pv .foot span{flex:1}
 nav .brand,nav .side-foot{display:none}
+/*/css:shared*/
 /* desktop: sidebar, wider page, cards flow in columns */
 @media (min-width:1000px){
   :root{--side:232px}
@@ -233,6 +237,7 @@ nav .brand,nav .side-foot{display:none}
 <!-- ROOM -->
 <section class="tab on" id="t-room">
  <div class="rm-main">
+  <!--part:volume-->
   <div class="card">
     <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Volume<small id="vol-sub"></small></div></div>
     <div class="body sl" style="margin-top:12px">
@@ -242,6 +247,7 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
 
+  <!--part:listen-->
   <div class="card" style="padding:0;background:none;box-shadow:none">
     <div class="listen" style="margin-top:0;background:var(--card);box-shadow:var(--shadow)">
       <button class="rb" id="listen" aria-label="Listen on this device"><span data-i="play"></span></button>
@@ -250,6 +256,7 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
 
+  <!--part:sound-->
   <div class="card" id="c-rain">
     <div class="ttl"><div class="ic" data-i="cloud-rain"></div><div class="t">Sleep sounds<small id="rain-sub"></small></div>
       <label class="sw"><input type="checkbox" id="rain_on" data-set="rain_on"><span></span></label></div>
@@ -278,6 +285,26 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
 
+  <!--part:speaker-->
+  <div class="card" id="c-spk">
+    <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Speaker<small id="spk-sub">How the panel's own speaker sounds</small></div></div>
+    <div class="body">
+      <div class="sl"><span class="k">Level</span><input type="range" id="spk_gain" min="-12" max="6" step="1" data-set="spk_gain" data-unit=" dB"><output id="spk_gain-o"></output></div>
+      <div class="sl"><span class="k">Bass</span><input type="range" id="spk_bass" min="-8" max="8" step="1" data-set="spk_bass" data-unit=" dB"><output id="spk_bass-o"></output></div>
+      <div class="sl"><span class="k">Treble</span><input type="range" id="spk_treble" min="-12" max="6" step="1" data-set="spk_treble" data-unit=" dB"><output id="spk_treble-o"></output></div>
+      <div class="ends"><span>Softer</span><span>Brighter</span></div>
+      <div class="lbl">Soften sharp highs above</div><div class="seg" data-seg="spk_soft" data-opts="0:Off,1:8 kHz,2:6 kHz,3:5 kHz,4:4 kHz,5:3 kHz"></div>
+      <div class="lbl">Low cut below</div><div class="seg" data-seg="spk_hpf" data-opts="0:Off,1:60 Hz,2:90 Hz,3:120 Hz,4:160 Hz"></div>
+      <div class="lbl">Loud moments</div><div class="seg" data-seg="spk_limit" data-opts="0:As they are,1:Gentle,2:Firm"></div>
+      <div class="lbl">Test sound <span style="font-weight:400;text-transform:none;letter-spacing:0">(20 s, at the current volume)</span></div>
+      <div class="dacts" id="spk-tests">
+        <button class="chip" data-test="1"><span data-i="play"></span>Pink noise</button><button class="chip" data-test="2">1 kHz</button><button class="chip" data-test="3">100 Hz</button><button class="chip" data-test="4">Sweep</button><button class="chip" data-test="0"><span data-i="x"></span>Stop</button>
+      </div>
+      <div class="hint" style="text-align:left;margin-top:10px">Bird calls too sharp? Lower Treble or pick a Soften cutoff here; Softness in the Dawn chorus card (Alarms) tames the birds alone.</div>
+    </div>
+  </div>
+
+  <!--part:lights-->
   <div class="card" id="c-lights">
     <div class="ttl"><div class="ic" data-i="lightbulb"></div><div class="t">Lights<small id="lights-sub"></small></div>
       <label class="sw"><input type="checkbox" id="lights_on" data-set="lights_on"><span></span></label></div>
@@ -287,6 +314,7 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
 
+  <!--part:ac-->
   <div class="card" id="c-ac">
     <div class="ttl"><div class="ic" data-i="snowflake"></div><div class="t">A/C<small id="ac-sub"></small></div>
       <label class="sw"><input type="checkbox" id="ac_on"><span></span></label></div>
@@ -301,6 +329,7 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
 
+  <!--part:night-->
   <div class="card">
     <div class="ttl"><div class="ic" data-i="moon"></div><div class="t">Night mode<small>Dims the key lights and panel UI</small></div>
       <label class="sw"><input type="checkbox" id="night" data-set="night"><span></span></label></div>
@@ -308,11 +337,13 @@ nav .brand,nav .side-foot{display:none}
 
  </div>
  <div class="rm-side">
+  <!--part:preview-->
   <div class="card pv">
     <canvas id="pv" width="468" height="351" aria-label="What the panel shows now"></canvas>
     <div class="foot"><span id="pv-t">The panel, as it is now</span><button class="chip" id="pv-r" type="button">Refresh</button></div>
   </div>
   <h2>Dashboard</h2>
+  <!--part:dashboard-->
   <div class="card">
     <div class="dl" id="dashes"></div>
     <div class="dacts">
@@ -326,10 +357,12 @@ nav .brand,nav .side-foot{display:none}
 
 <!-- ALARMS -->
 <section class="tab" id="t-alarms">
+  <!--part:alarms n=3-->
   <div class="ringing" id="ringing"><div id="ring-what">Alarm</div><b id="ring-time">--:--</b>
     <div class="grid2"><button class="btn" id="ring-snooze">Snooze 9 min</button><button class="btn pri" id="ring-stop">Stop</button></div></div>
   <div id="alarms"></div>
   <button class="btn pri w" id="alarm-add" style="margin-bottom:12px"><span data-i="plus"></span>Add alarm</button>
+  <!--part:chorus-->
   <div class="card" id="c-chorus">
     <div class="ttl"><div class="ic" data-i="bird"></div><div class="t">Dawn chorus<small id="chorus-sub">Builds through each alarm's wake-up window</small></div></div>
     <div class="body">
@@ -337,6 +370,9 @@ nav .brand,nav .side-foot{display:none}
       <div id="birds" style="margin-top:6px"></div>
       <div class="lbl">Alarm volume</div>
       <div class="sl"><span data-i="speaker-high" style="color:var(--sub)"></span><input type="range" id="bird_vol" min="1" max="10" step="1" data-set="bird_vol"><output id="bird_vol-o"></output></div>
+      <div class="lbl">Softness</div>
+      <div class="sl"><span data-i="bird" style="color:var(--sub)"></span><input type="range" id="bird_soft" min="0" max="100" step="5" data-set="bird_soft"><output id="bird_soft-o"></output></div>
+      <div class="ends"><span>Natural</span><span>Soft: whistles and chirps lose their edge</span></div>
       <button class="btn w" id="chorus-preview" style="margin-top:12px"><span data-i="play"></span>Preview the build-up</button>
       <div class="hint" id="chorus-hint">Plays through this phone while Listen is on (Room tab).</div>
       <details class="credits"><summary>Recording credits</summary><ul><li><a href="https://commons.wikimedia.org/wiki/File:Magpiesong.ogg" target="_blank" rel="noopener">Magpiesong.ogg</a> by Meganesia, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Magpie_Caroling.ogg" target="_blank" rel="noopener">Magpie Caroling.ogg</a> by Hullwarren, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Cracticus_torquatus_-_Grey_Butcherbird_XC442754.mp3" target="_blank" rel="noopener">Cracticus torquatus - Grey Butcherbird XC442754.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Bird_song,_grassy_woodlands,_central_Victoria.ogg" target="_blank" rel="noopener">Bird song, grassy woodlands, central Victoria.ogg</a> by billinghurst, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg" target="_blank" rel="noopener">Eastern Whipbird.ogg</a> by Wardie44, Public domain</li><li><a href="https://commons.wikimedia.org/wiki/File:Anthochaera_carunculata_-_Red_Wattlebird_XC446154.mp3" target="_blank" rel="noopener">Anthochaera carunculata - Red Wattlebird XC446154.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:LaughingKookaburra.ogg" target="_blank" rel="noopener">LaughingKookaburra.ogg</a> by Kuco, Public domain</li></ul></details>
@@ -347,6 +383,7 @@ nav .brand,nav .side-foot{display:none}
 
 <!-- REMOTE -->
 <section class="tab" id="t-console">
+  <!--part:console-->
   <div class="card con">
     <pre class="log" id="log" aria-live="off"></pre>
     <form class="conin" id="f-con" autocomplete="off">
@@ -368,9 +405,11 @@ nav .brand,nav .side-foot{display:none}
 <!-- DEVICE -->
 <section class="tab" id="t-device">
   <h2>Status</h2>
+  <!--part:status-->
   <div class="card"><dl id="stats"></dl></div>
 
   <h2>Tesserae</h2>
+  <!--part:tesserae-->
   <div class="card">
     <div class="ttl"><div class="ic" data-i="monitor"></div><div class="t" id="ts-state">—<small id="ts-err"></small></div></div>
     <form id="f-tess">
@@ -390,6 +429,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Home Assistant</h2>
+  <!--part:ha-->
   <div class="card">
     <div class="ttl"><div class="ic" data-i="house"></div><div class="t" id="ha-state">MQTT<small id="ha-err"></small></div>
       <label class="sw"><input type="checkbox" id="ha-on"><span></span></label></div>
@@ -412,6 +452,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Controls</h2>
+  <!--part:controls-->
   <div class="card">
     <div class="lbl">Key lights</div>
     <div class="sl"><span data-i="keyboard" style="color:var(--sub)"></span><input type="range" id="keylights" min="0" max="100" step="5" data-set="keylights"><output id="keylights-o"></output></div>
@@ -429,6 +470,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Home screen</h2>
+  <!--part:homescreen-->
   <div class="card">
     <div class="grid2">
       <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
@@ -440,6 +482,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Lights and clock</h2>
+  <!--part:lightsclock-->
   <div class="card">
     <div class="grid2">
       <label class="fld"><span>Key colour</span><select data-pset="key_col"></select></label>
@@ -455,6 +498,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Live dashboard</h2>
+  <!--part:live-->
   <div class="card">
     <div style="font-size:14px;color:var(--sub)">Each tile reads a Home Assistant entity through MQTT Statestream (type its entity id, like <b>sensor.bedroom_temperature</b>), or any MQTT topic. Leave one empty to use <b>bedside/live/&lt;name&gt;</b>, which an automation can publish to.</div>
     <div class="grid2">
@@ -465,6 +509,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Software</h2>
+  <!--part:software-->
   <div class="card">
     <div class="row"><div style="flex:1">Installed<small id="sw-ver" style="display:block;color:var(--sub);font-size:12px"></small></div><button class="btn" data-cmd="otacheck" type="button">Check GitHub</button></div>
     <div id="sw-rel" style="margin-top:6px"></div>
@@ -473,6 +518,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Hardware</h2>
+  <!--part:hardware-->
   <div class="card" id="c-hw">
     <div class="row"><div style="flex:1">Speaker<small style="display:block;color:var(--sub);font-size:12px" id="hw-spk"></small></div><label class="sw"><input type="checkbox" id="hw-speaker" data-set="speaker"><span></span></label></div>
     <div class="row" style="margin-top:16px"><div style="flex:1">Battery backup<small style="display:block;color:var(--sub);font-size:12px" id="hw-bat"></small></div><label class="sw"><input type="checkbox" id="hw-power" data-set="power_mon"><span></span></label></div>
@@ -480,6 +526,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Files</h2>
+  <!--part:files-->
   <div class="card" id="c-files">
     <div class="fbar"><i id="f-used"></i></div>
     <div class="fcap" id="f-cap">…</div>
@@ -492,6 +539,7 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Panel</h2>
+  <!--part:panel-->
   <div class="card">
     <div class="row"><div style="flex:1">Mirror image</div><label class="sw"><input type="checkbox" id="mirror"><span></span></label></div>
     <div class="row"><div style="flex:1">Status banner</div><label class="sw"><input type="checkbox" id="banner"><span></span></label></div>
@@ -514,12 +562,14 @@ nav .brand,nav .side-foot{display:none}
   </div>
 
   <h2>Reset</h2>
+  <!--part:reset-->
   <div class="card">
     <div style="font-size:14px;color:var(--sub)">Erases every setting on the panel: alarms, sounds, lights, Home Assistant, the live dashboard, pairing. It then restarts with the Wi-Fi and server built into its firmware and pairs itself again.</div>
     <button class="btn dan w" id="factory-reset" style="margin-top:14px"><span data-i="trash"></span>Reset everything</button>
   </div>
 
   <h2>Wi-Fi</h2>
+  <!--part:wifi-->
   <div class="card">
     <form id="f-wifi">
       <label class="fld"><span>Network</span><input name="ssid" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
@@ -528,10 +578,12 @@ nav .brand,nav .side-foot{display:none}
     </form>
   </div>
 
+  <!--part:power-->
   <div class="grid2" style="margin-top:12px">
     <button class="btn" data-confirm="Restart the bedside panel?" data-cmd="reboot"><span data-i="power"></span>Restart</button>
     <button class="btn" data-confirm="Reboot into the USB bootloader? It stays there until flashed or power-cycled." data-cmd="bootsel">Bootloader</button>
   </div>
+  <div class="hint" style="margin-top:18px"><a href="/desktop" style="color:inherit" onclick="localStorage.removeItem('layout')">Desktop layout</a> · for a wide screen</div>
 </section>
 </main>
 
@@ -582,12 +634,14 @@ $$('.seg[data-seg]').forEach(s=>{
 });
 function segVal(k,v){if(held(k))return;$$(`.seg[data-seg="${k}"] button`).forEach(b=>b.classList.toggle('on',+b.dataset.v===+v))}
 const fill=r=>r.style.setProperty('--p',((r.value-r.min)/(r.max-r.min)*100)+'%');
+const outTxt=(r,v)=>{const u=r.dataset.unit??(r.id==='bird_vol'?'':'%');return (u.trim()==='dB'&&+v>0?'+':'')+v+u};
 $$('input[type=range][data-set]').forEach(r=>{
-  r.oninput=()=>{touch(r.dataset.set,4000);fill(r);const o=$('#'+r.id+'-o');if(o)o.textContent=r.value+(r.id==='bird_vol'?'':'%');if(r.id==='vol')$('#vol-sub').textContent=volTxt(+r.value)};
+  r.oninput=()=>{touch(r.dataset.set,4000);fill(r);const o=$('#'+r.id+'-o');if(o)o.textContent=outTxt(r,r.value);if(r.id==='vol')$('#vol-sub').textContent=volTxt(+r.value)};
   r.onchange=()=>set(r.dataset.set,r.value);
 });
 $$('input[type=checkbox][data-set]').forEach(c=>c.onchange=()=>{set(c.dataset.set,c.checked?1:0);paintCards()});
 $$('[data-step]').forEach(b=>b.onclick=()=>{const r=$('#'+b.dataset.step);r.value=+r.value+ +b.dataset.d;r.oninput();r.onchange()});
+$$('[data-test]').forEach(b=>b.onclick=()=>{touch('test',1500);$$('#spk-tests .chip').forEach(x=>x.classList.toggle('on',x===b&&+b.dataset.test>0));cmd('set='+enc('test|'+b.dataset.test))});
 $('#ac_on').onchange=e=>{set('ac_mode',e.target.checked?(lastMode||3):0);paintCards()};
 let lastMode=3, spLocal=null, spT;
 $$('[data-sp]').forEach(b=>b.onclick=()=>{
@@ -606,7 +660,7 @@ function paintCards(){
 }
 function renderRoom(){
   const u=ui;
-  const rng=(id,v)=>{if(held(id))return;const r=$('#'+id);r.value=v;fill(r);const o=$('#'+id+'-o');if(o)o.textContent=v+(id==='bird_vol'?'':'%')};
+  const rng=(id,v)=>{if(held(id))return;const r=$('#'+id);r.value=v;fill(r);const o=$('#'+id+'-o');if(o)o.textContent=outTxt(r,v)};
   const chk=(id,v,k=id)=>{if(!held(k))$('#'+id).checked=!!v};
   rng('vol',u.vol); if(!held('vol'))$('#vol-sub').textContent=volTxt(u.vol);
   chk('rain_on',u.rain.on); segVal('rain_kind',u.rain.kind); $('#shape').hidden=u.rain.kind!==0; segVal('rain_lvl',u.rain.lvl); segVal('sleep',u.rain.sleep);
@@ -617,7 +671,11 @@ function renderRoom(){
   chk('ac_on',u.ac.mode,'ac_mode'); if(u.ac.mode)lastMode=u.ac.mode; segVal('ac_mode',u.ac.mode); segVal('fan',u.ac.fan);
   if(spLocal===null&&!held('setpoint'))$('#sp').innerHTML=spTxt(u.ac.sp);
   $('#ac-sub').textContent=(u.ac.mode?`${MODES[u.ac.mode]} to ${u.ac.sp}°`:'Off')+` · room ${u.ac.room}°`;
-  chk('night',u.night); rng('keylights',u.keylights); if(u.chorus)rng('bird_vol',u.chorus.vol);
+  chk('night',u.night); rng('keylights',u.keylights); if(u.chorus){rng('bird_vol',u.chorus.vol);rng('bird_soft',u.chorus.soft??35)}
+  const sp=u.spk||{}; rng('spk_gain',sp.gain??0); rng('spk_bass',sp.bass??0); rng('spk_treble',sp.treble??0);
+  segVal('spk_soft',sp.soft??0); segVal('spk_hpf',sp.hpf??0); segVal('spk_limit',sp.limit??0);
+  if(!held('test'))$$('#spk-tests .chip').forEach(b=>b.classList.toggle('on',+b.dataset.test===(sp.test||0)&&sp.test>0));
+  $('#spk-sub').textContent=sp.test?'Test sound playing':(sp.gain||sp.bass||sp.treble||sp.soft||sp.hpf||sp.limit)?'Tuned':'How the panel\'s own speaker sounds';
   const sh=u.shape||{}; ['patter','wash','tone','wind','thunder','thunder_near'].forEach(k=>rng(k,sh[k]??0)); segVal('surface',sh.surface??0);
 
   paintCards();
@@ -1091,6 +1149,7 @@ async function poll(){
     ui=st.ui;failN=0;
     setConn(true,st.busy?'Refreshing':(st.tesserae.local_time||'Online').replace(/^.*T(\d\d:\d\d).*$/,'$1'));
     renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();
+    if(typeof renderExtra==='function')renderExtra();   // the desktop shell's own bits (top-bar status, the EQ graph)
     if(!held('dash')){
       // Tesserae 0.498+: Live, then the dashboards bound to this panel; older servers: the rotation
       const picks=ui.picks&&ui.picks.length?ui.picks:null;

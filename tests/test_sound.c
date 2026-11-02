@@ -153,6 +153,102 @@ static void off_and_zero_volume_are_silent(void)
     CHECK(rms(out + SR, SR * 2) < 5);
 }
 
+/* ---- the speaker's tone stage (src/spk_dsp.c) ---- */
+#include "spk_dsp.h"
+
+static float fbuf[SR];
+/* Peak of a sine at hz once the stage has settled (its last half second). */
+static double stage_peak(const spk_tune_t *t, double hz, double amp)
+{
+    spk_coef_t c; spk_state_t s; spk_coef(t, SR, &c); spk_state_init(&s, &c);
+    for (int i = 0; i < SR; i++) fbuf[i] = (float)(amp * sin(6.283185307 * hz * i / SR));
+    spk_process(&c, &s, fbuf, SR);
+    double pk = 0; for (int i = SR / 2; i < SR; i++) if (fabs(fbuf[i]) > pk) pk = fabs(fbuf[i]);
+    return pk;
+}
+
+static void flat_speaker_stage_changes_nothing(void)
+{
+    spk_tune_t t = { 0 };
+    CHECK(spk_tune_flat(&t));
+    spk_coef_t c; spk_coef(&t, SR, &c); CHECK(!c.active);
+    CHECK_NEAR(stage_peak(&t, 1000, 0.5), 0.5, 0.002);
+    CHECK_NEAR(stage_peak(&t, 60, 0.5), 0.5, 0.002);
+}
+
+static void treble_cut_and_soften_take_the_edge_off(void)
+{
+    spk_tune_t t = { .treble_db = -12 };
+    CHECK(stage_peak(&t, 6000, 0.5) < 0.5 * 0.4);           /* well down an octave above the 3 kHz shelf */
+    CHECK(stage_peak(&t, 9000, 0.5) < 0.5 * 0.3);
+    CHECK(stage_peak(&t, 200, 0.5) > 0.5 * 0.95);           /* the lows untouched */
+    spk_tune_t u = { .soften = 5 };                         /* low-pass at 3 kHz, second order */
+    CHECK(stage_peak(&u, 6000, 0.5) < 0.5 * 0.3);
+    CHECK(stage_peak(&u, 500, 0.5) > 0.5 * 0.95);
+}
+
+static void low_cut_and_bass_shape_the_bottom(void)
+{
+    spk_tune_t t = { .low_cut = 4 };                        /* 160 Hz */
+    CHECK(stage_peak(&t, 40, 0.5) < 0.5 * 0.1);             /* two octaves below: 24 dB down */
+    CHECK(stage_peak(&t, 1000, 0.5) > 0.5 * 0.95);
+    spk_tune_t b = { .bass_db = 6 };
+    CHECK_NEAR(stage_peak(&b, 50, 0.3), 0.3 * 2.0, 0.3 * 0.15);   /* +6 dB on the shelf */
+    CHECK_NEAR(stage_peak(&b, 2000, 0.3), 0.3, 0.3 * 0.05);
+}
+
+static void level_and_limiter_hold_the_peaks(void)
+{
+    spk_tune_t g = { .gain_db = -6 };
+    CHECK_NEAR(stage_peak(&g, 1000, 0.5), 0.25, 0.01);
+    spk_tune_t l = { .limit = 2 };                          /* firm: nothing past -12 dB (0.25) */
+    double pk = stage_peak(&l, 1000, 0.9);
+    CHECK(pk < 0.28); CHECK(pk > 0.2);
+    spk_tune_t q = { .limit = 1 };                          /* gentle: quiet passages untouched */
+    CHECK(stage_peak(&q, 1000, 0.3) > 0.29);
+}
+
+/* The high-frequency content of a signal: the energy of its first difference
+ * (6 dB per octave towards the top, so whistles and chirps dominate it). */
+static double edge(const int16_t *s, int n)
+{
+    double d = 0;
+    for (int i = 1; i < n; i++) { double b = (double)s[i] - s[i - 1]; d += b * b; }
+    return d;
+}
+
+static void softness_takes_the_edge_off_the_birds(void)
+{
+    /* The same whistler call, natural and fully softened: its top end goes,
+     * most of its body stays (the sharpness, not the bird, is what gets cut). */
+    double e[2], r[2];
+    for (int k = 0; k < 2; k++) {
+        rs_init(11);
+        rs_params_t p = { .on = false, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .bird_soft = k ? 100 : 0, .audition = 1, .audition_bird = BIRD_WHISTLER };
+        render(&p, out, SR * 3);
+        r[k] = rms(out, SR * 3); e[k] = edge(out, SR * 3);
+    }
+    CHECK(r[0] > 200);                                       /* the synthesised whistler plays on the host */
+    CHECK(e[1] < e[0] * 0.35);                               /* the top end: well down */
+    CHECK(r[1] > r[0] * 0.25);                               /* still clearly a bird */
+}
+
+static void the_test_sound_plays_with_the_sleep_sound_off(void)
+{
+    rs_init(5);
+    rs_params_t p = { .on = false, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .test = 2 };
+    render(&p, out, SR * 2);
+    CHECK(rms(out + SR, SR) > 32767 * 0.15);                 /* a 1 kHz tone at about -9 dBFS */
+    p.test = 0;
+    render(&p, out, SR * 2);
+    CHECK(rms(out + SR, SR) < 5);                            /* gone within a second */
+    rs_init(5);
+    rs_params_t q = { .on = false, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .test = 4 };
+    render(&q, out, SR * 6);                                 /* the sweep wraps after 5 s without a bang */
+    int clip = 0; for (int i = 0; i < SR * 6; i++) if (out[i] >= 32700 || out[i] <= -32700) clip++;
+    CHECK(clip == 0);
+}
+
 int main(void)
 {
     make_source();
@@ -161,5 +257,11 @@ int main(void)
     RUN(bad_recording_falls_back_to_rain);
     RUN(every_sound_stays_in_range);
     RUN(off_and_zero_volume_are_silent);
+    RUN(flat_speaker_stage_changes_nothing);
+    RUN(treble_cut_and_soften_take_the_edge_off);
+    RUN(low_cut_and_bass_shape_the_bottom);
+    RUN(level_and_limiter_hold_the_peaks);
+    RUN(softness_takes_the_edge_off_the_birds);
+    RUN(the_test_sound_plays_with_the_sleep_sound_off);
     return test_summary("sound");
 }

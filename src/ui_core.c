@@ -44,7 +44,7 @@ local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
+    .speaker = true, .power_mon = false, .bird_soft = 35, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 char s_date[40];
@@ -83,6 +83,11 @@ const char *const WFTEMPS[N_WFTEMP] = { "Default (20)", "14 C", "16 C", "18 C", 
 const int         WFTEMP_V[N_WFTEMP] = { 0, 14, 16, 18, 22, 24, 26, 28, 30 };
 const char *const CLEANS[N_CLEAN]   = { "5 min", "10 min", "20 min", "45 min" };
 const int         CLEAN_V[N_CLEAN]  = { 5, 10, 20, 45 };
+/* Speaker tuning (spk_dsp.h): the soften and low-cut tables index SPK_SOFT_HZ / SPK_LOWCUT_HZ. */
+const char *const SOFTENS[6] = { "Off", "8 kHz", "6 kHz", "5 kHz", "4 kHz", "3 kHz" };
+const char *const LOWCUTS[5] = { "Off", "60 Hz", "90 Hz", "120 Hz", "160 Hz" };
+const char *const PEAKS[3]   = { "As they are", "Gentle", "Firm" };
+const char *const TESTS[5]   = { "Stop", "Pink noise", "1 kHz tone", "100 Hz tone", "Sweep" };
 const int SNOOZE_V[4] = { 5, 9, 10, 15 };
 const char *const RESETS[2]    = { "Keep everything", "Reset everything" };
 local_req_t s_req;

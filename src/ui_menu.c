@@ -134,6 +134,7 @@ static int node_rows(node_t nd, row_def_t *r)
     case N_CHORUS:
         for (int i = 0; i < BIRD_COUNT; i++) r[n++] = (row_def_t){ T_BIRD, K_TOGGLE, bird_name(i), ICON_BIRD, i };
         r[n++] = (row_def_t){ V_BIRD_VOL, K_VALUE, "Alarm volume", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ V_BIRD_SOFT, K_VALUE, "Softness", ICON_BIRD, 0 };
         r[n++] = (row_def_t){ A_PREVIEW, K_ACTION, "Preview", ICON_PLAY, 0 };
         break;
     case N_SETTINGS:
@@ -199,10 +200,20 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ S_SPEAKER, K_SUB, "Speaker tuning", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", ICON_BATTERY_CHARGING, 0 };
         r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", ICON_WIFI_HIGH, 0 };
         r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
+        break;
+    case N_SPEAKER:
+        r[n++] = (row_def_t){ V_SPK_GAIN, K_VALUE, "Level", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ V_SPK_BASS, K_VALUE, "Bass", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ V_SPK_TREBLE, K_VALUE, "Treble", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ C_SPK_SOFT, K_CHOICE, "Soften highs", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ C_SPK_HPF, K_CHOICE, "Low cut", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ C_SPK_LIMIT, K_CHOICE, "Loud moments", ICON_SPEAKER_HIGH, 0 };
+        r[n++] = (row_def_t){ C_SPK_TEST, K_CHOICE, "Test sound", ICON_PLAY, 0 };
         break;
     default: break;
     }
@@ -219,7 +230,7 @@ static const char *node_title(node_t nd)
     case N_DAYS:  snprintf(b, sizeof b, "Alarm %d days", s_ai + 1); return b;
     case N_HOMESCR: return "Home screen"; case N_NIGHTG: return "Night"; case N_KEYS: return "Keys and knob";
     case N_KEY:   snprintf(b, sizeof b, "Key %d", s_ki + 1); return b;
-    case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device"; case N_SOFTWARE: return "Software";
+    case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device"; case N_SOFTWARE: return "Software"; case N_SPEAKER: return "Speaker";
     default: return "";
     }
 }
@@ -235,7 +246,7 @@ screen_t local_screen(void)
     if (s_mode == M_HOME) return SCR_HOME;
     switch (s_stack[s_depth - 1].node) {
     case N_RAIN: return SCR_RAIN; case N_LIGHTS: return SCR_LIGHTS; case N_AC: return SCR_AC;
-    case N_ALARMS: case N_ALARM: case N_DAYS: case N_CHORUS: return SCR_ALARM; case N_SETTINGS: case N_HOMESCR: case N_NIGHTG: case N_KEYS: case N_KEY: case N_TIMEG: case N_DEVICE: case N_SOFTWARE: return SCR_SETTINGS;
+    case N_ALARMS: case N_ALARM: case N_DAYS: case N_CHORUS: return SCR_ALARM; case N_SETTINGS: case N_HOMESCR: case N_NIGHTG: case N_KEYS: case N_KEY: case N_TIMEG: case N_DEVICE: case N_SOFTWARE: case N_SPEAKER: return SCR_SETTINGS;
     default: return SCR_MENU;
     }
 }
@@ -301,6 +312,10 @@ static vmeta_t value_meta(item_t id)
     case V_ALARM_TIME: return (vmeta_t){ s_alarms[s_ai].h * 60 + s_alarms[s_ai].m, 0, 1439, 5, "00:00", "23:59", true };
     case V_KEYS:       return (vmeta_t){ inputs_backlight() * 100 / 255, 0, 100, 10, "Off", "Bright", false };
     case V_BIRD_VOL:   return (vmeta_t){ S.bird_vol, 1, 10, 1, "Soft", "Loud", false };
+    case V_BIRD_SOFT:  return (vmeta_t){ S.bird_soft, 0, 100, 5, "Natural", "Soft", false };
+    case V_SPK_GAIN:   return (vmeta_t){ S.spk_gain, -12, 6, 1, "-12 dB", "+6 dB", false };
+    case V_SPK_BASS:   return (vmeta_t){ S.spk_bass, -8, 8, 1, "Less", "More", false };
+    case V_SPK_TREBLE: return (vmeta_t){ S.spk_treble, -12, 6, 1, "Softer", "Brighter", false };
     case V_TIME:       { int wd, sec; int64_t mn; int v = clock_now(&wd, &sec, &mn) ? sec / 60 : 0;
                          return (vmeta_t){ v, 0, 1439, 1, "00:00", "23:59", true }; }
     case V_DATE:       return (vmeta_t){ s_man_days, -3650, 3650, 1, "", "", false };
@@ -316,6 +331,10 @@ static void value_text(item_t id, char *b, size_t n)
     case V_ALARM_TIME: snprintf(b, n, "%02d:%02d", s_alarms[s_ai].h, s_alarms[s_ai].m); break;
     case V_KEYS:       snprintf(b, n, "%d%%", inputs_backlight() * 100 / 255); break;
     case V_BIRD_VOL:   snprintf(b, n, "%d of 10", S.bird_vol); break;
+    case V_BIRD_SOFT:  snprintf(b, n, S.bird_soft ? "%d%%" : "Natural", S.bird_soft); break;
+    case V_SPK_GAIN:   snprintf(b, n, "%+d dB", S.spk_gain); break;
+    case V_SPK_BASS:   snprintf(b, n, "%+d dB", S.spk_bass); break;
+    case V_SPK_TREBLE: snprintf(b, n, "%+d dB", S.spk_treble); break;
     case V_TIME:       { int wd, sec; int64_t mn; if (clock_now(&wd, &sec, &mn)) fmt_hm(b, n, sec / 60); else snprintf(b, n, "--:--"); } break;
     case V_DATE:       { int y, m, d, wd; if (local_ymd(&y, &m, &d, &wd)) snprintf(b, n, "%.3s %d %.3s", DAY_NAMES[wd], d, MONTHS[m - 1]); else snprintf(b, n, "--"); } break;
     default:           b[0] = 0; break;
@@ -334,6 +353,10 @@ static void value_step(item_t id, int d, int accel)
     case V_SETPOINT:   S.sp_x2 = v; if (!S.ac_mode) S.ac_mode = 3; publish("set/ac", "%d.%d", v / 2, (v % 2) * 5); break;
     case V_ALARM_TIME: s_alarms[s_ai].h = v / 60; s_alarms[s_ai].m = v % 60; sync_alarm_summary(); break;
     case V_BIRD_VOL:   S.bird_vol = v; S.audition_bird = BIRD_MAGPIE; S.audition++; break;   /* a call at the new level */
+    case V_BIRD_SOFT:  S.bird_soft = v; S.audition_bird = BIRD_WHISTLER; S.audition++; break;   /* a whistle to judge it by */
+    case V_SPK_GAIN:   S.spk_gain = v; break;
+    case V_SPK_BASS:   S.spk_bass = v; break;
+    case V_SPK_TREBLE: S.spk_treble = v; break;
     case V_KEYS:       { uint8_t lv = (uint8_t)(v * 255 / 100); inputs_set_backlight(lv); config_set_lights(lv, S.night); config_save(); } break;
     case V_TIME:       { int delta = v - m.v; if (delta > 720) delta -= 1440; if (delta < -720) delta += 1440;
                          s_man_base += (int64_t)delta * 60; rebuild(); } break;
@@ -365,6 +388,10 @@ static int choice_opts(item_t id, const char *const **o)
     case C_REFRESHMODE: *o = REFRESHES; return 3;
     case C_WFTEMP:    *o = WFTEMPS; return N_WFTEMP;
     case C_CLEANMIN:  *o = CLEANS; return N_CLEAN;
+    case C_SPK_SOFT:  *o = SOFTENS; return 6;
+    case C_SPK_HPF:   *o = LOWCUTS; return 5;
+    case C_SPK_LIMIT: *o = PEAKS; return 3;
+    case C_SPK_TEST:  *o = TESTS; return 5;
     default: *o = NULL; return 0;
     }
 }
@@ -402,6 +429,10 @@ static int choice_get(item_t id)
     case C_REFRESHMODE: return S.refresh_mode;
     case C_WFTEMP: { for (int i = 0; i < N_WFTEMP; i++) if (WFTEMP_V[i] == S.wf_temp) return i; return 0; }
     case C_CLEANMIN: { for (int i = 0; i < N_CLEAN; i++) if (CLEAN_V[i] == S.clean_min) return i; return 1; }
+    case C_SPK_SOFT:  return S.spk_soft;
+    case C_SPK_HPF:   return S.spk_hpf;
+    case C_SPK_LIMIT: return S.spk_limit;
+    case C_SPK_TEST:  return S.test;
     default:          return 0;
     }
 }
@@ -435,6 +466,10 @@ static void choice_set(item_t id, int k)
     case C_REFRESHMODE: S.refresh_mode = k; s_req = LREQ_REFRESH; break;   /* one clean refresh now */
     case C_WFTEMP:      S.wf_temp = WFTEMP_V[k]; s_req = LREQ_REFRESH; break;
     case C_CLEANMIN:    S.clean_min = CLEAN_V[k]; break;
+    case C_SPK_SOFT:    S.spk_soft = k; break;
+    case C_SPK_HPF:     S.spk_hpf = k; break;
+    case C_SPK_LIMIT:   S.spk_limit = k; break;
+    case C_SPK_TEST:    S.test = k; S.test_until = k ? now_ms() + 20000u : 0; break;
     case C_THUNDER:   if (k == 0) S.thunder = 0;
                       else if (k == 1) { if (!S.thunder) S.thunder = 35; S.thunder_near = 20; }
                       else { if (S.thunder < 60) S.thunder = 70; S.thunder_near = 75; }
@@ -498,7 +533,7 @@ static node_t sub_node(item_t id)
     case S_RAIN: return N_RAIN; case S_LIGHTS: return N_LIGHTS; case S_AC: return N_AC; case S_ALARMS: return N_ALARMS;
     case S_ALARM_ITEM: return N_ALARM; case S_DAYS: return N_DAYS;
     case S_HOMESCR: return N_HOMESCR; case S_NIGHTG: return N_NIGHTG; case S_KEYS: return N_KEYS; case S_KEY: return N_KEY;
-    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE;
+    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE; case S_SPEAKER: return N_SPEAKER;
     default: return N_SETTINGS;
     }
 }
@@ -603,6 +638,11 @@ void build_list(layer_t *l)
     if (r->id == T_QUICKMENU) snprintf(small, sizeof small, "Steps in black and white, full quality when you stop");
     if (r->id == T_SETTLEFULL) snprintf(small, sizeof small, "When you stop: the whole screen, cleared first " DOT " flashes");
     if (r->id == C_CLEANMIN) snprintf(small, sizeof small, "Partial updates wear the picture; this resets it while idle");
+    if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Tone, low cut, loud moments and a test sound");
+    if (r->id == V_BIRD_SOFT) snprintf(small, sizeof small, "Takes the edge off whistles and chirps");
+    if (r->id == C_SPK_SOFT) snprintf(small, sizeof small, "Rolls off everything above this: sharp calls, hiss");
+    if (r->id == C_SPK_LIMIT) snprintf(small, sizeof small, "Holds the loudest moments down");
+    if (r->id == C_SPK_TEST) snprintf(small, sizeof small, "Plays for 20 s at the current volume");
     if (r->id == C_WFTEMP) { int s = it8951_temp_sensed(); if (s >= 0) snprintf(small, sizeof small, "Board sensor says %d C " DOT " lower = darker", s); else snprintf(small, sizeof small, "Lower = darker, higher = lighter"); }
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop");
@@ -627,7 +667,8 @@ void build_value(layer_t *l)
     vmeta_t m = value_meta(s_edit);
     char t[24]; value_text(s_edit, t, sizeof t);
     int y = TB_H + 60;
-    const char *icon = s_edit == V_BIRD_VOL ? ICON_BIRD : s_edit == V_ALARM_TIME ? ICON_ALARM : s_edit == V_SETPOINT ? ICON_THERMOMETER : s_edit == V_RAIN_LVL ? ICON_CLOUD_RAIN : ICON_SUN;
+    const char *icon = (s_edit == V_BIRD_VOL || s_edit == V_BIRD_SOFT) ? ICON_BIRD :
+                       (s_edit == V_SPK_GAIN || s_edit == V_SPK_BASS || s_edit == V_SPK_TREBLE) ? ICON_SPEAKER_HIGH : s_edit == V_ALARM_TIME ? ICON_ALARM : s_edit == V_SETPOINT ? ICON_THERMOMETER : s_edit == V_RAIN_LVL ? ICON_CLOUD_RAIN : ICON_SUN;
     op_text_c(l, W / 2, y, &icon170, G_BLACK, icon);
     y += icon170.line_h + 20;
     op_text_c(l, W / 2, y, numeric(t) ? F_NUM : F_XL, G_BLACK, t);

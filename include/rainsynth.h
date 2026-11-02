@@ -38,6 +38,11 @@ typedef struct {
     int      bird_vol;     /* 0..10: the chorus has its own volume (it has to wake you) */
     uint32_t audition;     /* change it to play one call from audition_bird now */
     int      audition_bird;
+    int      bird_soft;    /* 0 natural .. 100 soft: takes the edge off whistles and chirps (a low-pass on the birds alone) */
+    /* speaker test: 0 none, 1 pink noise, 2 a 1 kHz tone, 3 a 100 Hz tone, 4 a
+     * 100 Hz .. 8 kHz sweep; plays at the current volume whether or not the
+     * sleep sound is on, mixed in over anything else */
+    int      test;
     /* RS_RECORDING: an "ADP1" IMA ADPCM file (store.h), looped. NULL or not a
      * valid 22.05 kHz file: rain instead. Read in place (flash); the caller
      * swaps it out before that flash can change. */
@@ -48,7 +53,7 @@ typedef struct {
 /* Sensible defaults for the shaping fields. */
 #define RS_DEFAULTS .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = RS_OPEN, \
                     .thunder = 0, .thunder_near = 35, .strike = 0, \
-                    .chorus = 0, .birds = BIRDS_ALL, .bird_vol = 6, .audition = 0, .audition_bird = 0
+                    .chorus = 0, .birds = BIRDS_ALL, .bird_vol = 6, .audition = 0, .audition_bird = 0, .bird_soft = 35, .test = 0
 
 void rs_init(uint32_t seed);
 /* Render n samples with the given parameters. Changes glide, never click. */

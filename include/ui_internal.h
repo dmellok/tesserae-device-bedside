@@ -156,7 +156,7 @@ typedef struct { const char *name; int32_t std_s; uint8_t dst; } tzone_t;
 typedef struct { const char *id, *label; } action_t;
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
-               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_COUNT } node_t;
+               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -176,6 +176,8 @@ typedef enum {
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, C_CLEANMIN, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
+    /* the speaker tuning page and the birds' softness */
+    V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
 } item_t;
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
 typedef struct { int v, min, max, step; const char *lo, *hi; bool wrap; } vmeta_t;
@@ -188,7 +190,12 @@ typedef struct {
 typedef struct { uint8_t key_col, menu_col, night_col, knob, auto_night, clock12, snooze, pad; } set1_blob_t;
 typedef struct { uint8_t key_col, menu_col, night_col, knob, auto_night, clock12, snooze,
                  night_keys, overlay, show, at_night, tz, auto_time, refresh_mode, auto_update, pad[1]; } set_blob_t;
-typedef struct { uint8_t speaker, power_mon, rsv0, pad; char rsv1[48], rec[40]; } ext_blob_t;   /* rsv0: menu flags; rsv1: the gesture settings, removed (kept so saved settings still load) */
+/* rsv0: menu flags; pad: clean_min. The speaker tuning and bird softness took
+ * the first bytes of what was the gesture settings (zeros in older blobs read
+ * as the defaults; bird_soft is stored + 1 so 0 means "not set yet"). */
+typedef struct { uint8_t speaker, power_mon, rsv0, pad;
+                 int8_t spk_gain, spk_bass, spk_treble; uint8_t spk_soft, spk_hpf, spk_limit, bird_soft_p1;
+                 char rsv1[41], rec[40]; } ext_blob_t;
 
 /* ---- inline helpers ---- */
 static inline uint32_t now_ms(void) { return to_ms_since_boot(get_absolute_time()); }
@@ -228,6 +235,10 @@ extern const char *const WFTEMPS[N_WFTEMP];
 extern const int WFTEMP_V[N_WFTEMP];
 extern const char *const CLEANS[N_CLEAN];
 extern const int CLEAN_V[N_CLEAN];
+extern const char *const SOFTENS[6];
+extern const char *const LOWCUTS[5];
+extern const char *const PEAKS[3];
+extern const char *const TESTS[5];
 extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;

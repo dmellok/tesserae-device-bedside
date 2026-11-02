@@ -235,6 +235,11 @@ static inline float rec_next(void)
 /* Gliding gains and controls. */
 static float  g_rain, g_ocean, g_noise, g_master, g_birds, g_wind, g_rec;
 static uint32_t s_last_audition;
+static float    s_bird_lp1, s_bird_lp2;    /* bird softness: two poles on the bird bus alone */
+/* the speaker test signal (rs_params_t.test): its own pink noise and phase */
+static float    g_test;
+static pink_t   s_tpk;
+static float    s_test_ph, s_sweep_t;
 static float  s_level_s = 3.0f, s_patter = 0.6f, s_wash = 0.55f, s_tone = 0.5f, s_windk = 0.2f;
 
 
@@ -256,6 +261,7 @@ void rs_init(uint32_t seed)
     rec_open(NULL, 0); s_rec_lp = 0;
     s_level_s = 3.0f; s_patter = 0.6f; s_wash = 0.55f; s_tone = 0.5f; s_windk = 0.2f;
     g_birds = 0; s_last_audition = 0;
+    s_bird_lp1 = s_bird_lp2 = 0; g_test = 0; s_test_ph = s_sweep_t = 0; memset(&s_tpk, 0, sizeof s_tpk);
     bs_init(seed * 2654435761u + 1u);
 }
 
@@ -288,6 +294,9 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     float bv = (p->bird_vol < 0 ? 0 : p->bird_vol > 10 ? 10 : (float)p->bird_vol) / 10.0f;
     float tb = powf(bv, 1.5f) * 1.8f * (chorus > 0 ? lerp(0.35f, 1.0f, chorus) : 1.0f);
     bool birds_on = chorus > 0 || bs_active();
+    /* softness: 0 leaves the birds alone (9 kHz, nothing to hear at 22 kHz), 100 rolls them off above ~1.6 kHz */
+    float a_bird = lp_coef(9000.0f * powf(0.18f, clamp01(p->bird_soft / 100.0f)));
+    float tt = p->test > 0 && p->test <= 4 ? 1.0f : 0.0f;
     float vol = p->volume < 0 ? 0 : p->volume > 10 ? 10 : (float)p->volume;
     float tm = (vol / 10.0f) * (vol / 10.0f) * clamp01(p->fade);
     float lvl_t = (float)(p->level < 1 ? 1 : p->level > 5 ? 5 : p->level);
@@ -366,6 +375,7 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         g_birds  += (tb - g_birds) * glide * 2.0f;
         g_wind   += (tw - g_wind)  * glide * 4.0f;
         g_rec    += (tc - g_rec)   * glide * 4.0f;
+        g_test   += (tt - g_test)  * glide * 6.0f;
         if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise + g_wind + g_rec < 1e-4f && !T.on && !birds_on) { out[i] = 0; continue; }
 
         float w = white();
@@ -465,7 +475,20 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         }
 
         x *= g_master * 0.9f;
-        if (birds_on) x += bs_tick() * g_birds * 0.9f;
+        if (birds_on) x += lp(&s_bird_lp2, lp(&s_bird_lp1, bs_tick(), a_bird), a_bird) * g_birds * 0.9f;
+        if (g_test > 1e-4f) {                                     /* the speaker test, faded in over the mix */
+            float sig = 0, f = 0;
+            switch (p->test) {
+            case 1: sig = pink(&s_tpk, w) * 0.5f; break;
+            case 2: f = 1000.0f; break;
+            case 3: f = 100.0f; break;
+            case 4: s_sweep_t += 1.0f / SR; if (s_sweep_t >= 5.0f) s_sweep_t = 0;      /* 100 Hz to 8 kHz in 5 s, over and over */
+                    f = 100.0f * powf(80.0f, s_sweep_t / 5.0f); break;
+            default: break;
+            }
+            if (f > 0) { s_test_ph += f / SR; if (s_test_ph >= 1.0f) s_test_ph -= 1.0f; sig = sinf(6.2831853f * s_test_ph); }
+            x = x * (1.0f - g_test) + sig * 0.35f * g_master * g_test;
+        }
         /* gentle soft clip */
         float ax = fabsf(x);
         if (ax > 0.6f) x = (x > 0 ? 1.0f : -1.0f) * (0.6f + (ax - 0.6f) / (1.0f + (ax - 0.6f) * 2.5f));

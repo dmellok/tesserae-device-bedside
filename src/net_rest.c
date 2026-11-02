@@ -471,7 +471,7 @@ rest_status_t rest_discover(const rest_identity_t *id, rest_discover_out_t *out,
 
     const char *rbody = NULL;
     rest_status_t st = do_request("POST", url, NULL, 0, body, NULL, 0, &rbody, NULL, timeout_ms);
-    free(body);
+    cJSON_free(body);      /* cJSON's allocator (the PSRAM heap when there is one), never libc's */
     if (st == REST_RATELIMIT) { int ra = retry_after_hdr(); if (ra > 0) out->retry_after_s = ra; }
     if (st != REST_OK || !rbody) return st;
 
@@ -509,7 +509,7 @@ rest_status_t rest_register(const rest_identity_t *id, rest_register_out_t *out,
 
     const char *rbody = NULL;
     rest_status_t st = do_request("POST", url, hdrs, 1, body, NULL, 0, &rbody, NULL, timeout_ms);
-    free(body);
+    cJSON_free(body);      /* cJSON's allocator (the PSRAM heap when there is one), never libc's */
     if (st == REST_RATELIMIT) out->retry_after_s = retry_after_hdr();
     if (st != REST_OK || !rbody) return st;
 
@@ -630,7 +630,7 @@ rest_status_t rest_post_status(const rest_identity_t *id, const rest_telemetry_t
 
     const char *rbody = NULL;
     rest_status_t st = do_request("POST", url, hdrs, 1, body, NULL, 0, &rbody, NULL, timeout_ms);
-    free(body);
+    cJSON_free(body);      /* cJSON's allocator (the PSRAM heap when there is one), never libc's */
     if (st == REST_RATELIMIT) out->retry_after_s = retry_after_hdr();
     if (st != REST_OK || !rbody) return st;
 

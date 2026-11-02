@@ -35,8 +35,13 @@ static uint32_t           s_busy_us, s_win_us, s_cpu_pm;
 #define I2S_BCLK   18                     /* LRCLK = 19 (BCLK + 1) */
 #define I2S_DIN    21
 #define AMP_SD     16
-#define I2S_FRAMES 256                    /* ~11.6 ms per buffer */
-#define SPK_LAG    (5 * BLOCK)            /* how far behind the writer the speaker reads (~50 ms) */
+/* Each buffer is long enough that a flash sector write (core 1 parked by the
+ * lockout, so no refills: typically 50-60 ms) plays through from the buffer
+ * already queued. Before this they were 11.6 ms and every settings save cut
+ * the sound, which came out as a sharp click. */
+#define I2S_FRAMES 2048                   /* ~93 ms per buffer */
+#define SPK_LAG    (I2S_FRAMES + 2 * BLOCK)   /* how far behind the writer the speaker reads (~113 ms): a buffer plus slack */
+#define SPK_RAMP   256                    /* samples faded in whenever playback (re)starts, and out before a gap: no click */
 
 static uint32_t          s_i2s_buf[2][I2S_FRAMES];
 static int               s_dma[2] = { -1, -1 };
@@ -64,20 +69,55 @@ static void i2s_build_program(void)
 #undef SS
 }
 
+/* The tone stage (spk_dsp.h): core 0 publishes coefficients, the fill applies them. */
+static spk_coef_t        s_tune_pub, s_tune;      /* published by core 0 / in use here */
+static volatile uint32_t s_tune_seq;              /* bumped twice by core 0 per change (odd = writing) */
+static uint32_t          s_tune_used;
+static spk_state_t       s_tune_st;
+static volatile uint32_t s_spk_dropouts;          /* the ring ran dry while playing (once per gap) */
+static uint32_t          s_ramp;                  /* fade-in progress, samples */
+
+void audio_speaker_tune(const spk_tune_t *t)
+{
+    spk_coef_t c;
+    spk_coef(t, AUDIO_SR, &c);
+    s_tune_seq++; __dmb();
+    s_tune_pub = c;
+    __dmb(); s_tune_seq++;
+}
+uint32_t audio_speaker_dropouts(void) { return s_spk_dropouts; }
+
 static void spk_fill(uint32_t *dst)
 {
-    if (!s_spk_on) { memset(dst, 0, I2S_FRAMES * 4); s_spk_was_on = false; return; }
+    if (!s_spk_on) { memset(dst, 0, I2S_FRAMES * 4); s_spk_was_on = false; s_ramp = 0; return; }
+    uint32_t seq = s_tune_seq;
+    if (seq != s_tune_used && !(seq & 1u)) {                              /* new coefficients; the filters keep their memory */
+        bool was = s_tune.active;
+        s_tune = s_tune_pub; __dmb();
+        if (s_tune_seq == seq) { s_tune_used = seq; if (!was) spk_state_init(&s_tune_st, &s_tune); }
+    }
     uint32_t w = s_wpos; __dmb();
-    if (!s_spk_was_on) { s_spk_pos = w; s_spk_was_on = true; }           /* start fresh: older ring data is stale */
-    int32_t avail = (int32_t)(w - s_spk_pos);
-    if (avail < 0 || avail > (int32_t)(s_ring_n / 2)) { s_spk_pos = w - SPK_LAG; avail = SPK_LAG; }   /* lost track: resync */
     static bool warm;                                                     /* let the writer get ahead first */
-    if (avail < 64) warm = true;                                          /* ran dry: refill before playing on */
-    if (warm) { if (avail >= SPK_LAG) warm = false; else { memset(dst, 0, I2S_FRAMES * 4); return; } }
+    if (!s_spk_was_on) { s_spk_pos = w; s_spk_was_on = true; s_ramp = 0; warm = true; spk_state_init(&s_tune_st, &s_tune); }   /* start fresh: older ring data is stale */
+    uint32_t lag = SPK_LAG;
+    if (lag + I2S_FRAMES > s_ring_n / 2) lag = s_ring_n / 2 > I2S_FRAMES ? s_ring_n / 2 - I2S_FRAMES : BLOCK;   /* the small boot-time ring */
+    int32_t avail = (int32_t)(w - s_spk_pos);
+    if (avail < 0 || avail > (int32_t)(s_ring_n / 2)) { s_spk_pos = w - lag; avail = (int32_t)lag; }   /* lost track: resync */
+    if (warm) { if (avail >= (int32_t)lag) { warm = false; s_ramp = 0; } else { memset(dst, 0, I2S_FRAMES * 4); return; } }
+    int32_t play = avail;
+    if (play < I2S_FRAMES) { s_spk_dropouts++; warm = true; }           /* short: play what there is, fade out, wait */
+    else play = I2S_FRAMES;
+    const spk_coef_t *c = &s_tune; spk_state_t *st = &s_tune_st;
     for (int i = 0; i < I2S_FRAMES; i++) {
-        int16_t v = 0;
-        if (avail > 0) { v = s_ring[s_spk_pos % s_ring_n]; s_spk_pos++; avail--; }   /* else an underrun: silence */
-        uint16_t u = (uint16_t)v;
+        uint16_t u = 0;
+        if (i < play) {
+            float x = (float)s_ring[s_spk_pos % s_ring_n] * (1.0f / 32768.0f); s_spk_pos++;
+            if (c->active) x = spk_sample(c, st, x);
+            if (s_ramp < SPK_RAMP) { x *= (float)s_ramp / SPK_RAMP; s_ramp++; }                 /* in */
+            if (play < I2S_FRAMES && play - i <= SPK_RAMP) x *= (float)(play - i) / SPK_RAMP;  /* out, before the gap */
+            int v = (int)(x * 32767.0f); v = v > 32767 ? 32767 : v < -32768 ? -32768 : v;
+            u = (uint16_t)(int16_t)v;
+        }
         dst[i] = (uint32_t)u << 16 | u;
     }
 }

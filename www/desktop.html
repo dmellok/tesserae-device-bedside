@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="en">
+<!--
+  The desktop app: a sidebar of pages, a status strip, wide grids and a few
+  things only a big screen has room for (the panel preview beside the room
+  controls, the speaker's response curve, a full-height console).
+
+  The controls and the script come from app.src.html at build time
+  (scripts/build_www.py): an "@name" comment below is a card marked
+  "part:name" there; the "@css" and "@js" comment markers in the style and
+  script blocks are the shared stylesheet and script. Edit a control once, in
+  app.src.html; this file only decides where things go.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M38 14a18 18 0 1 0 12 30A20 20 0 0 1 38 14z' fill='%23f4f2ee'/%3E%3C/svg%3E">
+<title>Bedside</title>
+<style>
+
+:root{
+  --bg:#f4f2ee; --card:#fff; --ink:#1b1b1a; --sub:#6d6a64; --line:#e4e0d8; --soft:#ece9e3;
+  --acc:#1b1b1a; --acc-ink:#fff; --on:#2f7d4f; --warn:#b4472f; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
+  --r:20px; --tab-h:64px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121212; --card:#1d1d1c; --ink:#f1efea; --sub:#9b978f; --line:#2c2b29; --soft:#262524;
+  --acc:#f1efea; --acc-ink:#121212; --on:#5fbf86; --warn:#e2785f; --shadow:none; color-scheme:dark;
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;-webkit-user-select:none;user-select:none}
+input,select,button{font:inherit;color:inherit}
+svg.i{width:22px;height:22px;fill:currentColor;flex:none}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+header h1{font-size:28px;letter-spacing:-.02em;margin:0;flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);background:var(--soft);border-radius:99px;padding:5px 10px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sub)}
+.dot.ok{background:var(--on)} .dot.bad{background:var(--warn)}
+main{padding:4px 16px calc(var(--tab-h) + env(safe-area-inset-bottom) + 24px);max-width:640px;margin:0 auto}
+section.tab{display:none} section.tab.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin:0 0 12px;box-shadow:var(--shadow)}
+.card.off .body{opacity:.45}
+.row{display:flex;align-items:center;gap:12px}
+.row+.row{margin-top:14px}
+.ttl{display:flex;align-items:center;gap:12px;font-weight:600;font-size:17px}
+.ttl .ic{width:40px;height:40px;border-radius:12px;background:var(--soft);display:grid;place-items:center}
+.ttl .ic.lit{background:var(--acc);color:var(--acc-ink)}
+.ttl .t{flex:1;min-width:0} .ttl small{display:block;font-weight:400;font-size:13px;color:var(--sub)}
+.body{margin-top:14px;transition:opacity .2s}
+.lbl{font-size:13px;color:var(--sub);margin:14px 0 8px}
+.lbl:first-child{margin-top:0}
+h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin:22px 4px 8px}
+h2:first-child{margin-top:6px}
+/* switch */
+.sw{position:relative;width:52px;height:32px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:background .2s}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.sw input:checked+span{background:var(--on)} .sw input:checked+span::after{transform:translateX(20px)}
+/* segmented */
+.seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;border:0;background:none;padding:9px 4px;border-radius:9px;font-size:14px;font-weight:500;color:var(--sub);min-height:38px}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* slider */
+.sl{display:flex;align-items:center;gap:10px}
+.sl output{min-width:42px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:36px;background:none;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:linear-gradient(90deg,var(--acc) var(--p,50%),var(--line) var(--p,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;margin-top:-10px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:8px;border-radius:99px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:99px;background:var(--acc)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.rb{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;flex:none}
+.rb:active,.btn:active,.key:active{transform:scale(.95)}
+/* stepper */
+.step{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.step .v{font-size:44px;font-weight:300;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.step .v small{font-size:20px;color:var(--sub)}
+/* buttons */
+.btn{border:0;border-radius:14px;background:var(--soft);padding:12px 16px;font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
+.btn.pri{background:var(--acc);color:var(--acc-ink)}
+.btn.dan{color:var(--warn)}
+.btn.w{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* fields */
+.fld{display:block;margin-top:12px}
+.fld span{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+.fld input,.fld select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px;font-size:16px;-webkit-user-select:text;user-select:text}
+.inl{display:flex;gap:8px;align-items:flex-end} .inl .fld{flex:1}
+/* alarms */
+.alarm .time{font-size:52px;font-weight:300;letter-spacing:-.03em;font-variant-numeric:tabular-nums;border:0;background:none;padding:0;width:100%;min-width:0;color:var(--ink)}
+.alarm .time::-webkit-calendar-picker-indicator{display:none}
+.days{display:flex;gap:6px;margin-top:12px}
+.days button{flex:1;aspect-ratio:1;max-width:46px;border-radius:50%;border:0;background:var(--soft);color:var(--sub);font-weight:600;font-size:14px}
+.days button.on{background:var(--acc);color:var(--acc-ink)}
+.presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.log{margin:0;height:min(58vh,520px);overflow:auto;background:#141413;color:#e8e6df;border-radius:12px;padding:12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+.conin{display:flex;gap:8px;align-items:center;margin-top:12px}
+.conin .pr{font:600 15px ui-monospace,Menlo,monospace;color:var(--sub)}
+.conin input{flex:1;min-width:0;font:14px ui-monospace,Menlo,monospace;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.chip code{font:11px ui-monospace,Menlo,monospace;opacity:.7;margin-left:2px}
+.chip{border:0;border-radius:99px;background:var(--soft);padding:7px 12px;font-size:13px;font-weight:500;color:var(--sub)}
+.alarm .foot{display:flex;align-items:center;gap:10px;margin-top:14px}
+.alarm .foot select{flex:1;border:0;background:var(--soft);border-radius:12px;padding:10px;font-size:14px}
+.empty{text-align:center;color:var(--sub);padding:30px 10px}
+/* remote */
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.key{border:0;border-radius:14px;background:var(--soft);height:60px;display:grid;place-items:center;position:relative;touch-action:none}
+.key small{position:absolute;bottom:5px;font-size:10px;color:var(--sub);font-weight:500}
+.key.held{background:var(--acc);color:var(--acc-ink)}
+.wheel{position:relative;width:min(72vw,260px);aspect-ratio:1;margin:18px auto 4px;border-radius:50%;background:var(--soft);touch-action:none}
+.wheel .hub{position:absolute;inset:32%;border-radius:50%;background:var(--card);border:0;box-shadow:var(--shadow),0 0 0 1px var(--line);font-weight:600;font-size:13px;color:var(--sub)}
+.wheel .hub.held{background:var(--acc);color:var(--acc-ink)}
+.wheel .tick{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--sub);left:calc(50% - 3px);top:8px;transform-origin:3px calc(min(72vw,260px)/2 - 8px)}
+.wheel .lt,.wheel .rt{position:absolute;top:50%;transform:translateY(-50%);color:var(--sub);pointer-events:none}
+.wheel .lt{left:12px} .wheel .rt{right:12px}
+.hint{text-align:center;font-size:12px;color:var(--sub);margin-top:6px}
+/* the keymap: four keys in a row, then the knob, as on the case */
+.kmap{display:grid;grid-template-columns:repeat(4,1fr) 1.15fr;gap:8px;margin:0 0 14px}
+.kc{border:1px solid var(--line);border-radius:12px;padding:10px 10px 9px;display:grid;gap:3px;background:var(--soft);min-width:0}
+.kc b{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub)}
+.kc .p{font-weight:600;font-size:14px;line-height:1.2} .kc .h{font-size:12px;color:var(--sub);line-height:1.25}
+.kc.menu{background:#df7436;border-color:#df7436;color:#fff} .kc.menu b,.kc.menu .h{color:rgba(255,255,255,.8)}
+.kc.knob{border-radius:22px}
+@media (max-width:520px){.kmap{grid-template-columns:repeat(2,1fr)}}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+/* stats */
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0;font-size:14px}
+dt{color:var(--sub)} dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+/* tab bar */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;
+  background:color-mix(in srgb,var(--card) 90%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav div{display:flex;width:100%;max-width:640px}
+nav button{flex:1;border:0;background:none;height:var(--tab-h);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--sub)}
+nav button.on{color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 14px);transform:translate(-50%,20px);opacity:0;
+  background:var(--acc);color:var(--acc-ink);padding:10px 16px;border-radius:99px;font-size:14px;transition:.2s;pointer-events:none;z-index:9;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.listen{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px;border-radius:14px;background:var(--soft)}
+.listen .t{flex:1;min-width:0;font-size:14px;font-weight:600} .listen .t small{display:block;font-weight:400;color:var(--sub);font-size:12px}
+.listen .rb{background:var(--acc);color:var(--acc-ink)}
+.meter{display:flex;gap:3px;align-items:flex-end;height:22px}
+.meter i{width:4px;border-radius:2px;background:var(--on);height:3px;transition:height .08s}
+details.more{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+details.more summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--sub);padding:8px 0}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(45deg);transition:transform .2s}
+details.more[open] summary::after{transform:rotate(-135deg)}
+.sl .k{min-width:62px;font-size:13px;color:var(--sub)}
+.ends{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin:-6px 52px 0 72px}
+.ringing{display:none;background:var(--acc);color:var(--acc-ink);border-radius:var(--r);padding:18px;margin-bottom:12px;text-align:center}
+.ringing.on{display:block} .ringing b{display:block;font-size:40px;font-weight:300;letter-spacing:-.02em;margin:2px 0 12px}
+.ringing .grid2 .btn{background:rgba(255,255,255,.15);color:inherit} .ringing .grid2 .btn.pri{background:var(--acc-ink);color:var(--acc)}
+.bird{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.bird:last-child{border-bottom:0} .bird .t{flex:1;min-width:0} .bird b{display:block;font-size:15px} .bird span{display:block;font-size:12px;color:var(--sub)}
+.bird .rb{width:38px;height:38px}
+.credits{font-size:11px;color:var(--sub);margin-top:10px} .credits ul{margin:6px 0 0;padding-left:16px} .credits a{color:inherit}
+.off-banner{display:none;background:var(--warn);color:#fff;border-radius:14px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+.offline .off-banner{display:block}
+/* dashboard list */
+.dl{display:flex;flex-direction:column;margin:-6px 0 0}
+.dl button{display:flex;align-items:center;gap:12px;border:0;background:none;padding:12px 4px;text-align:left;font-size:15px;color:var(--ink);border-bottom:1px solid var(--line);cursor:pointer}
+.dl button:last-child{border-bottom:0}
+.dl button span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl button small{font-size:12px;color:var(--sub)}
+.dl button svg.i{width:20px;height:20px;color:var(--on);visibility:hidden}
+.dl button.on{font-weight:600} .dl button.on svg.i{visibility:visible}
+.dacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+.dacts .chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer} .dacts svg.i{width:16px;height:16px}
+/* files */
+.fbar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.fbar i{display:block;height:100%;width:0;background:var(--acc);border-radius:99px;transition:width .25s}
+.fcap{font-size:13px;color:var(--sub);margin:8px 0 4px}
+.file{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.file .t{flex:1;min-width:0} .file b{display:block;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file small{font-size:12px;color:var(--sub)}
+.file .rb{width:36px;height:36px} .file .rb svg.i{width:18px;height:18px}
+.file a.chip{text-decoration:none}
+.drop{display:flex;align-items:center;gap:12px;margin-top:12px;padding:14px;border:1.5px dashed var(--line);border-radius:14px;cursor:pointer;transition:background .15s,border-color .15s}
+.drop .ic{width:40px;height:40px;border-radius:12px;background:var(--soft);display:grid;place-items:center}
+.drop .t b{display:block;font-size:15px} .drop .t small{font-size:12px;color:var(--sub)}
+.drop.over{border-color:var(--acc);background:var(--soft)}
+.drop.busy{opacity:.5;pointer-events:none}
+.fprog{margin-top:12px} .fpt{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px} .fpt span:last-child{color:var(--sub);font-variant-numeric:tabular-nums}
+/* panel preview (desktop) */
+.pv{display:none}
+.pv canvas{display:block;width:100%;height:auto;aspect-ratio:1872/1404;border-radius:10px;background:var(--soft);image-rendering:auto}
+.pv .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--sub)}
+.pv .foot span{flex:1}
+nav .brand,nav .side-foot{display:none}
+
+/* ---- the desktop shell ---- */
+:root{--side:236px;--top:60px}
+html,body{height:100%}
+body{display:grid;grid-template-columns:var(--side) 1fr;grid-template-rows:var(--top) 1fr;height:100vh;overflow:hidden;font-size:15px}
+aside{grid-row:1/3;display:flex;flex-direction:column;border-right:1px solid var(--line);padding:18px 12px 16px;background:var(--card);min-width:0}
+aside .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em;padding:4px 12px 18px}
+aside .brand i{width:30px;height:30px;border-radius:9px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center}
+aside .brand svg.i{width:18px;height:18px}
+nav{position:static;display:block;background:none;border:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+nav div{display:flex;flex-direction:column;gap:2px;max-width:none}
+nav button{flex:none;height:42px;flex-direction:row;justify-content:flex-start;gap:12px;padding:0 12px;border-radius:12px;font-size:15px;cursor:pointer;color:var(--sub)}
+nav button:hover{background:var(--soft)}
+nav button.on{background:var(--soft);color:var(--ink);font-weight:600}
+nav button kbd{margin-left:auto;font:11px ui-monospace,Menlo,monospace;color:var(--sub);opacity:.6}
+.side-foot{margin-top:auto;padding:12px 12px 0;font-size:12px;color:var(--sub);line-height:1.6}
+.side-foot a{color:inherit}
+header{position:static;display:flex;align-items:center;gap:14px;padding:0 28px;border-bottom:1px solid var(--line);background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+header h1{font-size:22px;margin:0;flex:none}
+.strip{display:flex;gap:8px;flex:1;overflow:hidden;min-width:0}
+.strip .pill{white-space:nowrap} .strip .pill svg.i{width:15px;height:15px}
+main{grid-column:2;overflow:auto;padding:22px 28px 48px;max-width:none;margin:0;min-width:0}
+section.tab.on{display:grid;gap:18px;align-items:start;animation:none}
+.col{display:grid;gap:18px;align-content:start;min-width:0}
+.card{margin:0}
+h2{margin:6px 4px -8px}
+.pv{display:block}
+#t-room.on{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+#t-sound.on,#t-alarms.on{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+#t-speaker.on{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#t-display.on,#t-device.on{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1500px){#t-display.on,#t-device.on{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#t-console.on{grid-template-columns:1fr}
+.log{height:calc(100vh - var(--top) - 300px);min-height:300px;max-height:none;font-size:12.5px}
+.conin input{-webkit-user-select:text;user-select:text}
+#alarms{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;margin-bottom:14px}
+.alarm .time{font-size:46px}
+#alarm-add{width:auto;padding:12px 22px}
+details.more{border-top:0;padding-top:0;margin-top:10px} details.more summary{display:none}
+.toast{bottom:28px;left:calc(50% + var(--side)/2)}
+.eq{display:block;width:100%;aspect-ratio:3/1;height:auto;border-radius:12px;background:var(--soft)}
+.btn,.chip,.seg button,.rb,.days button,.key,.dl button,.sw input,.bird .rb,summary{cursor:pointer}
+.off-banner{grid-column:1/-1}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:1100px){#t-room.on,#t-sound.on,#t-alarms.on,#t-speaker.on{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><i data-i="moon"></i>Bedside</div>
+  <nav><div>
+    <button data-tab="room" class="on"><span data-i="house"></span>Overview<kbd>1</kbd></button>
+    <button data-tab="sound"><span data-i="cloud-rain"></span>Sound<kbd>2</kbd></button>
+    <button data-tab="speaker"><span data-i="speaker-high"></span>Speaker<kbd>3</kbd></button>
+    <button data-tab="alarms"><span data-i="alarm"></span>Alarms<kbd>4</kbd></button>
+    <button data-tab="display"><span data-i="monitor"></span>Display<kbd>5</kbd></button>
+    <button data-tab="device"><span data-i="gear"></span>Device<kbd>6</kbd></button>
+    <button data-tab="console"><span data-i="terminal"></span>Console<kbd>7</kbd></button>
+  </div></nav>
+  <div class="side-foot"><div id="side-foot"></div><a href="/?m=1">Phone layout</a></div>
+</aside>
+
+<header>
+  <h1 id="title">Overview</h1>
+  <div class="strip" id="strip"></div>
+  <span class="pill" id="conn"><i class="dot" id="dot"></i><span id="connt">…</span></span>
+</header>
+
+<main>
+<div class="off-banner">Can't reach the bedside panel. Retrying…</div>
+
+<section class="tab on" id="t-room">
+  <div class="col">
+    <div class="card pv">
+    <canvas id="pv" width="468" height="351" aria-label="What the panel shows now"></canvas>
+    <div class="foot"><span id="pv-t">The panel, as it is now</span><button class="chip" id="pv-r" type="button">Refresh</button></div>
+  </div>
+    <h2>Dashboard</h2>
+    <div class="card">
+    <div class="dl" id="dashes"></div>
+    <div class="dacts">
+      <button class="chip" data-cmd="picks"><span data-i="list"></span>Refresh list</button>
+      <button class="chip" data-cmd="fetch"><span data-i="arrow-clockwise"></span>Fetch now</button>
+      <button class="chip" data-cmd="action=refresh"><span data-i="monitor"></span>Re-render</button>
+    </div>
+  </div>
+  </div>
+  <div class="col">
+    <div class="card">
+    <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Volume<small id="vol-sub"></small></div></div>
+    <div class="body sl" style="margin-top:12px">
+      <button class="rb" data-step="vol" data-d="-1" aria-label="Quieter"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/></svg></button>
+      <input type="range" id="vol" min="0" max="10" step="1" data-set="vol">
+      <button class="rb" data-step="vol" data-d="1" aria-label="Louder"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/><rect x="120" y="56" width="16" height="144" rx="8"/></svg></button>
+    </div>
+  </div>
+    <div class="card" style="padding:0;background:none;box-shadow:none">
+    <div class="listen" style="margin-top:0;background:var(--card);box-shadow:var(--shadow)">
+      <button class="rb" id="listen" aria-label="Listen on this device"><span data-i="play"></span></button>
+      <div class="t" id="listen-t">Listen on this phone<small>Streams what the panel is playing to this device</small></div>
+      <div class="meter" id="meter"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+    <div class="card">
+    <div class="ttl"><div class="ic" data-i="moon"></div><div class="t">Night mode<small>Dims the key lights and panel UI</small></div>
+      <label class="sw"><input type="checkbox" id="night" data-set="night"><span></span></label></div>
+  </div>
+    <div class="row2">
+      <div class="card" id="c-lights">
+    <div class="ttl"><div class="ic" data-i="lightbulb"></div><div class="t">Lights<small id="lights-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="lights_on" data-set="lights_on"><span></span></label></div>
+    <div class="body">
+      <div class="sl"><span data-i="sun" style="color:var(--sub)"></span><input type="range" id="bright" min="5" max="100" step="5" data-set="bright"><output id="bright-o"></output></div>
+      <div class="lbl">Colour</div><div class="seg" data-seg="colour" data-opts="0:Warm,1:Night"></div>
+    </div>
+  </div>
+      <div class="card" id="c-ac">
+    <div class="ttl"><div class="ic" data-i="snowflake"></div><div class="t">A/C<small id="ac-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="ac_on"><span></span></label></div>
+    <div class="body">
+      <div class="step" style="margin-top:4px">
+        <button class="rb" data-sp="-0.5" aria-label="Cooler"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/></svg></button>
+        <div class="v" id="sp">--</div>
+        <button class="rb" data-sp="0.5" aria-label="Warmer"><svg class="i" viewBox="0 0 256 256"><rect x="56" y="120" width="144" height="16" rx="8"/><rect x="120" y="56" width="16" height="144" rx="8"/></svg></button>
+      </div>
+      <div class="lbl">Mode</div><div class="seg" data-seg="ac_mode" data-opts="3:Cool,1:Heat,2:Fan,4:Dry"></div>
+      <div class="lbl">Fan</div><div class="seg" data-seg="fan" data-opts="0:Auto,1:Low,2:Mid,3:High"></div>
+    </div>
+  </div>
+    </div>
+  </div>
+</section>
+
+<section class="tab" id="t-sound">
+  <div class="col">
+    <div class="card" id="c-rain">
+    <div class="ttl"><div class="ic" data-i="cloud-rain"></div><div class="t">Sleep sounds<small id="rain-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="rain_on" data-set="rain_on"><span></span></label></div>
+    <div class="body">
+      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise,3:Wind,4:Recording"></div>
+      <div id="rec-box" hidden><label class="fld"><span>Recording</span><select id="rec"></select></label>
+        <div class="hint" style="text-align:left;margin-top:6px" id="rec-hint"></div></div>
+      <div class="lbl">Intensity</div><div class="seg" data-seg="rain_lvl" data-opts="1:1,2:2,3:3,4:4,5:5"></div>
+      <div class="lbl">Sleep timer</div><div class="seg" data-seg="sleep" data-opts="0:Off,15:15m,30:30m,60:60m"></div>
+      <details class="more" id="shape"><summary><span data-i="sliders-horizontal"></span>Shape the rain</summary>
+        <div class="lbl">Falling on</div><div class="seg" data-seg="surface" data-opts="0:Ground,1:Leaves,2:Roof,3:Window"></div>
+        <div class="lbl">Sound</div>
+        <div class="sl"><span class="k">Drops</span><input type="range" id="patter" min="0" max="100" step="5" data-set="patter"><output id="patter-o"></output></div>
+        <div class="sl"><span class="k">Hiss</span><input type="range" id="wash" min="0" max="100" step="5" data-set="wash"><output id="wash-o"></output></div>
+        <div class="sl"><span class="k">Tone</span><input type="range" id="tone" min="0" max="100" step="5" data-set="tone"><output id="tone-o"></output></div>
+        <div class="ends"><span>Darker</span><span>Brighter</span></div>
+        <div class="sl"><span class="k">Wind</span><input type="range" id="wind" min="0" max="100" step="5" data-set="wind"><output id="wind-o"></output></div>
+        <div class="lbl">Thunder</div>
+        <div class="sl"><span class="k">How often</span><input type="range" id="thunder" min="0" max="100" step="5" data-set="thunder"><output id="thunder-o"></output></div>
+        <div class="ends"><span>Never</span><span>Every ~30 s</span></div>
+        <div class="sl"><span class="k">Distance</span><input type="range" id="thunder_near" min="0" max="100" step="5" data-set="thunder_near"><output id="thunder_near-o"></output></div>
+        <div class="ends"><span>Far off</span><span>Overhead</span></div>
+        <button class="btn w" id="strike" style="margin-top:12px"><span data-i="cloud-lightning"></span>Roll thunder now</button>
+        <button class="btn w" id="shape-reset" style="margin-top:8px">Reset to defaults</button>
+      </details>
+    </div>
+  </div>
+  </div>
+  <div class="col">
+    <h2>Recordings and files</h2>
+    <div class="card" id="c-files">
+    <div class="fbar"><i id="f-used"></i></div>
+    <div class="fcap" id="f-cap">…</div>
+    <div id="f-list"></div>
+    <label class="drop" id="f-drop"><input type="file" id="f-in" hidden>
+      <span class="ic" data-i="plus"></span><span class="t"><b>Add a file</b><small>Choose one, or drop it here</small></span></label>
+    <div class="fprog" id="f-prog" hidden><div class="fpt"><span id="f-pt"></span><span id="f-pp"></span></div><div class="fbar"><i id="f-pb"></i></div></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Convert sounds for the panel<small style="display:block;color:var(--sub);font-size:12px">MP3, WAV, M4A and the like become 22 kHz mono ADPCM (about 0.66 MB a minute), levelled, with the end blended into the start so it loops without a seam</small></div><label class="sw"><input type="checkbox" id="f-conv" checked><span></span></label></div>
+    <div class="hint" style="text-align:left;margin-top:10px">Files live in the flash after the firmware, so updates leave them alone. While a file is written the sound may stutter.</div>
+  </div>
+  </div>
+</section>
+
+<section class="tab" id="t-speaker">
+  <div class="col">
+    <div class="card" id="c-spk">
+    <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Speaker<small id="spk-sub">How the panel's own speaker sounds</small></div></div>
+    <div class="body">
+      <div class="sl"><span class="k">Level</span><input type="range" id="spk_gain" min="-12" max="6" step="1" data-set="spk_gain" data-unit=" dB"><output id="spk_gain-o"></output></div>
+      <div class="sl"><span class="k">Bass</span><input type="range" id="spk_bass" min="-8" max="8" step="1" data-set="spk_bass" data-unit=" dB"><output id="spk_bass-o"></output></div>
+      <div class="sl"><span class="k">Treble</span><input type="range" id="spk_treble" min="-12" max="6" step="1" data-set="spk_treble" data-unit=" dB"><output id="spk_treble-o"></output></div>
+      <div class="ends"><span>Softer</span><span>Brighter</span></div>
+      <div class="lbl">Soften sharp highs above</div><div class="seg" data-seg="spk_soft" data-opts="0:Off,1:8 kHz,2:6 kHz,3:5 kHz,4:4 kHz,5:3 kHz"></div>
+      <div class="lbl">Low cut below</div><div class="seg" data-seg="spk_hpf" data-opts="0:Off,1:60 Hz,2:90 Hz,3:120 Hz,4:160 Hz"></div>
+      <div class="lbl">Loud moments</div><div class="seg" data-seg="spk_limit" data-opts="0:As they are,1:Gentle,2:Firm"></div>
+      <div class="lbl">Test sound <span style="font-weight:400;text-transform:none;letter-spacing:0">(20 s, at the current volume)</span></div>
+      <div class="dacts" id="spk-tests">
+        <button class="chip" data-test="1"><span data-i="play"></span>Pink noise</button><button class="chip" data-test="2">1 kHz</button><button class="chip" data-test="3">100 Hz</button><button class="chip" data-test="4">Sweep</button><button class="chip" data-test="0"><span data-i="x"></span>Stop</button>
+      </div>
+      <div class="hint" style="text-align:left;margin-top:10px">Bird calls too sharp? Lower Treble or pick a Soften cutoff here; Softness in the Dawn chorus card (Alarms) tames the birds alone.</div>
+    </div>
+  </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Response<small>What the tone stage does to the sound, 40 Hz to 11 kHz</small></div></div>
+      <div class="body">
+        <canvas class="eq" id="eq" width="900" height="300" aria-label="Frequency response of the speaker tuning"></canvas>
+        <div class="hint" style="text-align:left;margin-top:10px" id="eq-hint"></div>
+      </div>
+    </div>
+    <h2>Hardware</h2>
+    <div class="card" id="c-hw">
+    <div class="row"><div style="flex:1">Speaker<small style="display:block;color:var(--sub);font-size:12px" id="hw-spk"></small></div><label class="sw"><input type="checkbox" id="hw-speaker" data-set="speaker"><span></span></label></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Battery backup<small style="display:block;color:var(--sub);font-size:12px" id="hw-bat"></small></div><label class="sw"><input type="checkbox" id="hw-power" data-set="power_mon"><span></span></label></div>
+    <div class="hint" style="text-align:left;margin-top:10px">The speaker is a MAX98357A on GP18/19/21 (GP16 switches it off when quiet); battery backup reads the PowerBoost on GP26 to GP28. Turn battery backup on only once it is wired: unconnected, those pins read nonsense.</div>
+  </div>
+  </div>
+</section>
+
+<section class="tab" id="t-alarms">
+  <div class="col">
+    <div class="ringing" id="ringing"><div id="ring-what">Alarm</div><b id="ring-time">--:--</b>
+    <div class="grid2"><button class="btn" id="ring-snooze">Snooze 9 min</button><button class="btn pri" id="ring-stop">Stop</button></div></div>
+<div id="alarms"></div>
+<button class="btn pri w" id="alarm-add" style="margin-bottom:12px"><span data-i="plus"></span>Add alarm</button>
+  </div>
+  <div class="col">
+    <div class="card" id="c-chorus">
+    <div class="ttl"><div class="ic" data-i="bird"></div><div class="t">Dawn chorus<small id="chorus-sub">Builds through each alarm's wake-up window</small></div></div>
+    <div class="body">
+      <div style="font-size:14px;color:var(--sub)">Real recordings of Australian birds, with a few synthesised ones for variety, arranged fresh every morning. One magpie starts far off, more birds join as the alarm nears, and the rain fades out under them.</div>
+      <div id="birds" style="margin-top:6px"></div>
+      <div class="lbl">Alarm volume</div>
+      <div class="sl"><span data-i="speaker-high" style="color:var(--sub)"></span><input type="range" id="bird_vol" min="1" max="10" step="1" data-set="bird_vol"><output id="bird_vol-o"></output></div>
+      <div class="lbl">Softness</div>
+      <div class="sl"><span data-i="bird" style="color:var(--sub)"></span><input type="range" id="bird_soft" min="0" max="100" step="5" data-set="bird_soft"><output id="bird_soft-o"></output></div>
+      <div class="ends"><span>Natural</span><span>Soft: whistles and chirps lose their edge</span></div>
+      <button class="btn w" id="chorus-preview" style="margin-top:12px"><span data-i="play"></span>Preview the build-up</button>
+      <div class="hint" id="chorus-hint">Plays through this phone while Listen is on (Room tab).</div>
+      <details class="credits"><summary>Recording credits</summary><ul><li><a href="https://commons.wikimedia.org/wiki/File:Magpiesong.ogg" target="_blank" rel="noopener">Magpiesong.ogg</a> by Meganesia, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Magpie_Caroling.ogg" target="_blank" rel="noopener">Magpie Caroling.ogg</a> by Hullwarren, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Cracticus_torquatus_-_Grey_Butcherbird_XC442754.mp3" target="_blank" rel="noopener">Cracticus torquatus - Grey Butcherbird XC442754.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Bird_song,_grassy_woodlands,_central_Victoria.ogg" target="_blank" rel="noopener">Bird song, grassy woodlands, central Victoria.ogg</a> by billinghurst, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg" target="_blank" rel="noopener">Eastern Whipbird.ogg</a> by Wardie44, Public domain</li><li><a href="https://commons.wikimedia.org/wiki/File:Anthochaera_carunculata_-_Red_Wattlebird_XC446154.mp3" target="_blank" rel="noopener">Anthochaera carunculata - Red Wattlebird XC446154.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:LaughingKookaburra.ogg" target="_blank" rel="noopener">LaughingKookaburra.ogg</a> by Kuco, Public domain</li></ul></details>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="tab" id="t-display">
+  <div class="col">
+    <h2>Home screen</h2>
+    <div class="card">
+    <div class="grid2">
+      <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
+      <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option></select></label>
+    </div>
+    <div class="lbl">Shows</div>
+    <div id="shows"></div>
+    <div class="hint" style="text-align:left;margin-top:12px" id="vp"></div>
+  </div>
+    <h2>Lights and clock</h2>
+    <div class="card">
+    <div class="grid2">
+      <label class="fld"><span>Key colour</span><select data-pset="key_col"></select></label>
+      <label class="fld"><span>Menu key colour</span><select data-pset="menu_col"></select></label>
+      <label class="fld"><span>Keys at night</span><select data-pset="night_keys"><option value="0">Dim</option><option value="1">Off</option></select></label>
+      <label class="fld"><span>Auto night</span><select data-pset="auto_night"><option value="0">Off</option><option value="1">21:00 to 07:00</option><option value="2">22:00 to 07:00</option><option value="3">23:00 to 07:00</option></select></label>
+      <label class="fld"><span>Clock</span><select data-pset="clock12"><option value="0">24-hour</option><option value="1">12-hour</option></select></label>
+      <label class="fld"><span>Snooze</span><select data-pset="snooze"><option value="5">5 min</option><option value="9">9 min</option><option value="10">10 min</option><option value="15">15 min</option></select></label>
+      <label class="fld"><span>Time zone</span><select data-pset="tz"></select></label>
+    </div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Set time automatically<small style="display:block;color:var(--sub);font-size:12px">Off: set the time and date on the panel, Settings → Time and clock</small></div><label class="sw"><input type="checkbox" id="auto_time" data-set="auto_time"><span></span></label></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1">Knob light</div><label class="sw"><input type="checkbox" id="knob_light" data-set="knob_light"><span></span></label></div>
+  </div>
+  </div>
+  <div class="col">
+    <h2>Panel</h2>
+    <div class="card">
+    <div class="row"><div style="flex:1">Mirror image</div><label class="sw"><input type="checkbox" id="mirror"><span></span></label></div>
+    <div class="row"><div style="flex:1">Status banner</div><label class="sw"><input type="checkbox" id="banner"><span></span></label></div>
+    <label class="fld" style="margin-top:14px"><span>Screen updates</span><select data-pset="refresh_mode">
+      <option value="0">Fast: just the part that changed, a full clean-up when you stop</option>
+      <option value="1">Clean: full quality, just the part that changed</option>
+      <option value="2">Full: the whole screen, every change</option></select></label>
+    <label class="fld"><span>Clean refresh every</span><select data-pset="clean_min"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="45">45 minutes</option></select></label>
+    <div class="hint" style="text-align:left;margin-top:6px">Partial updates (the clock, menus) wear the picture a little each time on this panel. A full clean refresh runs 15 s after you stop using it, and this often while it sits.</div>
+    <label class="fld"><span>Waveform temperature</span><select data-pset="wf_temp">
+      <option value="0">Default (20 °C)</option><option value="14">14 °C</option><option value="16">16 °C</option><option value="18">18 °C</option>
+      <option value="22">22 °C</option><option value="24">24 °C</option><option value="26">26 °C</option><option value="28">28 °C</option><option value="30">30 °C</option></select></label>
+    <div class="hint" style="text-align:left;margin-top:6px" id="wf-hint">The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. This forces the value. Lower is darker; keep it within a few degrees of the room.</div>
+    <div class="grid2" style="margin-top:14px">
+      <button class="btn" data-cmd="white">Full refresh</button>
+      <button class="btn" data-cmd="card">Test card</button>
+      <button class="btn" data-cmd="dashboard">Dashboard</button>
+      <button class="btn" data-cmd="init">Re-init panel</button>
+    </div>
+  </div>
+    <h2>Controls</h2>
+    <div class="card">
+    <div class="lbl">Key lights</div>
+    <div class="sl"><span data-i="keyboard" style="color:var(--sub)"></span><input type="range" id="keylights" min="0" max="100" step="5" data-set="keylights"><output id="keylights-o"></output></div>
+    <div class="lbl">Keys</div>
+    <div class="kmap" id="kmap"></div>
+    <div class="grid2" id="kbinds"></div>
+    <div class="hint" style="text-align:left">A key with a hold action waits half a second to tell a press from a hold. MENU is fixed: press for the menu or back, hold for home.</div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Quick menu moves<small style="display:block;color:var(--sub);font-size:12px">Knob steps paint in black and white (about a quarter second); full quality once the knob rests</small></div><label class="sw"><input type="checkbox" id="quick_menus" data-set="quick_menus"><span></span></label></div>
+    <div class="lbl">Hardware</div>
+    <dl id="hw"></dl>
+    <div class="lbl">BOOT button</div>
+    <label class="fld"><span>Short press</span><select data-bind="boot_short"></select></label>
+    <label class="fld"><span>Long press</span><select data-bind="boot_long"></select></label>
+  </div>
+  </div>
+  <div class="col">
+    <h2>Live dashboard</h2>
+    <div class="card">
+    <div style="font-size:14px;color:var(--sub)">Each tile reads a Home Assistant entity through MQTT Statestream (type its entity id, like <b>sensor.bedroom_temperature</b>), or any MQTT topic. Leave one empty to use <b>bedside/live/&lt;name&gt;</b>, which an automation can publish to.</div>
+    <div class="grid2">
+      <label class="fld"><span>Statestream base topic</span><input id="lv-base" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Location (lat, lon) for sunrise</span><input id="lv-loc" inputmode="decimal" autocapitalize="off" spellcheck="false"></label>
+    </div>
+    <div id="lv-slots"></div>
+  </div>
+  </div>
+</section>
+
+<section class="tab" id="t-device">
+  <div class="col">
+    <h2>Status</h2>
+    <div class="card"><dl id="stats"></dl></div>
+    <h2>Software</h2>
+    <div class="card">
+    <div class="row"><div style="flex:1">Installed<small id="sw-ver" style="display:block;color:var(--sub);font-size:12px"></small></div><button class="btn" data-cmd="otacheck" type="button">Check GitHub</button></div>
+    <div id="sw-rel" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Auto-update overnight<small style="display:block;color:var(--sub);font-size:12px">The newest stable release at 03:10, never near an alarm</small></div><label class="sw"><input type="checkbox" id="autoupdate" data-set="autoupdate"><span></span></label></div>
+    <div class="hint" style="text-align:left;margin-top:10px" id="sw-state"></div>
+  </div>
+    <h2>Power</h2>
+    <div class="grid2" style="margin-top:12px">
+    <button class="btn" data-confirm="Restart the bedside panel?" data-cmd="reboot"><span data-i="power"></span>Restart</button>
+    <button class="btn" data-confirm="Reboot into the USB bootloader? It stays there until flashed or power-cycled." data-cmd="bootsel">Bootloader</button>
+  </div>
+  </div>
+  <div class="col">
+    <h2>Tesserae</h2>
+    <div class="card">
+    <div class="ttl"><div class="ic" data-i="monitor"></div><div class="t" id="ts-state">—<small id="ts-err"></small></div></div>
+    <form id="f-tess">
+      <label class="fld"><span>Server</span><input name="server" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="grid2">
+        <label class="fld"><span>Device ID</span><input name="device" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld"><span>Name</span><input name="name" autocomplete="off"></label>
+      </div>
+      <label class="fld"><span>Kind</span><input name="kind" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="btn pri w" style="margin-top:14px">Save connection</button>
+    </form>
+    <form id="f-pair" class="inl">
+      <label class="fld"><span>Pairing code</span><input name="pair" autocomplete="one-time-code" autocapitalize="characters"></label>
+      <button class="btn">Pair</button>
+    </form>
+    <button class="btn dan w" style="margin-top:12px" data-confirm="Forget the pairing? The panel will re-register." data-cmd="forget">Forget pairing</button>
+  </div>
+    <h2>Home Assistant</h2>
+    <div class="card">
+    <div class="ttl"><div class="ic" data-i="house"></div><div class="t" id="ha-state">MQTT<small id="ha-err"></small></div>
+      <label class="sw"><input type="checkbox" id="ha-on"><span></span></label></div>
+    <form id="f-ha">
+      <div class="inl"><label class="fld" style="flex:3"><span>Broker</span><input name="host" placeholder="homeassistant.local" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld" style="flex:1"><span>Port</span><input name="port" inputmode="numeric" placeholder="1883"></label></div>
+      <div class="grid2">
+        <label class="fld"><span>Username</span><input name="user" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password" placeholder="unchanged"></label>
+      </div>
+      <details class="credits"><summary>Topics</summary>
+        <div class="grid2">
+          <label class="fld"><span>Discovery prefix</span><input name="prefix" placeholder="homeassistant" autocapitalize="off" spellcheck="false"></label>
+          <label class="fld"><span>Base topic</span><input name="base" placeholder="bedside" autocapitalize="off" spellcheck="false"></label>
+        </div>
+      </details>
+      <button class="btn pri w" style="margin-top:14px">Save and connect</button>
+    </form>
+    <div class="hint" style="text-align:left;margin-top:10px">With the MQTT integration in Home Assistant, the panel appears as one device with every control here: sleep sounds, rain and thunder, the dawn chorus, alarms, lights and A/C, night mode, the dashboard, and an Events entity for automations.</div>
+  </div>
+  </div>
+  <div class="col">
+    <h2>Wi-Fi</h2>
+    <div class="card">
+    <form id="f-wifi">
+      <label class="fld"><span>Network</span><input name="ssid" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password"></label>
+      <button class="btn w" style="margin-top:14px">Save, applies after restart</button>
+    </form>
+  </div>
+    <h2>Reset</h2>
+    <div class="card">
+    <div style="font-size:14px;color:var(--sub)">Erases every setting on the panel: alarms, sounds, lights, Home Assistant, the live dashboard, pairing. It then restarts with the Wi-Fi and server built into its firmware and pairs itself again.</div>
+    <button class="btn dan w" id="factory-reset" style="margin-top:14px"><span data-i="trash"></span>Reset everything</button>
+  </div>
+  </div>
+</section>
+
+<section class="tab" id="t-console">
+  <div class="card con">
+    <pre class="log" id="log" aria-live="off"></pre>
+    <form class="conin" id="f-con" autocomplete="off">
+      <span class="pr">&gt;</span><input id="con-in" name="c" placeholder="Command, e.g. ? or p or v1480" autocapitalize="off" spellcheck="false" enterkeyhint="send">
+      <button class="btn pri">Send</button>
+    </form>
+    <div class="chips" id="conkeys" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:14px">
+      <div style="flex:1">Follow new lines</div><label class="sw"><input type="checkbox" id="con-follow" checked><span></span></label>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn" id="con-copy" type="button">Copy log</button>
+      <button class="btn" id="con-clear" type="button">Clear view</button>
+    </div>
+    <div class="hint" style="text-align:left;margin-top:10px">The same commands as the USB serial port. Typed text runs as keys; Enter on its own is a knob press (the Enter chip). The panel keeps the last 16 KB of log.</div>
+  </div>
+</section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ICONS={'terminal':'<path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200ZM69.66,93.66a8,8,0,0,1,11.31-.02l29,29a8,8,0,0,1,0,11.32l-29,29a8,8,0,0,1-11.32-11.32L93,128,69.66,104.69A8,8,0,0,1,69.66,93.66ZM192,160a8,8,0,0,1-8,8H128a8,8,0,0,1,0-16h56A8,8,0,0,1,192,160Z"/>',
+'alarm':'<path d="M128,40a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,40Zm0,176a80,80,0,1,1,80-80A80.09,80.09,0,0,1,128,216ZM61.66,37.66l-32,32A8,8,0,0,1,18.34,58.34l32-32A8,8,0,0,1,61.66,37.66Zm176,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,237.66,69.66ZM184,128a8,8,0,0,1,0,16H128a8,8,0,0,1-8-8V80a8,8,0,0,1,16,0v48Z"/>',
+'arrow-clockwise':'<path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/>',
+'arrow-u-up-left':'<path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"/>',
+'battery-charging':'<path d="M200,56H32A24,24,0,0,0,8,80v96a24,24,0,0,0,24,24H200a24,24,0,0,0,24-24V80A24,24,0,0,0,200,56Zm8,120a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H200a8,8,0,0,1,8,8Zm48-80v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM138.81,123.79a8,8,0,0,1,.35,7.79l-16,32a8,8,0,0,1-14.32-7.16L119.06,136H100a8,8,0,0,1-7.16-11.58l16-32a8,8,0,1,1,14.32,7.16L112.94,120H132A8,8,0,0,1,138.81,123.79Z"/>',
+'bell-ringing':'<path d="M224,71.1a8,8,0,0,1-10.78-3.42,94.13,94.13,0,0,0-33.46-36.91,8,8,0,1,1,8.54-13.54,111.46,111.46,0,0,1,39.12,43.09A8,8,0,0,1,224,71.1ZM35.71,72a8,8,0,0,0,7.1-4.32A94.13,94.13,0,0,1,76.27,30.77a8,8,0,1,0-8.54-13.54A111.46,111.46,0,0,0,28.61,60.32,8,8,0,0,0,35.71,72Zm186.1,103.94A16,16,0,0,1,208,200H167.2a40,40,0,0,1-78.4,0H48a16,16,0,0,1-13.79-24.06C43.22,160.39,48,138.28,48,112a80,80,0,0,1,160,0C208,138.27,212.78,160.38,221.81,175.94ZM150.62,200H105.38a24,24,0,0,0,45.24,0ZM208,184c-10.64-18.27-16-42.49-16-72a64,64,0,0,0-128,0c0,29.52-5.38,53.74-16,72Z"/>',
+'calendar-blank':'<path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z"/>',
+'caret-left':'<path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/>',
+'caret-right':'<path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/>',
+'check':'<path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/>',
+'cloud-rain':'<path d="M158.66,196.44l-32,48a8,8,0,1,1-13.32-8.88l32-48a8,8,0,0,1,13.32,8.88ZM232,92a76.08,76.08,0,0,1-76,76H132.28l-29.62,44.44a8,8,0,1,1-13.32-8.88L113.05,168H76A52,52,0,0,1,76,64a53.26,53.26,0,0,1,8.92.76A76.08,76.08,0,0,1,232,92Zm-16,0A60.06,60.06,0,0,0,96,88.46a8,8,0,0,1-16-.92q.21-3.66.77-7.23A38.11,38.11,0,0,0,76,80a36,36,0,0,0,0,72h80A60.07,60.07,0,0,0,216,92Z"/>',
+'cloud-sun':'<path d="M164,72a76.2,76.2,0,0,0-20.26,2.73,55.63,55.63,0,0,0-9.41-11.54l9.51-13.57a8,8,0,1,0-13.11-9.18L121.22,54A55.9,55.9,0,0,0,96,48c-.58,0-1.16,0-1.74,0L91.37,31.71a8,8,0,1,0-15.75,2.77L78.5,50.82A56.1,56.1,0,0,0,55.23,65.67L41.61,56.14a8,8,0,1,0-9.17,13.11L46,78.77A55.55,55.55,0,0,0,40,104c0,.57,0,1.15,0,1.72L23.71,108.6a8,8,0,0,0,1.38,15.88,8.24,8.24,0,0,0,1.39-.12l16.32-2.88a55.74,55.74,0,0,0,5.86,12.42A52,52,0,0,0,84,224h80a76,76,0,0,0,0-152ZM56,104a40,40,0,0,1,72.54-23.24,76.26,76.26,0,0,0-35.62,40,52.14,52.14,0,0,0-31,4.17A40,40,0,0,1,56,104ZM164,208H84a36,36,0,1,1,4.78-71.69c-.37,2.37-.63,4.79-.77,7.23a8,8,0,0,0,16,.92,58.91,58.91,0,0,1,1.88-11.81c0-.16.09-.32.12-.48A60.06,60.06,0,1,1,164,208Z"/>',
+'gear':'<path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/>',
+'house':'<path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/>',
+'keyboard':'<path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224V192Zm-16-64a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,128Zm0-32a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,96ZM72,160a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16h8A8,8,0,0,1,72,160Zm96,0a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,160Zm40,0a8,8,0,0,1-8,8h-8a8,8,0,0,1,0-16h8A8,8,0,0,1,208,160Z"/>',
+'lightbulb':'<path d="M176,232a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,232Zm40-128a87.55,87.55,0,0,1-33.64,69.21A16.24,16.24,0,0,0,176,186v6a16,16,0,0,1-16,16H96a16,16,0,0,1-16-16v-6a16,16,0,0,0-6.23-12.66A87.59,87.59,0,0,1,40,104.49C39.74,56.83,78.26,17.14,125.88,16A88,88,0,0,1,216,104Zm-16,0a72,72,0,0,0-73.74-72c-39,.92-70.47,33.39-70.26,72.39a71.65,71.65,0,0,0,27.64,56.3A32,32,0,0,1,96,186v6h64v-6a32.15,32.15,0,0,1,12.47-25.35A71.65,71.65,0,0,0,200,104Zm-16.11-9.34a57.6,57.6,0,0,0-46.56-46.55,8,8,0,0,0-2.66,15.78c16.57,2.79,30.63,16.85,33.44,33.45A8,8,0,0,0,176,104a9,9,0,0,0,1.35-.11A8,8,0,0,0,183.89,94.66Z"/>',
+'list':'<path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/>',
+'monitor':'<path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"/>',
+'moon':'<path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/>',
+'pause':'<path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/>',
+'play':'<path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"/>',
+'plug':'<path d="M237.66,66.34a8,8,0,0,0-11.32,0L192,100.69,155.31,64l34.35-34.34a8,8,0,1,0-11.32-11.32L144,52.69,117.66,26.34a8,8,0,0,0-11.32,11.32L112.69,44l-53,53a40,40,0,0,0,0,56.57l15.71,15.71L26.34,218.34a8,8,0,0,0,11.32,11.32l49.09-49.09,15.71,15.71a40,40,0,0,0,56.57,0l53-53,6.34,6.35a8,8,0,0,0,11.32-11.32L203.31,112l34.35-34.34A8,8,0,0,0,237.66,66.34ZM147.72,185a24,24,0,0,1-33.95,0L71,142.23a24,24,0,0,1,0-33.95l53-53L200.69,132Z"/>',
+'plus':'<path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/>',
+'power':'<path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/>',
+'skip-back':'<path d="M199.81,34a16,16,0,0,0-16.24.43L64,109.23V40a8,8,0,0,0-16,0V216a8,8,0,0,0,16,0V146.77l119.57,74.78A15.95,15.95,0,0,0,208,208.12V47.88A15.86,15.86,0,0,0,199.81,34ZM192,208,64.16,128,192,48.07Z"/>',
+'skip-forward':'<path d="M200,32a8,8,0,0,0-8,8v69.23L72.43,34.45A15.95,15.95,0,0,0,48,47.88V208.12a16,16,0,0,0,24.43,13.43L192,146.77V216a8,8,0,0,0,16,0V40A8,8,0,0,0,200,32ZM64,207.93V48.05l127.84,80Z"/>',
+'sliders-horizontal':'<path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/>',
+'snowflake':'<path d="M223.77,150.09a8,8,0,0,1-5.86,9.68l-24.64,6,6.46,24.11a8,8,0,0,1-5.66,9.8A8.25,8.25,0,0,1,192,200a8,8,0,0,1-7.72-5.93l-7.72-28.8L136,141.86v46.83l21.66,21.65a8,8,0,0,1-11.32,11.32L128,203.31l-18.34,18.35a8,8,0,0,1-11.32-11.32L120,188.69V141.86L79.45,165.27l-7.72,28.8A8,8,0,0,1,64,200a8.25,8.25,0,0,1-2.08-.27,8,8,0,0,1-5.66-9.8l6.46-24.11-24.64-6a8,8,0,0,1,3.82-15.54l29.45,7.23L112,128,71.36,104.54l-29.45,7.23A7.85,7.85,0,0,1,40,112a8,8,0,0,1-1.91-15.77l24.64-6L56.27,66.07a8,8,0,0,1,15.46-4.14l7.72,28.8L120,114.14V67.31L98.34,45.66a8,8,0,0,1,11.32-11.32L128,52.69l18.34-18.35a8,8,0,0,1,11.32,11.32L136,67.31v46.83l40.55-23.41,7.72-28.8a8,8,0,0,1,15.46,4.14l-6.46,24.11,24.64,6A8,8,0,0,1,216,112a7.85,7.85,0,0,1-1.91-.23l-29.45-7.23L144,128l40.64,23.46,29.45-7.23A8,8,0,0,1,223.77,150.09Z"/>',
+'speaker-high':'<path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/>',
+'speaker-slash':'<path d="M53.92,34.62A8,8,0,1,0,42.08,45.38L73.55,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V175.09l42.08,46.29a8,8,0,1,0,11.84-10.76ZM32,96H72v64H32ZM144,207.64,88,164.09V95.89l56,61.6Zm42-63.77a24,24,0,0,0,0-31.72,8,8,0,1,1,12-10.57,40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.59Zm-80.16-76a8,8,0,0,1,1.4-11.23l39.85-31A8,8,0,0,1,160,32v74.83a8,8,0,0,1-16,0V48.36l-26.94,21A8,8,0,0,1,105.84,67.91ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/>',
+'sun':'<path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/>',
+'thermometer':'<path d="M212,56a28,28,0,1,0,28,28A28,28,0,0,0,212,56Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,212,96Zm-84,57V88a8,8,0,0,0-16,0v65a32,32,0,1,0,16,0Zm-8,47a16,16,0,1,1,16-16A16,16,0,0,1,120,200Zm40-66V48a40,40,0,0,0-80,0v86a64,64,0,1,0,80,0Zm-40,98a48,48,0,0,1-27.42-87.4A8,8,0,0,0,96,138V48a24,24,0,0,1,48,0v90a8,8,0,0,0,3.42,6.56A48,48,0,0,1,120,232Z"/>',
+'trash':'<path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/>',
+'wifi-high':'<path d="M140,204a12,12,0,1,1-12-12A12,12,0,0,1,140,204ZM237.08,87A172,172,0,0,0,18.92,87,8,8,0,0,0,29.08,99.37a156,156,0,0,1,197.84,0A8,8,0,0,0,237.08,87ZM205,122.77a124,124,0,0,0-153.94,0A8,8,0,0,0,61,135.31a108,108,0,0,1,134.06,0,8,8,0,0,0,11.24-1.3A8,8,0,0,0,205,122.77Zm-32.26,35.76a76.05,76.05,0,0,0-89.42,0,8,8,0,0,0,9.42,12.94,60,60,0,0,1,70.58,0,8,8,0,1,0,9.42-12.94Z"/>',
+'x':'<path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/>',
+'cloud-lightning':'<path d="M156,12A80.22,80.22,0,0,0,82.39,60.36,56.76,56.76,0,0,0,76,60a56,56,0,0,0,0,112h30.81l-13.1,21.82A12,12,0,0,0,104,212h18.81l-13.1,21.82a12,12,0,1,0,20.58,12.35l24-40A12,12,0,0,0,144,188H125.19l9.6-16H156a80,80,0,0,0,0-160Zm0,136H76a32,32,0,0,1,0-64h.28c-.11,1.1-.2,2.2-.26,3.3a12,12,0,1,0,24,1.39A56.06,56.06,0,1,1,156,148Z"/>',
+'bird':'<path d="M176,72a16,16,0,1,1-16-16A16,16,0,0,1,176,72Zm68,8a12,12,0,0,1-5.34,10L220,102.42V120A108.12,108.12,0,0,1,112,228H24A20,20,0,0,1,8.41,195.5l.15-.18L92,95.18V76.89C92,41.28,120.57,12.17,155.69,12H156a63.94,63.94,0,0,1,60.58,43.29L238.66,70A12,12,0,0,1,244,80Zm-33.63,0-10.69-7.13a12,12,0,0,1-5-7A40,40,0,0,0,156,36h-.19c-21.95.11-39.8,18.45-39.8,40.89V99.52a12,12,0,0,1-2.79,7.69L32.57,204H53.05l69.74-83.68a12,12,0,1,1,18.43,15.36L84.29,204H112a84.09,84.09,0,0,0,84-84V96a12,12,0,0,1,5.35-10Z"/>',
+};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const svg=n=>`<svg class="i" viewBox="0 0 256 256">${ICONS[n]||''}</svg>`;
+$$('[data-i]').forEach(e=>e.innerHTML=svg(e.dataset.i));
+
+let st=null, ui=null, online=true, failN=0;
+const hold={};                       // field -> until (ms): ignore polled values while the user is driving them
+const touch=(k,ms=2500)=>hold[k]=Date.now()+ms;
+const held=k=>hold[k]&&hold[k]>Date.now();
+const enc=encodeURIComponent;
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1600)}
+async function cmd(q){
+  try{const r=await fetch('/api/cmd?'+q,{method:'POST',cache:'no-store'});if(!r.ok)throw 0;setTimeout(poll,350)}
+  catch(e){toast('Not sent: panel offline')}
+}
+const set=(k,v)=>{touch(k);cmd('set='+enc(k+'|'+v))};
+
+/* ---- tabs ---- */
+const TITLES={room:'Room',alarms:'Alarms',console:'Console',device:'Device'};
+function tab(t){
+  $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
+  $('#title').textContent=TITLES[t]; try{localStorage.tab=t;history.replaceState(null,'','#'+t)}catch(e){}
+  scrollTo(0,0); if(t==='console')logPoll(true); if(t==='device')loadFiles();
+}
+$$('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+try{const h=location.hash.slice(1),t=TITLES[h]?h:localStorage.tab;if(TITLES[t])tab(t)}catch(e){}
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(TITLES[h])tab(h)});
+
+/* ---- room controls ---- */
+$$('.seg[data-seg]').forEach(s=>{
+  s.innerHTML=s.dataset.opts.split(',').map(o=>{const[v,l]=o.split(':');return`<button data-v="${v}">${l}</button>`}).join('');
+  s.onclick=e=>{const b=e.target.closest('button');if(!b)return;
+    s.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));set(s.dataset.seg,b.dataset.v)};
+});
+function segVal(k,v){if(held(k))return;$$(`.seg[data-seg="${k}"] button`).forEach(b=>b.classList.toggle('on',+b.dataset.v===+v))}
+const fill=r=>r.style.setProperty('--p',((r.value-r.min)/(r.max-r.min)*100)+'%');
+const outTxt=(r,v)=>{const u=r.dataset.unit??(r.id==='bird_vol'?'':'%');return (u.trim()==='dB'&&+v>0?'+':'')+v+u};
+$$('input[type=range][data-set]').forEach(r=>{
+  r.oninput=()=>{touch(r.dataset.set,4000);fill(r);const o=$('#'+r.id+'-o');if(o)o.textContent=outTxt(r,r.value);if(r.id==='vol')$('#vol-sub').textContent=volTxt(+r.value)};
+  r.onchange=()=>set(r.dataset.set,r.value);
+});
+$$('input[type=checkbox][data-set]').forEach(c=>c.onchange=()=>{set(c.dataset.set,c.checked?1:0);paintCards()});
+$$('[data-step]').forEach(b=>b.onclick=()=>{const r=$('#'+b.dataset.step);r.value=+r.value+ +b.dataset.d;r.oninput();r.onchange()});
+$$('[data-test]').forEach(b=>b.onclick=()=>{touch('test',1500);$$('#spk-tests .chip').forEach(x=>x.classList.toggle('on',x===b&&+b.dataset.test>0));cmd('set='+enc('test|'+b.dataset.test))});
+$('#ac_on').onchange=e=>{set('ac_mode',e.target.checked?(lastMode||3):0);paintCards()};
+let lastMode=3, spLocal=null, spT;
+$$('[data-sp]').forEach(b=>b.onclick=()=>{
+  const cur=spLocal??(ui?ui.ac.sp:22);spLocal=Math.min(30,Math.max(16,cur+ +b.dataset.sp));
+  $('#sp').innerHTML=spTxt(spLocal);touch('setpoint',4000);
+  clearTimeout(spT);spT=setTimeout(()=>{set('setpoint',spLocal.toFixed(1));setTimeout(()=>spLocal=null,3000)},600);
+});
+const spTxt=v=>`${Math.floor(v)}<small>${v%1?'.5':''}°</small>`;
+const volTxt=v=>v===0?'Muted':`${v} of 10`;
+const KINDS=['Rain','Ocean','Noise','Wind','Recording'], MODES=['Off','Heat','Fan','Cool','Dry'];
+function paintCards(){
+  $('#c-rain').classList.toggle('off',!$('#rain_on').checked);
+  $('#c-lights').classList.toggle('off',!$('#lights_on').checked);
+  $('#c-ac').classList.toggle('off',!$('#ac_on').checked);
+  [['c-rain','rain_on'],['c-lights','lights_on'],['c-ac','ac_on']].forEach(([c,i])=>$('#'+c+' .ic').classList.toggle('lit',$('#'+i).checked));
+}
+function renderRoom(){
+  const u=ui;
+  const rng=(id,v)=>{if(held(id))return;const r=$('#'+id);r.value=v;fill(r);const o=$('#'+id+'-o');if(o)o.textContent=outTxt(r,v)};
+  const chk=(id,v,k=id)=>{if(!held(k))$('#'+id).checked=!!v};
+  rng('vol',u.vol); if(!held('vol'))$('#vol-sub').textContent=volTxt(u.vol);
+  chk('rain_on',u.rain.on); segVal('rain_kind',u.rain.kind); $('#shape').hidden=u.rain.kind!==0; segVal('rain_lvl',u.rain.lvl); segVal('sleep',u.rain.sleep);
+  const left=u.rain.sleep_left_s||0;
+  $('#rain-sub').textContent=u.rain.on?`${KINDS[u.rain.kind]}, level ${u.rain.lvl}${left?`, stops in ${Math.ceil(left/60)} min`:''}`:'Off';
+  chk('lights_on',u.lights.on); rng('bright',u.lights.bright); segVal('colour',u.lights.colour);
+  $('#lights-sub').textContent=u.lights.on?`${u.lights.bright}%, ${u.lights.colour?'night':'warm'}`:'Off';
+  chk('ac_on',u.ac.mode,'ac_mode'); if(u.ac.mode)lastMode=u.ac.mode; segVal('ac_mode',u.ac.mode); segVal('fan',u.ac.fan);
+  if(spLocal===null&&!held('setpoint'))$('#sp').innerHTML=spTxt(u.ac.sp);
+  $('#ac-sub').textContent=(u.ac.mode?`${MODES[u.ac.mode]} to ${u.ac.sp}°`:'Off')+` · room ${u.ac.room}°`;
+  chk('night',u.night); rng('keylights',u.keylights); if(u.chorus){rng('bird_vol',u.chorus.vol);rng('bird_soft',u.chorus.soft??35)}
+  const sp=u.spk||{}; rng('spk_gain',sp.gain??0); rng('spk_bass',sp.bass??0); rng('spk_treble',sp.treble??0);
+  segVal('spk_soft',sp.soft??0); segVal('spk_hpf',sp.hpf??0); segVal('spk_limit',sp.limit??0);
+  if(!held('test'))$$('#spk-tests .chip').forEach(b=>b.classList.toggle('on',+b.dataset.test===(sp.test||0)&&sp.test>0));
+  $('#spk-sub').textContent=sp.test?'Test sound playing':(sp.gain||sp.bass||sp.treble||sp.soft||sp.hpf||sp.limit)?'Tuned':'How the panel\'s own speaker sounds';
+  const sh=u.shape||{}; ['patter','wash','tone','wind','thunder','thunder_near'].forEach(k=>rng(k,sh[k]??0)); segVal('surface',sh.surface??0);
+
+  paintCards();
+}
+
+/* ---- listen: stream the panel's sound generator (GET /audio, s16le mono) ---- */
+const AUD={ctx:null,on:false,ctl:null,next:0,an:null,raf:0,retry:0};
+function listenUI(state,sub){
+  $('#listen').innerHTML=svg(AUD.on?'pause':'play');
+  $('#listen-t').innerHTML=state+`<small>${sub}</small>`;
+}
+async function listenStart(){
+  if(AUD.on)return; AUD.on=true;
+  try{navigator.audioSession&&(navigator.audioSession.type='playback')}catch(e){}   // iOS: play with the ringer off
+  if(!AUD.ctx){AUD.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    AUD.an=AUD.ctx.createAnalyser();AUD.an.fftSize=256;AUD.an.connect(AUD.ctx.destination)}
+  await AUD.ctx.resume();
+  meter();listenLoop();
+}
+function listenStop(){AUD.on=false;clearTimeout(AUD.retry);try{AUD.ctl&&AUD.ctl.abort()}catch(e){}
+  if(AUD.ctx)AUD.ctx.suspend();cancelAnimationFrame(AUD.raf);$$('#meter i').forEach(i=>i.style.height='3px');
+  listenUI('Listen on this phone',"Streams what the panel is playing to this device")}
+async function listenLoop(){
+  const ctx=AUD.ctx;
+  while(AUD.on){
+    listenUI('Connecting…','Bedside panel');
+    AUD.ctl=new AbortController();
+    try{
+      const r=await fetch('/audio',{cache:'no-store',signal:AUD.ctl.signal});
+      const sr=+(r.headers.get('X-Audio-Rate')||22050), reader=r.body.getReader();
+      const CH=Math.round(sr*0.1);                  // schedule 100 ms buffers
+      let pend=new Int16Array(0), odd=null;
+      AUD.next=0; listenUI('Playing from the panel',`Live · ${(sr/1000).toFixed(1)} kHz`);
+      while(AUD.on){
+        const {value,done}=await reader.read(); if(done)break;
+        let bytes=value; if(odd!==null){const b=new Uint8Array(bytes.length+1);b[0]=odd;b.set(bytes,1);bytes=b;odd=null}
+        if(bytes.length&1){odd=bytes[bytes.length-1];bytes=bytes.subarray(0,bytes.length-1)}
+        const al=new Uint8Array(bytes);const samp=new Int16Array(al.buffer);
+        const m=new Int16Array(pend.length+samp.length);m.set(pend);m.set(samp,pend.length);pend=m;
+        while(pend.length>=CH){
+          const chunk=pend.subarray(0,CH);pend=pend.slice(CH);
+          const now=ctx.currentTime;
+          if(AUD.next<now+0.05)AUD.next=now+1.0;    // start, or recover from an underrun, with a 1 s cushion
+          if(AUD.next>now+5)continue;                // far too far ahead: drop (the panel holds ~4 s)
+          const buf=ctx.createBuffer(1,CH,sr),d=buf.getChannelData(0);
+          for(let i=0;i<CH;i++)d[i]=chunk[i]/32768;
+          const src=ctx.createBufferSource();src.buffer=buf;src.connect(AUD.an);src.start(AUD.next);AUD.next+=CH/sr;
+        }
+      }
+    }catch(e){if(!AUD.on)return}
+    if(AUD.on){listenUI('Reconnecting…','Lost the stream');await new Promise(r=>AUD.retry=setTimeout(r,1000))}
+  }
+}
+function meter(){const a=AUD.an,d=new Uint8Array(a.fftSize),bars=$$('#meter i');
+  const f=()=>{if(!AUD.on)return;a.getByteTimeDomainData(d);let s=0;for(const v of d){const x=(v-128)/128;s+=x*x}
+    const lv=Math.min(1,Math.sqrt(s/d.length)*5);bars.forEach((b,i)=>b.style.height=(3+19*Math.max(0,Math.min(1,lv*1.6-i*0.18)))+'px');
+    AUD.raf=requestAnimationFrame(f)};f()}
+$('#listen').onclick=()=>AUD.on?listenStop():listenStart();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AUD.on&&AUD.ctx)AUD.ctx.resume()});
+
+/* ---- rain shape + thunder ---- */
+$('#strike').onclick=()=>{cmd('set='+enc('strike|1'));toast('Thunder rolling…')};
+$('#shape-reset').onclick=()=>{const d={patter:60,wash:55,tone:50,wind:20,surface:0,thunder:0,thunder_near:35};
+  Object.entries(d).forEach(([k,v],i)=>setTimeout(()=>set(k,v),i*120));toast('Rain reset')};
+try{if(localStorage.shapeOpen==='1')$('#shape').open=true}catch(e){}
+$('#shape').addEventListener('toggle',()=>{try{localStorage.shapeOpen=$('#shape').open?'1':'0'}catch(e){}});
+
+/* ---- dawn chorus ---- */
+const BIRD_DESC=['Warbling carol, the first to sing','Rich piping phrases','A high, fast reel','Long whistle and a whip crack','Harsh "chock" coughs','The laugh, near the top',
+  'Synthesised · pure "tink" pings','Synthesised · soft "sleep-may-be"','Synthesised · rising whistles, a whip crack','Synthesised · bell-like whistles'];
+let birdSig='';
+function renderChorus(){
+  const c=ui.chorus; if(!c)return;
+  const sig=JSON.stringify([c.birds,c.names]);
+  if(sig!==birdSig&&!held('birds')){birdSig=sig;
+    $('#birds').innerHTML=c.names.map((n,i)=>`<div class="bird"><button class="rb" data-aud="${i}" aria-label="Play a ${n}">${svg('play')}</button>
+      <div class="t"><b>${n}</b><span>${BIRD_DESC[i]||''}</span></div>
+      <label class="sw"><input type="checkbox" data-bird="${i}" ${c.birds>>i&1?'checked':''}><span></span></label></div>`).join('');
+    $$('[data-bird]').forEach(x=>x.onchange=()=>{let m=0;$$('[data-bird]').forEach(y=>{if(y.checked)m|=1<<+y.dataset.bird});touch('birds',3000);cmd('set='+enc('birds|'+m))});
+    $$('[data-aud]').forEach(b=>b.onclick=()=>{cmd('set='+enc('audition|'+b.dataset.aud));if(!AUD.on)toast('Turn on Listen (Room tab) to hear it')});
+  }
+  const lvl=c.level, prev=c.preview_s>0;
+  $('#chorus-preview').innerHTML=svg(prev?'pause':'play')+(prev?`Stop preview (${c.preview_s}s)`:'Preview the build-up');
+  $('#chorus-sub').textContent=lvl>0?`Singing · ${lvl}%`:c.snooze_s>0?`Snoozed, back in ${Math.ceil(c.snooze_s/60)} min`:"Builds through each alarm's wake-up window";
+  const ringing=ui.phase===2; $('#ringing').classList.toggle('on',ringing);
+  if(ringing){const a=ui.alarms.find(a=>a.on)||{h:0,m:0};$('#ring-time').textContent=`${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}`;$('#ring-what').textContent='Good morning'}
+}
+$('#chorus-preview').onclick=()=>{const prev=ui&&ui.chorus&&ui.chorus.preview_s>0;cmd('set='+enc('chorus_preview|'+(prev?0:90)));
+  if(!prev&&!AUD.on)toast('Turn on Listen (Room tab) to hear it')};
+$('#ring-stop').onclick=()=>cmd('set='+enc('alarm_stop|1'));
+$('#ring-snooze').onclick=()=>cmd('set='+enc('alarm_snooze|1'));
+
+/* ---- alarms ---- */
+const DAYS=['M','T','W','T','F','S','S'], EARLY=[0,5,10,15,30];
+let alarmsLocal=null, alarmSig='';
+function dayTxt(m){if(m===127)return'Every day';if(m===31)return'Weekdays';if(m===96)return'Weekends';if(!m)return'Once';
+  return['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].filter((_,i)=>m>>i&1).join(' ')}
+function sendAlarm(i){const a=alarmsLocal[i];touch('alarms',3000);
+  cmd('set='+enc(`alarm|${i},${a.h},${a.m},${a.on?1:0},${a.days},${a.early}`));renderAlarms(true)}
+function renderAlarms(force){
+  if(!ui)return;
+  if(!held('alarms')||!alarmsLocal)alarmsLocal=ui.alarms.map(a=>({...a}));
+  const sig=JSON.stringify(alarmsLocal);
+  if(!force&&sig===alarmSig)return; alarmSig=sig;
+  const box=$('#alarms');
+  if(document.activeElement&&box.contains(document.activeElement)&&!force)return;
+  box.innerHTML=alarmsLocal.length?'':`<div class="empty">${svg('bell-ringing')}<p>No alarms yet.</p></div>`;
+  alarmsLocal.forEach((a,i)=>{
+    const A=()=>alarmsLocal[i];const c=document.createElement('div');c.className='card alarm'+(a.on?'':' off');
+    c.innerHTML=`<div class="row"><input class="time" type="time" value="${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}">
+      <label class="sw"><input type="checkbox" ${a.on?'checked':''}><span></span></label></div>
+      <div class="body" style="margin-top:4px"><div style="color:var(--sub);font-size:14px">${dayTxt(a.days)}${a.early?` · lights from ${a.early} min early`:''}</div>
+      <div class="days">${DAYS.map((d,k)=>`<button data-d="${k}" class="${a.days>>k&1?'on':''}">${d}</button>`).join('')}</div>
+      <div class="presets"><button class="chip" data-m="31">Weekdays</button><button class="chip" data-m="96">Weekends</button><button class="chip" data-m="127">Every day</button></div>
+      <div class="foot"><select aria-label="Wake light">${EARLY.map(e=>`<option value="${e}" ${e===a.early?'selected':''}>${e?`Wake light ${e} min early`:'No wake light'}</option>`).join('')}</select>
+      <button class="rb" data-del aria-label="Delete alarm" style="color:var(--warn)">${svg('trash')}</button></div></div>`;
+    c.querySelector('.time').onchange=e=>{const[h,m]=e.target.value.split(':').map(Number);if(isNaN(h))return;A().h=h;A().m=m;sendAlarm(i)};
+    c.querySelector('.sw input').onchange=e=>{A().on=e.target.checked?1:0;sendAlarm(i)};
+    c.querySelectorAll('.days button').forEach(b=>b.onclick=()=>{A().days^=1<<+b.dataset.d;sendAlarm(i)});
+    c.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{A().days=+b.dataset.m;sendAlarm(i)});
+    c.querySelector('select').onchange=e=>{A().early=+e.target.value;sendAlarm(i)};
+    c.querySelector('[data-del]').onclick=()=>{if(!confirm(`Delete the ${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')} alarm?`))return;
+      alarmsLocal.splice(i,1);touch('alarms',3000);cmd('set='+enc('alarm_del|'+i));renderAlarms(true)};
+    box.appendChild(c);
+  });
+  const add=$('#alarm-add');add.disabled=alarmsLocal.length>=(ui.max_alarms||4);
+  add.style.display=add.disabled?'none':'';
+}
+$('#alarm-add').onclick=()=>{alarmsLocal.push({h:7,m:0,on:1,days:31,early:15});touch('alarms',3000);cmd('set='+enc('alarm_add|1'));renderAlarms(true)};
+
+/* ---- dashboard picker (Room tab) ---- */
+$('#dashes').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#dashes button').forEach(x=>x.classList.toggle('on',x===b));touch('dash',4000);
+  if(b.dataset.p!==undefined){set('pick',b.dataset.p);if(+b.dataset.p>=0)toast('Loading '+b.dataset.n+'…')}else set('dash',b.dataset.v)};
+
+/* ---- console: the panel's log, and the serial commands ---- */
+let logPos=0, logT=0, logBusy=false;
+const LOGMAX=60000;
+async function logPoll(now){
+  clearTimeout(logT);
+  if(!$('#t-console').classList.contains('on')||document.hidden)return;
+  if(!logBusy){logBusy=true;
+    try{
+      const t=await(await fetch('/api/log?from='+logPos,{cache:'no-store'})).text();
+      const nl=t.indexOf('\n'), next=parseInt(t.slice(0,nl),10), body=t.slice(nl+1);
+      if(!isNaN(next)){logPos=next;
+        if(body){const el=$('#log'),stick=$('#con-follow').checked;
+          el.textContent=(el.textContent+body).slice(-LOGMAX);
+          if(stick)el.scrollTop=el.scrollHeight}}
+    }catch(e){}
+    logBusy=false}
+  logT=setTimeout(logPoll,1000);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)logPoll()});
+const CONKEYS=[['?','Help'],['p','Pairing'],['f','Fetch now'],['V','Read VCOM'],['t','Test card'],['g','Dashboard'],['m','Menu'],['k','Turn ↺'],['j','Turn ↻'],['ENTER','Enter (press)'],['q','Back (hold)'],['i','Re-init panel']];
+$('#conkeys').innerHTML=CONKEYS.map(([k,l])=>`<button class="chip" type="button" data-ck="${k}">${l} <code>${k==='ENTER'?'⏎':k}</code></button>`).join('');
+$('#conkeys').onclick=e=>{const b=e.target.closest('[data-ck]');if(!b)return;
+  b.dataset.ck==='ENTER'?cmd('enter=1'):cmd('serial='+enc(b.dataset.ck));setTimeout(()=>logPoll(true),250)};
+$('#f-con').onsubmit=e=>{e.preventDefault();const i=$('#con-in'),v=i.value;if(!v.trim()){cmd('enter=1');return}
+  cmd('serial='+enc(v));i.value='';setTimeout(()=>logPoll(true),250)};
+$('#con-clear').onclick=()=>{$('#log').textContent=''};
+$('#con-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#log').textContent);toast('Copied')}catch(e){const r=document.createRange();r.selectNodeContents($('#log'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast('Selected: copy it')}};
+
+/* ---- device ---- */
+$$('[data-cmd]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.confirm&&!confirm(b.dataset.confirm))return;cmd(b.dataset.cmd);
+  if(!b.closest('#pages'))toast('Sent')}));
+$('#f-tess').onsubmit=async e=>{e.preventDefault();const f=e.target;touch('tess',8000);
+  for(const k of['server','device','name','kind']){const v=f[k].value.trim(),cur={server:st.tesserae.server,device:st.tesserae.device_id,name:st.tesserae.name,kind:st.tesserae.kind}[k];
+    if(v&&v!==cur){await cmd(k+'='+enc(v));await new Promise(r=>setTimeout(r,150))}}
+  toast('Connection saved')};
+$('#f-pair').onsubmit=e=>{e.preventDefault();const v=e.target.pair.value.trim();if(!v)return;cmd('pair='+enc(v));e.target.reset();toast('Pairing…')};
+$('#f-wifi').onsubmit=e=>{e.preventDefault();const f=e.target;if(!f.ssid.value.trim())return;
+  cmd('wifi='+enc(f.ssid.value.trim()+'|'+f.pass.value));f.pass.value='';toast('Saved. Restart to join')};
+$('#mirror').onchange=e=>{touch('mirror');cmd('mirror='+(e.target.checked?1:0))};
+$('#banner').onchange=e=>{touch('banner');cmd('banner='+(e.target.checked?1:0))};
+let actSig='';
+function haSave(on){const f=$('#f-ha');touch('ha',6000);
+  const v=[on?1:0,f.host.value.trim(),f.port.value.trim()||'1883',f.user.value.trim(),f.prefix.value.trim(),f.base.value.trim(),f.pass.value||'*'].join('|');
+  cmd('mqtt='+enc(v));f.pass.value='';toast(on?'Connecting to the broker…':'Home Assistant off')}
+$('#f-ha').onsubmit=e=>{e.preventDefault();$('#ha-on').checked=true;haSave(true)};
+$('#ha-on').onchange=e=>haSave(e.target.checked);
+function renderHA(){const m=st.mqtt;if(!m)return;
+  $('#ha-state').firstChild.textContent='MQTT · '+m.state+(m.state==='announcing'?` ${m.announced}/${m.entities}`:'');
+  $('#ha-err').textContent=m.error||(m.host?`${m.user||'anonymous'} @ ${m.host}:${m.port}`:'Set the broker to connect');
+  const f=$('#f-ha');
+  if(!held('ha')&&!f.contains(document.activeElement)){$('#ha-on').checked=!!m.enabled;f.host.value=m.host;f.port.value=m.port;f.user.value=m.user;f.prefix.value=m.prefix;f.base.value=m.base;
+    f.pass.placeholder=m.has_pass?'unchanged':'none'}}
+/* ---- software: releases on GitHub, installed over the air ---- */
+let swSig='';
+function vcmp(a,b){const x=a.split('.').map(n=>parseInt(n)||0),y=b.split('.').map(n=>parseInt(n)||0);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i]?-1:1;return 0}
+/* ---- hardware (Device tab) and the recording (Room tab) ---- */
+function renderHW(){
+  const h=ui&&ui.hw; if(!h)return;
+  const chk=(id,v,k)=>{if(!held(k))$('#'+id).checked=!!v};
+  chk('hw-speaker',h.speaker,'speaker'); chk('hw-power',h.power_mon,'power_mon');
+  $('#hw-spk').textContent=!h.speaker?'Off: sound only streams to the web app':h.spk_on?'Playing':'Amp off until there is sound';
+  $('#hw-bat').textContent=!h.power_mon?'Not fitted':h.on_battery?`On battery, ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`:`On mains · battery ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`;
+  renderRec();
+}
+var recFiles=null,recT=0;   // var: loadFiles() can run (from the first tab) before this line
+async function renderRec(){
+  const h=ui.hw,isRec=ui.rain&&ui.rain.kind===4;
+  $('#rec-box').hidden=!isRec; if(!isRec)return;
+  if(!recFiles||Date.now()-recT>15000){recT=Date.now();try{recFiles=(await(await fetch('/api/files',{cache:'no-store'})).json()).files.filter(f=>/\.adp$/i.test(f.name))}catch(e){recFiles=recFiles||[]}}
+  const sel=$('#rec'),opts=[{v:'',l:'First sound file'}].concat(recFiles.map(f=>({v:f.name,l:f.name.replace(/\.adp$/i,'')+' · '+kb(f.size)})));
+  const html=opts.map(o=>`<option value="${o.v.replace(/"/g,'&quot;')}">${o.l.replace(/</g,'&lt;')}</option>`).join('');
+  if(sel.innerHTML!==html)sel.innerHTML=html;
+  if(!held('rec')&&sel!==document.activeElement)sel.value=h.rec;
+  $('#rec-hint').textContent=recFiles.length?'Loops the sound file; thunder and the sleep timer work as with rain.':'No sound files yet: add one in Device › Files. Until then it plays rain.';
+}
+$('#rec').onchange=e=>{touch('rec',4000);set('rec',e.target.value)};
+/* ---- files: the panel's storage (Device tab) ---- */
+const kb=n=>!n?'0 KB':n>=1048576?(n/1048576).toFixed(n>=10485760?0:1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+let files=null;
+async function loadFiles(){
+  recFiles=null;
+  try{files=await(await fetch('/api/files',{cache:'no-store'})).json()}catch(e){return}
+  const f=files,cap=f.capacity||0;
+  $('#f-used').style.width=cap?(100*f.used/cap).toFixed(1)+'%':'0';
+  $('#f-cap').textContent=cap?`${kb(f.used)} of ${kb(cap)} used · ${kb(cap-f.used)} free${f.largest_free<cap-f.used?' ('+kb(f.largest_free)+' in one piece)':''}`:'No file storage on this panel (it needs the partition table, tools/partition.sh).';
+  $('#f-list').innerHTML=f.files.length?f.files.map(x=>{const n=x.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const snd=/\.adp$/i.test(x.name);
+    return `<div class="file"><div class="t"><b>${n}</b><small>${kb(x.size)}${snd?' · panel sound':''}</small></div>
+      ${snd?`<button class="rb" data-fplay="${n}" aria-label="Play">${svg('play')}</button>`:''}
+      <a class="chip" href="/api/file?name=${enc(x.name)}" download="${n}">Save</a>
+      <button class="rb" data-fdel="${n}" aria-label="Delete">${svg('trash')}</button></div>`}).join('')
+    :'<div class="fcap" style="margin:10px 0 0">No files yet.</div>';
+}
+$('#f-list').onclick=async e=>{
+  const d=e.target.closest('[data-fdel]'),p=e.target.closest('[data-fplay]');
+  if(d){if(!confirm(`Delete ${d.dataset.fdel} from the panel?`))return;
+    const r=await(await fetch(`/api/file?name=${enc(d.dataset.fdel)}&delete=1`,{method:'POST'})).json().catch(()=>({ok:false}));
+    toast(r.ok?'Deleted':'Not deleted'+(r.error?': '+r.error:''));loadFiles()}
+  if(p)playAdp(p.dataset.fplay,p);
+};
+/* IMA ADPCM, the format in include/store.h: "ADP1", rate, samples, block bytes; blocks of
+   predictor (int16), step index, 0, then two samples a byte, low nibble first. */
+const STEP=[7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767];
+const IDX=[-1,-1,-1,-1,2,4,6,8];
+function adpEncode(pcm,rate,bb=1024){
+  const per=1+2*(bb-4),nb=Math.ceil(pcm.length/per),out=new Uint8Array(16+nb*bb),dv=new DataView(out.buffer);
+  out.set([65,68,80,49]);dv.setUint32(4,rate,true);dv.setUint32(8,pcm.length,true);dv.setUint32(12,bb,true);
+  let idx=0;
+  for(let b=0;b<nb;b++){
+    const o=16+b*bb,s0=b*per;let pred=pcm[s0]||0;
+    dv.setInt16(o,pred,true);out[o+2]=idx;
+    for(let k=0;k<per-1;k++){
+      const i=s0+1+k,s=i<pcm.length?pcm[i]:pred;
+      let st=STEP[idx],diff=s-pred,c=0;if(diff<0){c=8;diff=-diff}
+      let dq=st>>3;
+      if(diff>=st){c|=4;diff-=st;dq+=st}st>>=1;
+      if(diff>=st){c|=2;diff-=st;dq+=st}st>>=1;
+      if(diff>=st){c|=1;dq+=st}
+      pred+=(c&8)?-dq:dq;pred=pred>32767?32767:pred<-32768?-32768:pred;
+      idx+=IDX[c&7];idx=idx<0?0:idx>88?88:idx;
+      out[o+4+(k>>1)]|=(k&1)?c<<4:c;
+    }
+  }
+  return out;
+}
+function adpDecode(u8){
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  if(dv.getUint32(0,true)!==0x31504441)throw new Error('not a panel sound');
+  const rate=dv.getUint32(4,true),n=dv.getUint32(8,true),bb=dv.getUint32(12,true),per=1+2*(bb-4),out=new Float32Array(n);
+  for(let b=0,w=0;w<n;b++){
+    const o=16+b*bb;let pred=dv.getInt16(o,true),idx=u8[o+2];out[w++]=pred/32768;
+    for(let k=0;k<per-1&&w<n;k++){
+      const c=(u8[o+4+(k>>1)]>>((k&1)*4))&15;let st=STEP[idx],dq=st>>3;
+      if(c&4)dq+=st;if(c&2)dq+=st>>1;if(c&1)dq+=st>>2;
+      pred+=(c&8)?-dq:dq;pred=pred>32767?32767:pred<-32768?-32768:pred;
+      idx+=IDX[c&7];idx=idx<0?0:idx>88?88:idx;out[w++]=pred/32768;
+    }
+  }
+  return {rate,pcm:out};
+}
+let adpCtx=null,adpSrc=null,adpBtn=null;
+async function playAdp(name,btn){
+  if(adpSrc){adpSrc.stop();adpSrc=null;const was=adpBtn;adpBtn.innerHTML=svg('play');adpBtn=null;if(was===btn)return}
+  try{
+    const u8=new Uint8Array(await(await fetch('/api/file?name='+enc(name))).arrayBuffer()),{rate,pcm}=adpDecode(u8);
+    adpCtx=adpCtx||new AudioContext();const ab=adpCtx.createBuffer(1,pcm.length,rate);ab.copyToChannel(pcm,0);
+    adpSrc=adpCtx.createBufferSource();adpSrc.buffer=ab;adpSrc.loop=true;adpSrc.connect(adpCtx.destination);adpSrc.start();
+    adpBtn=btn;btn.innerHTML=svg('pause');
+  }catch(e){toast('Can\'t play: '+e.message)}
+}
+/* Any audio the browser decodes -> 22.05 kHz mono, levelled, the last 2 s blended into the start. */
+async function toPanelSound(file){
+  const RATE=22050,raw=await file.arrayBuffer();
+  const tmp=new OfflineAudioContext(1,1,RATE),dec=await tmp.decodeAudioData(raw);
+  const oc=new OfflineAudioContext(1,Math.ceil(dec.duration*RATE),RATE),src=oc.createBufferSource();
+  src.buffer=dec;src.connect(oc.destination);src.start();
+  const a=(await oc.startRendering()).getChannelData(0);
+  const F=Math.min(Math.floor(2*RATE),Math.floor(a.length/4)),N=a.length-F,m=new Float32Array(N);
+  for(let i=0;i<N;i++)m[i]=a[i];
+  for(let i=0;i<F;i++){const t=i/F;m[i]=a[i]*Math.sin(t*Math.PI/2)+a[N+i]*Math.cos(t*Math.PI/2)}
+  let peak=1e-6;for(let i=0;i<N;i++){const v=Math.abs(m[i]);if(v>peak)peak=v}
+  const g=0.89/peak,pcm=new Int16Array(N);
+  for(let i=0;i<N;i++){const v=Math.round(m[i]*g*32767);pcm[i]=v>32767?32767:v<-32768?-32768:v}
+  return {bytes:adpEncode(pcm,RATE),secs:N/RATE};
+}
+function fprog(t,p){$('#f-prog').hidden=false;$('#f-pt').textContent=t;$('#f-pp').textContent=p==null?'':Math.round(p*100)+'%';$('#f-pb').style.width=((p||0)*100)+'%'}
+async function sendFile(name,bytes){
+  const CH=32768;
+  for(let off=0;off<bytes.length;off+=CH){
+    let r=null;
+    for(let tries=0;!r;tries++){
+      try{r=await(await fetch(`/api/file?name=${enc(name)}&off=${off}&total=${bytes.length}`,{method:'POST',body:bytes.subarray(off,off+CH)})).json()}
+      catch(e){if(tries>=2)throw new Error('lost the panel');await new Promise(z=>setTimeout(z,800))}
+    }
+    if(!r.ok)throw new Error(r.error||'refused');
+    fprog('Sending '+name,Math.min(1,(off+CH)/bytes.length));
+  }
+}
+async function addFile(file){
+  if(!file)return;
+  const drop=$('#f-drop');drop.classList.add('busy');
+  try{
+    let name=file.name.replace(/[\/\\"]/g,'_'),bytes;
+    const isAudio=/^audio\//.test(file.type)||/\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|aif|aiff|caf|webm)$/i.test(name);
+    if(isAudio&&$('#f-conv').checked){
+      fprog('Converting '+name,null);
+      const r=await toPanelSound(file);bytes=r.bytes;name=name.replace(/\.[^.]*$/,'')+'.adp';
+      toast(`${Math.round(r.secs)} s of sound, ${kb(bytes.length)}`);
+    }else bytes=new Uint8Array(await file.arrayBuffer());
+    if(name.length>39)name=name.slice(0,30)+'~'+name.slice(-8);
+    if(files&&bytes.length>files.largest_free+(files.files.find(x=>x.name===name)?.size||0))throw new Error(`${kb(bytes.length)} won't fit (${kb(files.largest_free)} free)`);
+    try{await sendFile(name,bytes)}catch(e){if(/step/.test(e.message)){fprog('Sending '+name+' again',0);await sendFile(name,bytes)}else throw e}
+    fprog('Saved '+name,1);toast('Saved '+name);
+  }catch(e){fprog('Not saved: '+e.message,0);toast('Not saved')}
+  drop.classList.remove('busy');$('#f-in').value='';loadFiles();
+  setTimeout(()=>{$('#f-prog').hidden=true},5000);
+}
+$('#f-in').onchange=e=>addFile(e.target.files[0]);
+['dragenter','dragover'].forEach(k=>$('#f-drop').addEventListener(k,e=>{e.preventDefault();$('#f-drop').classList.add('over')}));
+['dragleave','drop'].forEach(k=>$('#f-drop').addEventListener(k,e=>{e.preventDefault();$('#f-drop').classList.remove('over')}));
+$('#f-drop').addEventListener('drop',e=>addFile(e.dataTransfer.files[0]));
+/* ---- desktop: section groups, the panel preview, the sidebar footer ---- */
+$$('#t-device>h2').forEach(h=>{const g=document.createElement('div'),c=h.nextElementSibling;g.className='grp';h.before(g);g.append(h);if(c)g.append(c)});
+const desk=matchMedia('(min-width:1000px)');
+let pvSeq=-1,pvBusy=false;
+async function pvLoad(){
+  if(pvBusy)return; pvBusy=true;
+  try{
+    const buf=await(await fetch('/frame?s=4',{cache:'no-store'})).arrayBuffer();
+    const v=new DataView(buf),w=v.getUint16(0,true),h=v.getUint16(2,true),c=$('#pv');
+    if(w&&h&&buf.byteLength>=4+(w>>1)*h){
+      c.width=w;c.height=h;
+      const ctx=c.getContext('2d'),img=ctx.createImageData(w,h),px=new Uint8Array(buf,4),d=img.data,rb=w>>1;
+      for(let y=0,o=0;y<h;y++)for(let x=0;x<w;x++,o+=4){const b=px[y*rb+(x>>1)],g=((x&1)?(b&15):(b>>4))*17;d[o]=d[o+1]=d[o+2]=g;d[o+3]=255}
+      ctx.putImageData(img,0,0);
+      $('#pv-t').textContent='The panel, as of '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    }
+  }catch(e){pvSeq=-1}
+  pvBusy=false;
+}
+$('#pv-r').onclick=()=>{pvSeq=-1;pvLoad()};
+function renderDesk(){
+  $('#side-foot').innerHTML=`v${st.fw||'?'}<br>${st.ip||''}`;
+  if(desk.matches&&$('#t-room').classList.contains('on')&&!st.busy&&st.paints!==pvSeq){pvSeq=st.paints;pvLoad()}
+}
+function renderSoftware(){
+  const o=st.ota; if(!o)return;
+  $('#sw-ver').textContent=`${st.fw}${o.slot>=0?' · slot '+'AB'[o.slot]:''}${o.checked_s>=0?' · checked '+(o.checked_s<60?'just now':Math.round(o.checked_s/60)+' min ago'):''}`;
+  const busy=o.state==='downloading'||o.state==='verifying'||o.state==='restarting';
+  $('#sw-state').textContent=busy?`${o.state==='downloading'?'Downloading':o.state==='verifying'?'Checking':'Restarting into'} ${o.to}${o.state==='downloading'?' · '+o.pct+'%':''}`
+    :o.state==='failed'?'Update failed: '+o.err:!o.ab?'Over-the-air updates need the one-time partition setup (tools/partition.sh).':'';
+  const sig=JSON.stringify([o.rel,st.fw,busy]); if(sig===swSig)return; swSig=sig;
+  $('#sw-rel').innerHTML=o.rel.map((r,i)=>{const c=vcmp(r.v,st.fw),tag=r.v===st.fw?'Installed':c>0?'Newer':'Older';
+    return `<div class="row"><div style="flex:1">v${r.v}${r.pre?' <span class="pill">pre-release</span>':''}<small style="display:block;color:var(--sub);font-size:12px">${r.date} · ${tag}</small></div>`
+      +(r.ok&&!busy?`<button class="btn" type="button" data-ota="${i}">${r.v===st.fw?'Reinstall':'Install'}</button>`:'')+'</div>'}).join('')||'<div class="hint" style="text-align:left">Press Check GitHub to list the releases.</div>';
+  $$('[data-ota]').forEach(b=>b.onclick=()=>{const r=o.rel[+b.dataset.ota];
+    if(!confirm(`Install v${r.v}? The panel downloads it, checks it and restarts into it (about two minutes).`))return;cmd('otainstall='+b.dataset.ota);toast('Downloading v'+r.v+'…')});
+}
+
+/* ---- keymap: what each key does, pressed and held ---- */
+const KEYS=[['key1','key1_hold','Key 1'],['key2','key2_hold','Key 2'],['key3','key3_hold','Key 3']];
+let kmSig='';
+function actLabel(id,list){const a=(list||[]).find(x=>x.id===id)||(st.inputs.actions||[]).find(x=>x.id===id);return a?a.label:(id&&id!=='none'?id:'Nothing')}
+function renderKeymap(){
+  const b=st.inputs&&st.inputs.bindings, p=ui&&ui.panel; if(!b||!p||!p.keyacts)return;
+  const k=n=>`<div class="kc"><b>${n[2]}</b><span class="p">${actLabel(b[n[0]],p.keyacts)}</span><span class="h">Hold: ${actLabel(b[n[1]],p.keyacts).toLowerCase()}</span></div>`;
+  const html=KEYS.map(k).join('')+`<div class="kc menu"><b>MENU</b><span class="p">Menu or back</span><span class="h">Hold: home</span></div>`
+    +`<div class="kc knob"><b>Knob</b><span class="p">Turn, press</span><span class="h">Hold: ${actLabel(b.knob_hold||'back',p.knobacts).toLowerCase()}</span></div>`;
+  if($('#kmap').innerHTML!==html)$('#kmap').innerHTML=html;
+  const sig=JSON.stringify([b,p.keyacts.length]); if(sig===kmSig||$('#kbinds').contains(document.activeElement))return; kmSig=sig;
+  const opts=(list,cur)=>list.map(a=>`<option value="${a.id}" ${a.id===cur?'selected':''}>${a.label}</option>`).join('')+(list.some(a=>a.id===cur)?'':`<option selected value="${cur}">${actLabel(cur)}</option>`);
+  $('#kbinds').innerHTML=KEYS.map(n=>`<label class="fld"><span>${n[2]} press</span><select data-kb="${n[0]}">${opts(p.keyacts,b[n[0]])}</select></label>`
+    +`<label class="fld"><span>${n[2]} hold</span><select data-kb="${n[1]}">${opts(p.keyacts,b[n[1]])}</select></label>`).join('')
+    +`<label class="fld"><span>Knob hold</span><select data-kb="knob_hold">${opts(p.knobacts,b.knob_hold||'back')}</select></label>`;
+  $$('[data-kb]').forEach(sel=>sel.onchange=()=>{st.inputs.bindings[sel.dataset.kb]=sel.value;cmd('bind='+enc(sel.dataset.kb+'|'+sel.value));toast('Saved');renderKeymap()});
+}
+/* ---- home screen: the overlay and what it shows ---- */
+const SHOWS=['Clock','Alarm','Sound','Room','Connection'];
+let showMask=-1;
+function renderHome(p){
+  if(p.show===undefined)return;
+  if(!held('show')&&p.show!==showMask){showMask=p.show;
+    $('#shows').innerHTML=SHOWS.map((n,i)=>`<div class="row"><div style="flex:1">${n}</div><label class="sw"><input type="checkbox" data-show="${i}" ${p.show>>i&1?'checked':''}><span></span></label></div>`).join('');
+    $$('[data-show]').forEach(c=>c.onchange=()=>{touch('show',4000);let m=0;$$('[data-show]').forEach(x=>{if(x.checked)m|=1<<+x.dataset.show});showMask=m;set('show',m)})}
+  const v=p.vp||[0,0,1872,1404], none=!(p.show&31)||+p.overlay===3;
+  $('#vp').textContent=none?'No overlay: the dashboard gets the whole panel, 1872 × 1404.':`Tesserae is told the dashboard is ${v[2]} × ${v[3]} at x ${v[0]}, y ${v[1]}, and renders frames at that size.`;
+  renderKeymap();
+}
+
+/* ---- lights and clock, live dashboard, reset ---- */
+let palSig='';
+$$('[data-pset]').forEach(sel=>sel.onchange=()=>{touch('pset_'+sel.dataset.pset,4000);set(sel.dataset.pset,sel.value)});
+$('#factory-reset').onclick=()=>{
+  if(!confirm('Reset everything on the bedside panel? Alarms, sounds, lights, Home Assistant and pairing are all erased.'))return;
+  if(!confirm('Really reset? This cannot be undone.'))return;
+  cmd('factory_reset=yes');toast('Resetting… the panel restarts')};
+$('#lv-base').onchange=e=>{cmd('live_base='+enc(e.target.value.trim()));toast('Saved')};
+$('#lv-loc').onchange=e=>{cmd('live_loc='+enc(e.target.value.replace(/\s/g,'')));toast('Saved')};
+let lvSig='';
+function renderPanelSettings(){
+  const p=ui&&ui.panel; if(!p)return;
+  const ps=JSON.stringify(p.palette);
+  if(ps!==palSig){palSig=ps;['key_col','menu_col'].forEach(k=>{$(`[data-pset="${k}"]`).innerHTML=p.palette.map((n,i)=>`<option value="${i}">${n}</option>`).join('')});
+    if(p.tzs)$('[data-pset="tz"]').innerHTML=p.tzs.map((n,i)=>`<option value="${i}">${i?n:'Automatic (from Tesserae)'}</option>`).join('')}
+  $$('[data-pset]').forEach(sel=>{const k=sel.dataset.pset;if(held('pset_'+k)||sel===document.activeElement)return;sel.value=String(+p[k])});
+  if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;
+  if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
+  if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
+  if(!held('turn_hints'))$('#turn_hints').checked=!!p.turn_hints;
+  if(!held('quick_menus'))$('#quick_menus').checked=!!p.quick_menus;
+  if(p.temp_sensed!=null)$('#wf-hint').textContent=`Forcing ${p.temp_forced} °C. ${p.temp_sensed>=0?`The board's own sensor reads ${p.temp_sensed} °C.`:"The board's own sensor can't be read."} The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. Lower is darker; keep it within a few degrees of the room.`;
+  renderSoftware(); renderDesk(); renderHW();
+  renderHome(p);
+  const lv=st.live; if(!lv)return;
+  if(document.activeElement!==$('#lv-base'))$('#lv-base').value=lv.ss_base;
+  if(document.activeElement!==$('#lv-loc'))$('#lv-loc').value=lv.lat+', '+lv.lon;
+  const box=$('#lv-slots');
+  if(box.contains(document.activeElement)){ lv.slots.forEach(s=>{const v=box.querySelector(`[data-v="${s.key}"]`);if(v)v.textContent=s.known?s.value:'no value yet'});return }
+  const sig=JSON.stringify(lv.slots.map(s=>[s.key,s.src,s.value,s.known]));
+  if(sig===lvSig)return; lvSig=sig;
+  box.innerHTML=lv.slots.map(s=>`<label class="fld"><span>${s.name} · <i data-v="${s.key}" style="font-style:normal;color:var(--ink)">${s.known?s.value.replace(/</g,'&lt;'):'no value yet'}</i></span>
+    <input data-lv="${s.key}" value="${s.src.replace(/"/g,'&quot;')}" placeholder="bedside/live/${s.key}" autocapitalize="off" spellcheck="false"></label>`).join('');
+  box.querySelectorAll('[data-lv]').forEach(i=>i.onchange=()=>{cmd('live_src='+enc(i.dataset.lv+'|'+i.value.trim()));toast('Saved');lvSig=''});
+}
+
+function renderDevice(){
+  const s=st,t=s.tesserae,up=s.uptime_s;
+  const upt=up>86400?`${Math.floor(up/86400)}d ${Math.floor(up%86400/3600)}h`:up>3600?`${Math.floor(up/3600)}h ${Math.floor(up%3600/60)}m`:`${Math.floor(up/60)}m`;
+  const rows=[['Firmware',s.fw],['Address',s.ip],['Signal',`${s.rssi} dBm`],['Up',upt],['Showing',`${s.content}, ${s.screen}`],
+    ['Panel',`${s.panel.w}×${s.panel.h}, VCOM −${(s.vcom_mv/1000).toFixed(2)} V`],['Paints',s.paints],['Last refresh',`${s.last_refresh_ms} ms`],
+    ['Frames',`${t.frames}, next poll in ${t.next_in_s}s`],['Server time',t.local_time?t.local_time.replace(/^(\d{4}-\d\d-\d\d)T(\d\d:\d\d).*$/,'$1 $2'):'—'],['PSRAM',s.psram?'Yes':'No']];
+  $('#stats').innerHTML=rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('');
+  $('#hw').innerHTML=`<dt>Rotary encoder</dt><dd>${s.inputs.encoder?'Connected':'Not found'}</dd><dt>NeoKey 1×4</dt><dd>${s.inputs.keys?'Connected':'Not found'}</dd>`;
+  $('#ts-state').firstChild.textContent=(t.paired?'Paired':'Not paired')+' · '+t.state;
+  $('#ts-err').textContent=t.error||`${t.device_id} on ${t.server.replace(/^https?:\/\//,'')}`;
+  const f=$('#f-tess');
+  if(!held('tess')&&!f.contains(document.activeElement)){f.server.value=t.server;f.device.value=t.device_id;f.name.value=t.name;f.kind.value=t.kind}
+  if(!held('mirror'))$('#mirror').checked=!!s.mirror; if(!held('banner'))$('#banner').checked=!!s.banner;
+  const sig=JSON.stringify([s.inputs.actions.length,s.inputs.bindings.boot_short,s.inputs.bindings.boot_long]);
+  if(sig!==actSig&&!$$('[data-bind]').includes(document.activeElement)){actSig=sig;
+    $$('[data-bind]').forEach(sel=>{const cur=s.inputs.bindings[sel.dataset.bind]||'none';
+      sel.innerHTML=s.inputs.actions.map(a=>`<option value="${a.id}" ${a.id===cur?'selected':''}>${a.label}</option>`).join('')
+        +(s.inputs.actions.some(a=>a.id===cur)?'':`<option selected value="${cur}">${cur}</option>`);
+      sel.onchange=()=>{cmd('bind='+enc(sel.dataset.bind+'|'+sel.value));toast('Saved')}})}
+}
+
+/* ---- polling ---- */
+function setConn(ok,txt){document.body.classList.toggle('offline',!ok);$('#dot').className='dot '+(ok?'ok':'bad');$('#connt').textContent=txt}
+let pollT=0, inflight=false;
+async function poll(){
+  clearTimeout(pollT);
+  if(inflight){pollT=setTimeout(poll,300);return}
+  inflight=true;
+  try{
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),4000);
+    st=await(await fetch('/api/state',{cache:'no-store',signal:ctl.signal})).json();clearTimeout(to);
+    ui=st.ui;failN=0;
+    setConn(true,st.busy?'Refreshing':(st.tesserae.local_time||'Online').replace(/^.*T(\d\d:\d\d).*$/,'$1'));
+    renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();
+    if(typeof renderExtra==='function')renderExtra();   // the desktop shell's own bits (top-bar status, the EQ graph)
+    if(!held('dash')){
+      // Tesserae 0.498+: Live, then the dashboards bound to this panel; older servers: the rotation
+      const picks=ui.picks&&ui.picks.length?ui.picks:null;
+      const esc=n=>String(n).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      const row=(attr,n,on,note)=>`<button ${attr} data-n="${esc(n)}" class="${on?'on':''}"><span>${esc(n)}</span>${note?`<small>${note}</small>`:''}${svg('check')}</button>`;
+      const ds=picks?[row('data-p="-1"','Live',ui.pick<0,'follows the schedule')].concat(picks.map((n,i)=>row(`data-p="${i}"`,n,i===ui.pick))).join('')
+                    :ui.dashes.map((n,i)=>row(`data-v="${i}"`,n,i===ui.dash)).join('');
+      if($('#dashes').innerHTML!==ds)$('#dashes').innerHTML=ds}
+  }catch(e){if(++failN>1)setConn(false,'Offline')}
+  inflight=false;
+  if(!document.hidden)pollT=setTimeout(poll,failN?3000:1500);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+poll();
+
+</script>
+<script>
+/* ---- the desktop shell's own behaviour: pages, the status strip, the response curve ---- */
+const PAGES={room:'Overview',sound:'Sound',speaker:'Speaker',alarms:'Alarms',display:'Display',device:'Device',console:'Console'};
+tab=function(t){
+  if(!PAGES[t])t='room';
+  $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
+  $('#title').textContent=PAGES[t]; try{localStorage.dtab=t;history.replaceState(null,'','#'+t)}catch(e){}
+  $('main').scrollTo(0,0); if(t==='console')logPoll(true); if(t==='sound')loadFiles(); if(t==='speaker')drawEQ();
+};
+addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,select,textarea'))return;
+  const k=Object.keys(PAGES)[+e.key-1]; if(k){tab(k);e.preventDefault()}
+});
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(PAGES[h])tab(h)});
+
+/* Desktop wording where the phone page says "phone". */
+$('#listen-t').childNodes[0].textContent='Listen on this computer';
+$('#chorus-hint').textContent='Plays through this computer while Listen is on (Overview).';
+$('#shape').open=true;
+
+/* The status strip: what matters at a glance, from the same state the pages use. */
+const ico=i=>ICONS[i]?svg(i):'';
+const pill=(i,t)=>`<span class="pill">${ico(i)}${t}</span>`;
+function renderExtra(){
+  if(!st||!ui)return;
+  const r=ui.rain,KINDS=['Rain','Ocean','Noise','Wind','Recording'],s=[];
+  s.push(pill('cloud-rain',r.on?`${KINDS[r.kind]} ${r.lvl} · volume ${ui.vol}`:'Sound off'));
+  if(st.local)s.push(pill('alarm',st.local.alarm_on?`Alarm ${st.local.alarm}`:'No alarm'));
+  if(ui.hw&&ui.hw.power_mon)s.push(pill('battery-charging',ui.hw.on_battery?`Battery ${ui.hw.pct}%`:'Mains'));
+  if(st.rssi!=null)s.push(pill('wifi-high',`Wi-Fi ${st.rssi} dBm`));
+  s.push(pill('monitor',st.busy?'Painting…':`${st.paints||0} paints`));
+  const h=s.join(''); if($('#strip').innerHTML!==h)$('#strip').innerHTML=h;
+  if($('#t-speaker').classList.contains('on'))drawEQ();
+}
+
+/* The response curve: the same biquads as src/spk_dsp.c (RBJ cookbook), drawn from the controls. */
+function biq(kind,hz,db,sr){
+  const A=Math.pow(10,db/40),w0=2*Math.PI*hz/sr,cw=Math.cos(w0),sw=Math.sin(w0);let b0,b1,b2,a0,a1,a2;
+  if(kind==='hp'||kind==='lp'){const al=sw/(2*0.7071);if(kind==='hp'){b0=(1+cw)/2;b1=-(1+cw);b2=b0}else{b0=(1-cw)/2;b1=1-cw;b2=b0}a0=1+al;a1=-2*cw;a2=1-al}
+  else{const al=sw/2*Math.SQRT2,sa=2*Math.sqrt(A)*al;
+    if(kind==='ls'){b0=A*((A+1)-(A-1)*cw+sa);b1=2*A*((A-1)-(A+1)*cw);b2=A*((A+1)-(A-1)*cw-sa);a0=(A+1)+(A-1)*cw+sa;a1=-2*((A-1)+(A+1)*cw);a2=(A+1)+(A-1)*cw-sa}
+    else{b0=A*((A+1)+(A-1)*cw+sa);b1=-2*A*((A-1)+(A+1)*cw);b2=A*((A+1)+(A-1)*cw-sa);a0=(A+1)-(A-1)*cw+sa;a1=2*((A-1)-(A+1)*cw);a2=(A+1)-(A-1)*cw-sa}}
+  return [b0/a0,b1/a0,b2/a0,a1/a0,a2/a0];
+}
+function mag(c,f,sr){
+  const w=2*Math.PI*f/sr,[b0,b1,b2,a1,a2]=c;
+  const nr=b0+b1*Math.cos(w)+b2*Math.cos(2*w),ni=-(b1*Math.sin(w)+b2*Math.sin(2*w)),dr=1+a1*Math.cos(w)+a2*Math.cos(2*w),di=-(a1*Math.sin(w)+a2*Math.sin(2*w));
+  return Math.sqrt((nr*nr+ni*ni)/(dr*dr+di*di));
+}
+const SOFT_HZ=[0,8000,6000,5000,4000,3000],CUT_HZ=[0,60,90,120,160];
+function drawEQ(){
+  const cv=$('#eq'); if(!cv)return;
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height,sr=22050;
+  const v=id=>+$('#'+id).value, segv=k=>{const b=$(`.seg[data-seg="${k}"] button.on`);return b?+b.dataset.v:0};
+  const gain=v('spk_gain'),bass=v('spk_bass'),treb=v('spk_treble'),soft=segv('spk_soft'),cut=segv('spk_hpf'),lim=segv('spk_limit');
+  const fs=[];
+  if(cut)fs.push(biq('hp',CUT_HZ[cut],0,sr)); if(bass)fs.push(biq('ls',200,bass,sr)); if(treb)fs.push(biq('hs',3000,treb,sr)); if(soft)fs.push(biq('lp',SOFT_HZ[soft],0,sr));
+  const cs=getComputedStyle(document.body),ink=cs.getPropertyValue('--ink').trim(),sub=cs.getPropertyValue('--sub').trim(),line=cs.getPropertyValue('--line').trim();
+  const x=f=>Math.log(f/40)/Math.log(11000/40)*(W-80)+56, y=db=>H-34-(db+24)/36*(H-56);
+  g.clearRect(0,0,W,H); g.lineWidth=1; g.font='13px system-ui,sans-serif'; g.fillStyle=sub;
+  for(const db of [-24,-18,-12,-6,0,6,12]){g.strokeStyle=db?line:sub;g.beginPath();g.moveTo(56,y(db));g.lineTo(W-18,y(db));g.stroke();g.textAlign='right';g.fillText((db>0?'+':'')+db,48,y(db)+4)}
+  g.strokeStyle=line;g.textAlign='center';
+  for(const f of [60,100,200,500,1000,2000,5000,10000]){g.beginPath();g.moveTo(x(f),y(12));g.lineTo(x(f),y(-24));g.stroke();g.fillText(f>=1000?f/1000+'k':f,x(f),H-12)}
+  g.strokeStyle=ink;g.lineWidth=2.5;g.beginPath();
+  for(let i=0;i<=240;i++){const f=40*Math.pow(11000/40,i/240);let m=Math.pow(10,gain/20);for(const c of fs)m*=mag(c,f,sr);
+    const db=Math.max(-24,Math.min(12,20*Math.log10(m)));i?g.lineTo(x(f),y(db)):g.moveTo(x(f),y(db))}
+  g.stroke();
+  $('#eq-hint').textContent=(fs.length||gain?'':'Flat: the speaker gets the sound exactly as made. ')+(lim?`Loud moments are held to ${lim===1?'-6':'-12'} dB.`:'');
+}
+['spk_gain','spk_bass','spk_treble'].forEach(id=>$('#'+id).addEventListener('input',drawEQ));
+$$('.seg[data-seg^="spk_"]').forEach(s=>s.addEventListener('click',()=>setTimeout(drawEQ,0)));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawEQ);
+
+tab((PAGES[location.hash.slice(1)]&&location.hash.slice(1))||localStorage.dtab||'room');
+</script>
+</body>
+</html>

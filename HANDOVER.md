@@ -683,3 +683,41 @@ then compiled and flashed. Flash grew 1 KB (lost cross-module inlining).
   build after a flash). PlatformIO decides what to recompile by file content,
   not mtime, so `touch src/main.c` did nothing; `tools/flash.sh` now also
   removes `main.o`. ALWAYS check `build` after a flash.
+
+## 2026-11-02, evening: the speaker is in; the click, the tuning page, the desktop app
+
+Kayden wired the amp and speaker (works), and reported a sharp click now and
+then while changing sound settings, and that the bird calls can be very sharp.
+
+- **The click was the settings save.** Every sound/hardware/panel setting is
+  written to flash 3-4 s after the knob stops; the write parks core 1 (the
+  multicore lockout) for the 50-60 ms sector erase + program, and the I2S DMA
+  had only two 11.6 ms buffers, so the amp ran dry: a hard cut, then a hard
+  restart. Now `I2S_FRAMES` is 2048 (two 93 ms buffers in SRAM, DMA keeps
+  playing through the write), the reader sits a buffer plus 20 ms behind the
+  writer, and playback fades in over 12 ms whenever it (re)starts and fades
+  out before any gap it can't cover. `ui.spk.dropouts` in `/api/state` counts
+  gaps; verified: saves during playback leave it unchanged. SRAM +14 KB (89.9%).
+- **Speaker tuning** (`src/spk_dsp.c`, host-tested): per sample on core 1 in
+  the DMA fill, low cut (60-160 Hz), bass shelf at 200 Hz (±8 dB), treble shelf
+  at 3 kHz (-12..+6 dB), a "soften" low-pass (8..3 kHz) for sharp highs, level
+  trim (-12..+6 dB) with a glide, and a peak limiter (gentle -6 dB / firm
+  -12 dB). Settings in the hardware blob's spare bytes (defaults read as zero;
+  older blobs load unchanged). Panel: Settings > Device > Speaker tuning;
+  web: the Speaker card / page; keys `spk_gain|bass|treble|soft|hpf|limit`.
+  A test sound (`test` 1-4: pink, 1 kHz, 100 Hz, sweep) plays for 20 s at the
+  current volume whether or not the sleep sound is on.
+- **Bird softness** (`bird_soft`, default 35, Dawn chorus > Softness): two
+  one-pole low-passes on the bird bus alone, 9 kHz (natural) down to 1.6 kHz;
+  the rain is untouched. The test checks the whistler's top end drops to under
+  35% while most of the call remains.
+- **The desktop app** (`www/desktop.src.html` → `/desktop`): a dedicated
+  shell (sidebar pages, status strip, wide grids, the panel preview beside the
+  room controls, the speaker's response curve drawn from the same biquad
+  formulas, a full-height console, keys 1-7 switch pages). The controls are
+  not duplicated: `scripts/build_www.py` lifts each card marked
+  `<!--part:name-->` out of `app.src.html` into the `<!--@name-->` slots, and
+  shares the script and stylesheet. The phone page sends wide pointer screens
+  to `/desktop` unless `?m` (or its "Phone layout" link) was used.
+- `net_rest.c` freed cJSON's output with libc `free()`: with the PSRAM heap in
+  place that is the wrong allocator. Now `cJSON_free()`.

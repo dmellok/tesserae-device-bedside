@@ -55,6 +55,15 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "tz"))         { if (v < 0 || v >= N_TZ) return false; S.tz = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
     else if (!strcmp(key, "speaker"))      { S.speaker = v != 0; publish("config/speaker", S.speaker ? "on" : "off"); return true; }
+    /* speaker tuning (spk_dsp.h) and the birds' softness: nothing to repaint */
+    else if (!strcmp(key, "bird_soft"))    { if (v < 0 || v > 100) return false; S.bird_soft = v; return true; }
+    else if (!strcmp(key, "spk_gain"))     { if (v < -12 || v > 6) return false; S.spk_gain = v; return true; }
+    else if (!strcmp(key, "spk_bass"))     { if (v < -8 || v > 8) return false; S.spk_bass = v; return true; }
+    else if (!strcmp(key, "spk_treble"))   { if (v < -12 || v > 6) return false; S.spk_treble = v; return true; }
+    else if (!strcmp(key, "spk_soft"))     { if (v < 0 || v > 5) return false; S.spk_soft = v; return true; }
+    else if (!strcmp(key, "spk_hpf"))      { if (v < 0 || v > 4) return false; S.spk_hpf = v; return true; }
+    else if (!strcmp(key, "spk_limit"))    { if (v < 0 || v > 2) return false; S.spk_limit = v; return true; }
+    else if (!strcmp(key, "test"))         { if (v < 0 || v > 4) return false; S.test = v; S.test_until = v ? now_ms() + 20000u : 0; return true; }
     else if (!strcmp(key, "power_mon"))    { S.power_mon = v != 0; if (!S.power_mon && S.on_battery) { S.on_battery = false; state_changed(); } return true; }
     else if (!strcmp(key, "rec"))          { if (strlen(val) >= sizeof S.rec) return false; snprintf(S.rec, sizeof S.rec, "%s", val); }
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
@@ -173,6 +182,9 @@ static void ext_pack(ext_blob_t *b)
     b->speaker = S.speaker; b->power_mon = S.power_mon;
     b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0));   /* bits 0-1 set = off (older blobs read as on); bit 2 set = on */
     b->pad = (uint8_t)S.clean_min;
+    b->spk_gain = (int8_t)S.spk_gain; b->spk_bass = (int8_t)S.spk_bass; b->spk_treble = (int8_t)S.spk_treble;
+    b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
+    b->bird_soft_p1 = (uint8_t)(S.bird_soft + 1);
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -182,6 +194,9 @@ void ext_load(void)
         S.speaker = b.speaker; S.power_mon = b.power_mon;
         S.turn_hints = !(b.rsv0 & 1); S.quick_menus = !(b.rsv0 & 2); S.settle_full = (b.rsv0 & 4) != 0;
         S.clean_min = (b.pad >= 1 && b.pad <= 240) ? b.pad : 10;
+        S.spk_gain = clampi(b.spk_gain, -12, 6); S.spk_bass = clampi(b.spk_bass, -8, 8); S.spk_treble = clampi(b.spk_treble, -12, 6);
+        S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
+        if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
@@ -243,7 +258,7 @@ size_t local_state_json(char *b, size_t cap)
     {
         int left = s_preview_len_ms ? (int)((int32_t)(s_preview_start_ms + s_preview_len_ms + 20000u - now_ms()) / 1000) : 0;
         int snz = s_snooze_until_ms ? (int)((int32_t)(s_snooze_until_ms - now_ms()) / 1000) : 0;
-        J("\"chorus\":{\"birds\":%u,\"vol\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"names\":[", S.birds, S.bird_vol, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0);
+        J("\"chorus\":{\"birds\":%u,\"vol\":%d,\"soft\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"names\":[", S.birds, S.bird_vol, S.bird_soft, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0);
         for (int i = 0; i < BIRD_COUNT; i++) J("%s\"%s\"", i ? "," : "", bird_name(i));
         J("]},");
     }
@@ -261,6 +276,8 @@ size_t local_state_json(char *b, size_t cap)
     J("]},");
     J("\"shape\":{\"patter\":%d,\"wash\":%d,\"tone\":%d,\"wind\":%d,\"surface\":%d,\"thunder\":%d,\"thunder_near\":%d},",
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
+    J("\"spk\":{\"gain\":%d,\"bass\":%d,\"treble\":%d,\"soft\":%d,\"hpf\":%d,\"limit\":%d,\"test\":%d,\"dropouts\":%lu},",
+      S.spk_gain, S.spk_bass, S.spk_treble, S.spk_soft, S.spk_hpf, S.spk_limit, S.test, (unsigned long)audio_speaker_dropouts());
     J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"i2s_diag\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
       "\"rec\":\"%s\"},",
       S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), (unsigned long)audio_i2s_diag(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),

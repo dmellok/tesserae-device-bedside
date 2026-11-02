@@ -17,6 +17,8 @@
 
 extern const uint8_t www_index[];
 extern const uint8_t www_index_end[];
+extern const uint8_t www_desktop[];
+extern const uint8_t www_desktop_end[];
 
 #define HTTP_PORT  80
 #define MAX_CONN   6
@@ -267,6 +269,8 @@ static void handle_request(conn_t *c, size_t hdr_end)
     }
     if (!strcmp(path, "/") || !strcmp(path, "/index.html")) {
         respond(c, 200, "text/html; charset=utf-8", www_index, (size_t)(www_index_end - www_index), false);
+    } else if (!strcmp(path, "/desktop") || !strcmp(path, "/desktop.html")) {   /* the desktop layout; the phone page sends wide screens here */
+        respond(c, 200, "text/html; charset=utf-8", www_desktop, (size_t)(www_desktop_end - www_desktop), false);
     } else if (!strcmp(path, "/api/state")) {
         size_t n = app_state_json(s_json, sizeof s_json);
         respond(c, 200, "application/json", s_json, n, true);

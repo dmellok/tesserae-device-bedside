@@ -45,6 +45,7 @@ typedef struct {
     uint32_t strike;                                                  /* bumped to roll thunder now */
     /* the dawn chorus (birds.h): which species, its own volume, how built up it is */
     uint16_t birds; int bird_vol; float chorus; uint32_t audition; int audition_bird;
+    int  bird_soft;                                                   /* 0 natural .. 100 soft (rainsynth.h) */
     /* panel settings: key colours (palette index), knob light, auto night (0 off,
      * 1..3: from 21/22/23:00 to 07:00), 12-hour clock, snooze length */
     int  key_col, menu_col, night_col; bool knob_light; int auto_night; bool clock12; int snooze_min;
@@ -68,6 +69,11 @@ typedef struct {
      * first sound file) */
     bool speaker, power_mon;
     char rec[40];
+    /* speaker tuning (spk_dsp.h): level trim and shelves in dB, soften and
+     * low-cut as table indexes, how loud moments are held; and the test sound
+     * (0 none, 1 pink, 2 1 kHz, 3 100 Hz, 4 sweep), which stops itself */
+    int  spk_gain, spk_bass, spk_treble, spk_soft, spk_hpf, spk_limit;
+    int  test; uint32_t test_until;
 } local_state_t;
 
 /* How much of the panel a repaint needs, and which waveform suits it. */

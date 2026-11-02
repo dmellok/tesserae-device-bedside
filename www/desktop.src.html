@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<!--
+  The desktop app: a sidebar of pages, a status strip, wide grids and a few
+  things only a big screen has room for (the panel preview beside the room
+  controls, the speaker's response curve, a full-height console).
+
+  The controls and the script come from app.src.html at build time
+  (scripts/build_www.py): an "@name" comment below is a card marked
+  "part:name" there; the "@css" and "@js" comment markers in the style and
+  script blocks are the shared stylesheet and script. Edit a control once, in
+  app.src.html; this file only decides where things go.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<!--@favicon-->
+<title>Bedside</title>
+<style>
+/*@css*/
+/* ---- the desktop shell ---- */
+:root{--side:236px;--top:60px}
+html,body{height:100%}
+body{display:grid;grid-template-columns:var(--side) 1fr;grid-template-rows:var(--top) 1fr;height:100vh;overflow:hidden;font-size:15px}
+aside{grid-row:1/3;display:flex;flex-direction:column;border-right:1px solid var(--line);padding:18px 12px 16px;background:var(--card);min-width:0}
+aside .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em;padding:4px 12px 18px}
+aside .brand i{width:30px;height:30px;border-radius:9px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center}
+aside .brand svg.i{width:18px;height:18px}
+nav{position:static;display:block;background:none;border:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+nav div{display:flex;flex-direction:column;gap:2px;max-width:none}
+nav button{flex:none;height:42px;flex-direction:row;justify-content:flex-start;gap:12px;padding:0 12px;border-radius:12px;font-size:15px;cursor:pointer;color:var(--sub)}
+nav button:hover{background:var(--soft)}
+nav button.on{background:var(--soft);color:var(--ink);font-weight:600}
+nav button kbd{margin-left:auto;font:11px ui-monospace,Menlo,monospace;color:var(--sub);opacity:.6}
+.side-foot{margin-top:auto;padding:12px 12px 0;font-size:12px;color:var(--sub);line-height:1.6}
+.side-foot a{color:inherit}
+header{position:static;display:flex;align-items:center;gap:14px;padding:0 28px;border-bottom:1px solid var(--line);background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+header h1{font-size:22px;margin:0;flex:none}
+.strip{display:flex;gap:8px;flex:1;overflow:hidden;min-width:0}
+.strip .pill{white-space:nowrap} .strip .pill svg.i{width:15px;height:15px}
+main{grid-column:2;overflow:auto;padding:22px 28px 48px;max-width:none;margin:0;min-width:0}
+section.tab.on{display:grid;gap:18px;align-items:start;animation:none}
+.col{display:grid;gap:18px;align-content:start;min-width:0}
+.card{margin:0}
+h2{margin:6px 4px -8px}
+.pv{display:block}
+#t-room.on{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+#t-sound.on,#t-alarms.on{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+#t-speaker.on{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#t-display.on,#t-device.on{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1500px){#t-display.on,#t-device.on{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#t-console.on{grid-template-columns:1fr}
+.log{height:calc(100vh - var(--top) - 300px);min-height:300px;max-height:none;font-size:12.5px}
+.conin input{-webkit-user-select:text;user-select:text}
+#alarms{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;margin-bottom:14px}
+.alarm .time{font-size:46px}
+#alarm-add{width:auto;padding:12px 22px}
+details.more{border-top:0;padding-top:0;margin-top:10px} details.more summary{display:none}
+.toast{bottom:28px;left:calc(50% + var(--side)/2)}
+.eq{display:block;width:100%;aspect-ratio:3/1;height:auto;border-radius:12px;background:var(--soft)}
+.btn,.chip,.seg button,.rb,.days button,.key,.dl button,.sw input,.bird .rb,summary{cursor:pointer}
+.off-banner{grid-column:1/-1}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:1100px){#t-room.on,#t-sound.on,#t-alarms.on,#t-speaker.on{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><i data-i="moon"></i>Bedside</div>
+  <nav><div>
+    <button data-tab="room" class="on"><span data-i="house"></span>Overview<kbd>1</kbd></button>
+    <button data-tab="sound"><span data-i="cloud-rain"></span>Sound<kbd>2</kbd></button>
+    <button data-tab="speaker"><span data-i="speaker-high"></span>Speaker<kbd>3</kbd></button>
+    <button data-tab="alarms"><span data-i="alarm"></span>Alarms<kbd>4</kbd></button>
+    <button data-tab="display"><span data-i="monitor"></span>Display<kbd>5</kbd></button>
+    <button data-tab="device"><span data-i="gear"></span>Device<kbd>6</kbd></button>
+    <button data-tab="console"><span data-i="terminal"></span>Console<kbd>7</kbd></button>
+  </div></nav>
+  <div class="side-foot"><div id="side-foot"></div><a href="/?m=1">Phone layout</a></div>
+</aside>
+
+<header>
+  <h1 id="title">Overview</h1>
+  <div class="strip" id="strip"></div>
+  <span class="pill" id="conn"><i class="dot" id="dot"></i><span id="connt">…</span></span>
+</header>
+
+<main>
+<div class="off-banner">Can't reach the bedside panel. Retrying…</div>
+
+<section class="tab on" id="t-room">
+  <div class="col">
+    <!--@preview-->
+    <h2>Dashboard</h2>
+    <!--@dashboard-->
+  </div>
+  <div class="col">
+    <!--@volume-->
+    <!--@listen-->
+    <!--@night-->
+    <div class="row2">
+      <!--@lights-->
+      <!--@ac-->
+    </div>
+  </div>
+</section>
+
+<section class="tab" id="t-sound">
+  <div class="col">
+    <!--@sound-->
+  </div>
+  <div class="col">
+    <h2>Recordings and files</h2>
+    <!--@files-->
+  </div>
+</section>
+
+<section class="tab" id="t-speaker">
+  <div class="col">
+    <!--@speaker-->
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Response<small>What the tone stage does to the sound, 40 Hz to 11 kHz</small></div></div>
+      <div class="body">
+        <canvas class="eq" id="eq" width="900" height="300" aria-label="Frequency response of the speaker tuning"></canvas>
+        <div class="hint" style="text-align:left;margin-top:10px" id="eq-hint"></div>
+      </div>
+    </div>
+    <h2>Hardware</h2>
+    <!--@hardware-->
+  </div>
+</section>
+
+<section class="tab" id="t-alarms">
+  <div class="col">
+    <!--@alarms-->
+  </div>
+  <div class="col">
+    <!--@chorus-->
+  </div>
+</section>
+
+<section class="tab" id="t-display">
+  <div class="col">
+    <h2>Home screen</h2>
+    <!--@homescreen-->
+    <h2>Lights and clock</h2>
+    <!--@lightsclock-->
+  </div>
+  <div class="col">
+    <h2>Panel</h2>
+    <!--@panel-->
+    <h2>Controls</h2>
+    <!--@controls-->
+  </div>
+  <div class="col">
+    <h2>Live dashboard</h2>
+    <!--@live-->
+  </div>
+</section>
+
+<section class="tab" id="t-device">
+  <div class="col">
+    <h2>Status</h2>
+    <!--@status-->
+    <h2>Software</h2>
+    <!--@software-->
+    <h2>Power</h2>
+    <!--@power-->
+  </div>
+  <div class="col">
+    <h2>Tesserae</h2>
+    <!--@tesserae-->
+    <h2>Home Assistant</h2>
+    <!--@ha-->
+  </div>
+  <div class="col">
+    <h2>Wi-Fi</h2>
+    <!--@wifi-->
+    <h2>Reset</h2>
+    <!--@reset-->
+  </div>
+</section>
+
+<section class="tab" id="t-console">
+  <!--@console-->
+</section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/*@js*/
+</script>
+<script>
+/* ---- the desktop shell's own behaviour: pages, the status strip, the response curve ---- */
+const PAGES={room:'Overview',sound:'Sound',speaker:'Speaker',alarms:'Alarms',display:'Display',device:'Device',console:'Console'};
+tab=function(t){
+  if(!PAGES[t])t='room';
+  $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
+  $('#title').textContent=PAGES[t]; try{localStorage.dtab=t;history.replaceState(null,'','#'+t)}catch(e){}
+  $('main').scrollTo(0,0); if(t==='console')logPoll(true); if(t==='sound')loadFiles(); if(t==='speaker')drawEQ();
+};
+addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,select,textarea'))return;
+  const k=Object.keys(PAGES)[+e.key-1]; if(k){tab(k);e.preventDefault()}
+});
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(PAGES[h])tab(h)});
+
+/* Desktop wording where the phone page says "phone". */
+$('#listen-t').childNodes[0].textContent='Listen on this computer';
+$('#chorus-hint').textContent='Plays through this computer while Listen is on (Overview).';
+$('#shape').open=true;
+
+/* The status strip: what matters at a glance, from the same state the pages use. */
+const ico=i=>ICONS[i]?svg(i):'';
+const pill=(i,t)=>`<span class="pill">${ico(i)}${t}</span>`;
+function renderExtra(){
+  if(!st||!ui)return;
+  const r=ui.rain,KINDS=['Rain','Ocean','Noise','Wind','Recording'],s=[];
+  s.push(pill('cloud-rain',r.on?`${KINDS[r.kind]} ${r.lvl} · volume ${ui.vol}`:'Sound off'));
+  if(st.local)s.push(pill('alarm',st.local.alarm_on?`Alarm ${st.local.alarm}`:'No alarm'));
+  if(ui.hw&&ui.hw.power_mon)s.push(pill('battery-charging',ui.hw.on_battery?`Battery ${ui.hw.pct}%`:'Mains'));
+  if(st.rssi!=null)s.push(pill('wifi-high',`Wi-Fi ${st.rssi} dBm`));
+  s.push(pill('monitor',st.busy?'Painting…':`${st.paints||0} paints`));
+  const h=s.join(''); if($('#strip').innerHTML!==h)$('#strip').innerHTML=h;
+  if($('#t-speaker').classList.contains('on'))drawEQ();
+}
+
+/* The response curve: the same biquads as src/spk_dsp.c (RBJ cookbook), drawn from the controls. */
+function biq(kind,hz,db,sr){
+  const A=Math.pow(10,db/40),w0=2*Math.PI*hz/sr,cw=Math.cos(w0),sw=Math.sin(w0);let b0,b1,b2,a0,a1,a2;
+  if(kind==='hp'||kind==='lp'){const al=sw/(2*0.7071);if(kind==='hp'){b0=(1+cw)/2;b1=-(1+cw);b2=b0}else{b0=(1-cw)/2;b1=1-cw;b2=b0}a0=1+al;a1=-2*cw;a2=1-al}
+  else{const al=sw/2*Math.SQRT2,sa=2*Math.sqrt(A)*al;
+    if(kind==='ls'){b0=A*((A+1)-(A-1)*cw+sa);b1=2*A*((A-1)-(A+1)*cw);b2=A*((A+1)-(A-1)*cw-sa);a0=(A+1)+(A-1)*cw+sa;a1=-2*((A-1)+(A+1)*cw);a2=(A+1)+(A-1)*cw-sa}
+    else{b0=A*((A+1)+(A-1)*cw+sa);b1=-2*A*((A-1)+(A+1)*cw);b2=A*((A+1)+(A-1)*cw-sa);a0=(A+1)-(A-1)*cw+sa;a1=2*((A-1)-(A+1)*cw);a2=(A+1)-(A-1)*cw-sa}}
+  return [b0/a0,b1/a0,b2/a0,a1/a0,a2/a0];
+}
+function mag(c,f,sr){
+  const w=2*Math.PI*f/sr,[b0,b1,b2,a1,a2]=c;
+  const nr=b0+b1*Math.cos(w)+b2*Math.cos(2*w),ni=-(b1*Math.sin(w)+b2*Math.sin(2*w)),dr=1+a1*Math.cos(w)+a2*Math.cos(2*w),di=-(a1*Math.sin(w)+a2*Math.sin(2*w));
+  return Math.sqrt((nr*nr+ni*ni)/(dr*dr+di*di));
+}
+const SOFT_HZ=[0,8000,6000,5000,4000,3000],CUT_HZ=[0,60,90,120,160];
+function drawEQ(){
+  const cv=$('#eq'); if(!cv)return;
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height,sr=22050;
+  const v=id=>+$('#'+id).value, segv=k=>{const b=$(`.seg[data-seg="${k}"] button.on`);return b?+b.dataset.v:0};
+  const gain=v('spk_gain'),bass=v('spk_bass'),treb=v('spk_treble'),soft=segv('spk_soft'),cut=segv('spk_hpf'),lim=segv('spk_limit');
+  const fs=[];
+  if(cut)fs.push(biq('hp',CUT_HZ[cut],0,sr)); if(bass)fs.push(biq('ls',200,bass,sr)); if(treb)fs.push(biq('hs',3000,treb,sr)); if(soft)fs.push(biq('lp',SOFT_HZ[soft],0,sr));
+  const cs=getComputedStyle(document.body),ink=cs.getPropertyValue('--ink').trim(),sub=cs.getPropertyValue('--sub').trim(),line=cs.getPropertyValue('--line').trim();
+  const x=f=>Math.log(f/40)/Math.log(11000/40)*(W-80)+56, y=db=>H-34-(db+24)/36*(H-56);
+  g.clearRect(0,0,W,H); g.lineWidth=1; g.font='13px system-ui,sans-serif'; g.fillStyle=sub;
+  for(const db of [-24,-18,-12,-6,0,6,12]){g.strokeStyle=db?line:sub;g.beginPath();g.moveTo(56,y(db));g.lineTo(W-18,y(db));g.stroke();g.textAlign='right';g.fillText((db>0?'+':'')+db,48,y(db)+4)}
+  g.strokeStyle=line;g.textAlign='center';
+  for(const f of [60,100,200,500,1000,2000,5000,10000]){g.beginPath();g.moveTo(x(f),y(12));g.lineTo(x(f),y(-24));g.stroke();g.fillText(f>=1000?f/1000+'k':f,x(f),H-12)}
+  g.strokeStyle=ink;g.lineWidth=2.5;g.beginPath();
+  for(let i=0;i<=240;i++){const f=40*Math.pow(11000/40,i/240);let m=Math.pow(10,gain/20);for(const c of fs)m*=mag(c,f,sr);
+    const db=Math.max(-24,Math.min(12,20*Math.log10(m)));i?g.lineTo(x(f),y(db)):g.moveTo(x(f),y(db))}
+  g.stroke();
+  $('#eq-hint').textContent=(fs.length||gain?'':'Flat: the speaker gets the sound exactly as made. ')+(lim?`Loud moments are held to ${lim===1?'-6':'-12'} dB.`:'');
+}
+['spk_gain','spk_bass','spk_treble'].forEach(id=>$('#'+id).addEventListener('input',drawEQ));
+$$('.seg[data-seg^="spk_"]').forEach(s=>s.addEventListener('click',()=>setTimeout(drawEQ,0)));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawEQ);
+
+tab((PAGES[location.hash.slice(1)]&&location.hash.slice(1))||localStorage.dtab||'room');
+</script>
+</body>
+</html>

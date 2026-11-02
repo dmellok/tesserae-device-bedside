@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "rainsynth.h"
+#include "spk_dsp.h"
 
 #define AUDIO_SR    RAIN_SR
 #define AUDIO_RING  4096u                /* samples: ~0.19 s, the SRAM ring until audio_use_buffer() gives it PSRAM */
@@ -43,6 +44,8 @@ int      audio_listeners(void);
  * the tick switches the amp, keeping it on ~3 s after the sound stops so
  * fades play out. */
 void     audio_init_pins(void);
+void     audio_speaker_tune(const spk_tune_t *t);   /* the tone stage's settings (spk_dsp.h); core 0, any time */
+uint32_t audio_speaker_dropouts(void);              /* times the ring ran dry while playing (diagnostics) */
 void     audio_speaker_enable(bool on);
 void     audio_speaker_audible(bool audible);
 void     audio_speaker_tick(void);
