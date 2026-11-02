@@ -207,8 +207,15 @@ bool ota_releases_fetch(void)
     if (!rest_download_range(url, sizeof url, 0, (uint32_t)s_cap - 1, s_buf, &got, &total, 30000)) { printf("ota: could not reach GitHub\n"); return false; }
     s_buf[got] = 0;
     cJSON *r = cJSON_Parse((const char *)s_buf);
-    if (!cJSON_IsArray(r)) { cJSON_Delete(r); const char *e = cJSON_GetErrorPtr();
-        printf("ota: release list unreadable (%u bytes, error at %ld: %.40s)\n", (unsigned)got, e ? (long)(e - (const char *)s_buf) : -1L, e ? e : "");
+    if (!cJSON_IsArray(r)) {
+        /* Seen intermittently (2 Nov 2026): a parse that succeeds but is not an array, so
+         * the buffer did not start at the body. Say what it did start with. */
+        const char *e = cJSON_GetErrorPtr();
+        printf("ota: release list unreadable (%u of %lu bytes, json type %d, error at %ld): \"", (unsigned)got, (unsigned long)total,
+               r ? r->type : -1, e ? (long)(e - (const char *)s_buf) : -1L);
+        for (size_t i = 0; i < got && i < 60; i++) { uint8_t c = s_buf[i]; if (c >= 32 && c < 127 && c != '"') putchar(c); else printf("\\x%02x", c); }
+        printf("\"\n");
+        cJSON_Delete(r);
         return false; }
     int n = 0; const cJSON *it;
     cJSON_ArrayForEach(it, r) {

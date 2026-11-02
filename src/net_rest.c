@@ -50,6 +50,12 @@ static volatile size_t s_sink_len;
 static volatile bool   s_sink_overflow;
 static volatile bool   s_hdr_done;      /* "\r\n\r\n" seen */
 static size_t          s_body_off;      /* offset of the body within s_rx */
+/* Transfer-Encoding: chunked (GitHub's API, now and then): the sink gets the
+ * payload only, decoded as it streams; a small body is decoded in place. */
+#include "http_chunked.h"
+static bool            s_chunked;
+static chunked_t       s_ch;
+static bool header_value(const char *name, char *out, size_t cap);
 
 static struct altcp_pcb *s_pcb;
 static struct altcp_tls_config *s_tls;    /* made on the first https:// request */
@@ -121,13 +127,18 @@ static err_t sent_cb(void *arg, struct altcp_pcb *pcb, u16_t len)
 
 /* Append received bytes: headers (and any small body) into s_rx; once the
  * header block is complete and a sink is set, the rest streams into the sink. */
+/* Body bytes for the sink, de-chunked when the response is chunked (the payload
+ * is never longer than the wire bytes, so the room check is on n). */
+static void sink_put(const uint8_t *d, size_t n)
+{
+    if (s_sink_len + n > s_sink_cap) { s_sink_overflow = true; return; }
+    if (s_chunked) s_sink_len += chunked_feed(&s_ch, d, n, s_sink + s_sink_len);
+    else { memcpy(s_sink + s_sink_len, d, n); s_sink_len += n; }
+}
+
 static void absorb(const uint8_t *d, size_t n)
 {
-    if (s_sink && s_hdr_done) {
-        if (s_sink_len + n <= s_sink_cap) { memcpy(s_sink + s_sink_len, d, n); s_sink_len += n; }
-        else s_sink_overflow = true;
-        return;
-    }
+    if (s_sink && s_hdr_done) { sink_put(d, n); return; }
     size_t room = REST_RX_MAX - s_rx_len;
     size_t take = n < room ? n : room;
     if (take) { memcpy(s_rx + s_rx_len, d, take); s_rx_len += take; }
@@ -139,19 +150,14 @@ static void absorb(const uint8_t *d, size_t n)
         if (end) {
             s_hdr_done = true;
             s_body_off = (size_t)(end + 4 - s_rx);
+            char te[32];
+            s_chunked = header_value("Transfer-Encoding", te, sizeof te) && strcasecmp(te, "chunked") == 0;
+            if (s_chunked) chunked_init(&s_ch);
             /* Move whatever body already landed in s_rx over to the sink. */
             size_t spill = s_rx_len - s_body_off;
-            if (spill) {
-                if (spill <= s_sink_cap) { memcpy(s_sink, s_rx + s_body_off, spill); s_sink_len = spill; }
-                else s_sink_overflow = true;
-                s_rx_len = s_body_off;
-            }
+            if (spill) { sink_put((const uint8_t *)s_rx + s_body_off, spill); s_rx_len = s_body_off; }
             /* And the part of this segment we could not fit in s_rx. */
-            if (take < n) {
-                size_t rest = n - take;
-                if (s_sink_len + rest <= s_sink_cap) { memcpy(s_sink + s_sink_len, d + take, rest); s_sink_len += rest; }
-                else s_sink_overflow = true;
-            }
+            if (take < n) sink_put(d + take, n - take);
         } else if (take < n) {
             s_overflow = true;      /* header block larger than REST_RX_MAX */
         }
@@ -323,6 +329,7 @@ static rest_status_t do_request(const char *method, const char *url,
     s_pcb_dead = false; s_dns = 0;
     s_sink = sink; s_sink_cap = sink_cap; s_sink_len = 0; s_sink_overflow = false;
     s_hdr_done = false; s_body_off = 0;
+    s_chunked = false; chunked_init(&s_ch);
 
     cyw43_arch_lwip_begin();
     err_t de = dns_gethostbyname(host, &s_ip, dns_cb, NULL);
@@ -376,9 +383,22 @@ static rest_status_t do_request(const char *method, const char *url,
     }
 
     const char *bend = strstr(s_rx, "\r\n\r\n");
-    if (bend && body_out && !sink) *body_out = bend + 4;
-    printf("rest: <- %d (%u hdr+body bytes%s)\n", http, (unsigned)s_rx_len,
-           sink ? ", body to sink" : "");
+    bool chunked = s_chunked;
+    if (bend && !sink) {
+        /* A small chunked body is decoded where it landed (payload <= wire bytes). */
+        char te[32];
+        if (header_value("Transfer-Encoding", te, sizeof te) && strcasecmp(te, "chunked") == 0) {
+            chunked_t c; chunked_init(&c);
+            uint8_t *b = (uint8_t *)(bend + 4);
+            size_t boff = (size_t)(b - (uint8_t *)s_rx);
+            s_rx_len = boff + chunked_feed(&c, b, s_rx_len - boff, b);
+            s_rx[s_rx_len] = '\0';
+            chunked = true;
+        }
+        if (body_out) *body_out = bend + 4;
+    }
+    printf("rest: <- %d (%u hdr+body bytes%s%s)\n", http, (unsigned)s_rx_len,
+           sink ? ", body to sink" : "", chunked ? ", chunked" : "");
     return map_status(http);
 }
 
@@ -639,6 +659,7 @@ bool rest_download(const char *url, uint8_t *dst, size_t cap, size_t *out_len, u
     if (st == REST_NET_ERR) return false;
     if (http < 200 || http >= 300) { printf("rest: download failed, HTTP %d\n", http); return false; }
     if (s_sink_overflow) { printf("rest: download larger than %u bytes\n", (unsigned)cap); return false; }
+    if (s_chunked && (!s_ch.done || s_ch.bad)) { printf("rest: chunked body %s\n", s_ch.bad ? "malformed" : "incomplete"); return false; }
     /* Honour Content-Length when present so a truncated transfer is caught. */
     char cl[16];
     if (header_value("Content-Length", cl, sizeof cl)) {
@@ -676,6 +697,7 @@ bool rest_download_range(char *url, size_t url_cap, uint32_t off, uint32_t len, 
             continue;
         }
         if (s_sink_overflow) { printf("rest: range larger than %lu bytes\n", (unsigned long)len); return false; }
+        if (s_chunked && (!s_ch.done || s_ch.bad)) { printf("rest: chunked body %s\n", s_ch.bad ? "malformed" : "incomplete"); return false; }
         char v[64];
         if (http == 206) {
             if (header_value("Content-Range", v, sizeof v)) { const char *sl = strchr(v, '/'); if (sl) *total = (uint32_t)strtoul(sl + 1, NULL, 10); }

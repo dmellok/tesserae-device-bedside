@@ -56,11 +56,62 @@ static void versions_order_numerically(void)
     CHECK(ota_version_cmp("dev-abc1234", "0.0.1") < 0);         /* a dev build: any release is newer */
 }
 
+/* ---- chunked transfer decoding: GitHub answers the release list chunked now and then ---- */
+#include "http_chunked.h"
+#include <string.h>
+
+static const char CHUNKED[] = "4\r\nWiki\r\n5\r\npedia\r\nE;ext=1\r\n in\r\n\r\nchunks.\r\n0\r\nTrailer: x\r\n\r\n";
+static const char PLAIN[]   = "Wikipedia in\r\n\r\nchunks.";
+
+static void chunked_whole_body(void)
+{
+    chunked_t c; uint8_t out[64]; chunked_init(&c);
+    size_t n = chunked_feed(&c, (const uint8_t *)CHUNKED, strlen(CHUNKED), out);
+    CHECK_EQ(n, strlen(PLAIN)); CHECK(memcmp(out, PLAIN, n) == 0); CHECK(c.done); CHECK(!c.bad);
+}
+
+static void chunked_any_split_gives_the_same_payload(void)
+{
+    /* TLS records split the body anywhere, so every split must decode alike. */
+    size_t len = strlen(CHUNKED);
+    for (size_t step = 1; step <= 7; step++) {
+        chunked_t c; uint8_t out[64]; size_t n = 0; chunked_init(&c);
+        for (size_t i = 0; i < len; i += step) {
+            size_t k = len - i < step ? len - i : step;
+            n += chunked_feed(&c, (const uint8_t *)CHUNKED + i, k, out + n);
+        }
+        CHECK_EQ(n, strlen(PLAIN)); CHECK(memcmp(out, PLAIN, n) == 0); CHECK(c.done);
+    }
+}
+
+static void chunked_decodes_in_place(void)
+{
+    /* The REST client decodes a small body where it landed, in its header buffer. */
+    char buf[80]; strcpy(buf, CHUNKED);
+    chunked_t c; chunked_init(&c);
+    size_t n = chunked_feed(&c, (const uint8_t *)buf, strlen(CHUNKED), (uint8_t *)buf);
+    buf[n] = 0; CHECK_STR(buf, PLAIN); CHECK(c.done);
+}
+
+static void chunked_rejects_bad_framing(void)
+{
+    chunked_t c; uint8_t out[16]; chunked_init(&c);
+    chunked_feed(&c, (const uint8_t *)"zz\r\nabc", 7, out);
+    CHECK(c.bad);
+    chunked_init(&c);
+    size_t n = chunked_feed(&c, (const uint8_t *)"3\r\nabcX", 7, out);   /* no CRLF after the data */
+    CHECK_EQ(n, 3); CHECK(c.bad); CHECK(!c.done);
+}
+
 int main(void)
 {
     RUN(sha256_known_answers);
     RUN(sha256_in_pieces_matches_whole);
     RUN(sha256_million_a);
     RUN(versions_order_numerically);
+    RUN(chunked_whole_body);
+    RUN(chunked_any_split_gives_the_same_payload);
+    RUN(chunked_decodes_in_place);
+    RUN(chunked_rejects_bad_framing);
     return test_summary("misc");
 }

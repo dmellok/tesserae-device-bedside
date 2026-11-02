@@ -29,7 +29,7 @@ $(OUT)/test_alarm: test_alarm.c $(ROOT)/src/alarm_sched.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 $(OUT)/test_store: test_store.c host/store_host.c $(ROOT)/src/store.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) -DSTORE_HOST $^ -lm -o $@
-$(OUT)/test_misc: test_misc.c $(ROOT)/src/sha256.c $(ROOT)/src/ota_version.c | $(OUT)
+$(OUT)/test_misc: test_misc.c $(ROOT)/src/sha256.c $(ROOT)/src/ota_version.c $(ROOT)/src/http_chunked.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 $(OUT)/test_sound: test_sound.c $(ROOT)/src/rainsynth.c $(ROOT)/src/birds.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@

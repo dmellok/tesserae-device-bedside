@@ -665,3 +665,21 @@ then compiled and flashed. Flash grew 1 KB (lost cross-module inlining).
   a function moves between modules, move its declaration to the new group.
 - The build stamp (`APP_BUILD`, main.c) is the one thing `tools/flash.sh`
   touches to refresh; the state JSON reads it from there.
+
+## 2026-11-02, late afternoon: release 0.3.0, and why the GitHub check sometimes failed
+
+- **v0.3.0 released** (tag pushed, `release.yml` built it, notes written by hand:
+  `gh release edit v0.3.0 --notes-file`). `--generate-notes` gives only a
+  compare link on this repo (no PRs), so write the notes.
+- **"ota: release list unreadable (… error at -1)"**, intermittent since the
+  first OTA work, was GitHub answering `Transfer-Encoding: chunked` now and
+  then: the body began `707E\r\n[{…` and cJSON parsed "707" as a number
+  (`error at -1` = the parse *succeeded* but was not an array). The REST client
+  never de-chunked. Fixed with `src/http_chunked.c` (a byte-at-a-time decoder,
+  host-tested in `tests/test_misc.c`), used by `net_rest.c` for sink bodies as
+  they stream and for small bodies in place. The failure path now dumps the
+  first 60 bytes of the buffer, so the next "unreadable" explains itself.
+- **The build stamp was stale** (`build` in `/api/state` showed the previous
+  build after a flash). PlatformIO decides what to recompile by file content,
+  not mtime, so `touch src/main.c` did nothing; `tools/flash.sh` now also
+  removes `main.o`. ALWAYS check `build` after a flash.
