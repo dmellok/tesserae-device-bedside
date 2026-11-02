@@ -235,7 +235,7 @@ static local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false,
+    .speaker = true, .power_mon = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 static char s_date[40];
@@ -296,6 +296,9 @@ static const char *const SNOOZES[4]   = { "5 min", "9 min", "10 min", "15 min" }
 #define N_WFTEMP 9
 static const char *const WFTEMPS[N_WFTEMP] = { "Default (20)", "14 C", "16 C", "18 C", "22 C", "24 C", "26 C", "28 C", "30 C" };
 static const int         WFTEMP_V[N_WFTEMP] = { 0, 14, 16, 18, 22, 24, 26, 28, 30 };
+#define N_CLEAN 4
+static const char *const CLEANS[N_CLEAN]   = { "5 min", "10 min", "20 min", "45 min" };
+static const int         CLEAN_V[N_CLEAN]  = { 5, 10, 20, 45 };
 static const int SNOOZE_V[4] = { 5, 9, 10, 15 };
 static const char *const RESETS[2]    = { "Keep everything", "Reset everything" };
 static local_req_t s_req;
@@ -568,7 +571,7 @@ typedef enum {
     S_HOMESCR, S_NIGHTG, S_KEYS, S_KEY, S_TIMEG, S_DEVICE,
     C_OVERLAY, T_SHOW, C_ATNIGHT, I_VIEWPORT, C_NIGHTKEYS,
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
-    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, A_WIFISETUP,
+    T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, C_CLEANMIN, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
 } item_t;
@@ -750,6 +753,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", ICON_GEAR, 0 };
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", ICON_THERMOMETER, 0 };
+        r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", ICON_ARROW_CLOCKWISE, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh screen", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
@@ -919,6 +923,7 @@ static int choice_opts(item_t id, const char *const **o)
     case C_TZ:        *o = TZ_NAMES; return N_TZ;
     case C_REFRESHMODE: *o = REFRESHES; return 3;
     case C_WFTEMP:    *o = WFTEMPS; return N_WFTEMP;
+    case C_CLEANMIN:  *o = CLEANS; return N_CLEAN;
     default: *o = NULL; return 0;
     }
 }
@@ -955,6 +960,7 @@ static int choice_get(item_t id)
     case C_TZ:        return S.tz;
     case C_REFRESHMODE: return S.refresh_mode;
     case C_WFTEMP: { for (int i = 0; i < N_WFTEMP; i++) if (WFTEMP_V[i] == S.wf_temp) return i; return 0; }
+    case C_CLEANMIN: { for (int i = 0; i < N_CLEAN; i++) if (CLEAN_V[i] == S.clean_min) return i; return 1; }
     default:          return 0;
     }
 }
@@ -987,6 +993,7 @@ static void choice_set(item_t id, int k)
     case C_TZ:        S.tz = k; rebuild(); break;
     case C_REFRESHMODE: S.refresh_mode = k; s_req = LREQ_REFRESH; break;   /* one clean refresh now */
     case C_WFTEMP:      S.wf_temp = WFTEMP_V[k]; s_req = LREQ_REFRESH; break;
+    case C_CLEANMIN:    S.clean_min = CLEAN_V[k]; break;
     case C_THUNDER:   if (k == 0) S.thunder = 0;
                       else if (k == 1) { if (!S.thunder) S.thunder = 35; S.thunder_near = 20; }
                       else { if (S.thunder < 60) S.thunder = 70; S.thunder_near = 75; }
@@ -1544,6 +1551,7 @@ static void build_list(layer_t *l)
     if (r->id == T_TURNHINTS) snprintf(small, sizeof small, "Beside each row: turns to reach it, + clockwise");
     if (r->id == T_QUICKMENU) snprintf(small, sizeof small, "Steps in black and white, full quality when you stop");
     if (r->id == T_SETTLEFULL) snprintf(small, sizeof small, "When you stop: the whole screen, cleared first " DOT " flashes");
+    if (r->id == C_CLEANMIN) snprintf(small, sizeof small, "Partial updates wear the picture; this resets it while idle");
     if (r->id == C_WFTEMP) { int s = it8951_temp_sensed(); if (s >= 0) snprintf(small, sizeof small, "Board sensor says %d C " DOT " lower = darker", s); else snprintf(small, sizeof small, "Lower = darker, higher = lighter"); }
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop");
@@ -2532,6 +2540,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "turn_hints"))   { S.turn_hints = v != 0; if (s_mode == M_LIST || s_mode == M_CHOICE) mark_screen(); return true; }
     else if (!strcmp(key, "quick_menus"))  { S.quick_menus = v != 0; return true; }
     else if (!strcmp(key, "settle_full"))  { S.settle_full = v != 0; return true; }
+    else if (!strcmp(key, "clean_min"))    { if (v < 1 || v > 240) return false; S.clean_min = v; return true; }
     else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
     else if (!strcmp(key, "birds"))     { if (v < 0 || v > BIRDS_ALL) return false; S.birds = (uint16_t)v; }
@@ -2655,6 +2664,7 @@ static void ext_pack(ext_blob_t *b)
     memset(b, 0, sizeof *b);
     b->speaker = S.speaker; b->power_mon = S.power_mon;
     b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0));   /* bits 0-1 set = off (older blobs read as on); bit 2 set = on */
+    b->pad = (uint8_t)S.clean_min;
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 static void ext_load(void)
@@ -2663,6 +2673,7 @@ static void ext_load(void)
     if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
         S.speaker = b.speaker; S.power_mon = b.power_mon;
         S.turn_hints = !(b.rsv0 & 1); S.quick_menus = !(b.rsv0 & 2); S.settle_full = (b.rsv0 & 4) != 0;
+        S.clean_min = (b.pad >= 1 && b.pad <= 240) ? b.pad : 10;
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
@@ -2762,8 +2773,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"turn_hints\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.turn_hints, S.quick_menus, S.settle_full, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

@@ -228,7 +228,7 @@ static void write_cmd(uint16_t cmd);
  * paint, faded after the screen had sat). STANDBY would do it but hangs HRDY
  * on this board; POWER_CTR switches just the panel power and leaves the
  * controller answering. On before each refresh, off once it has finished. */
-static bool s_rails_off_between = true;
+static bool s_rails_off_between = false;   /* off: the first refresh after power-up looked weak (2 Nov); epdpower=1 to try it */
 static bool s_rails_on = true;              /* after init the controller has them on */
 static uint32_t s_last_refresh_ms;
 static void panel_power(bool on)

@@ -366,7 +366,7 @@ static uint32_t s_last_input_ms;
  * input has settled puts the blacks back. Background updates (the live page's
  * clock, HA values) don't count: they get the slower clean-up below, so the
  * panel doesn't flash every minute at night. */
-#define SETTLE_MS 4000u
+#define SETTLE_MS 15000u                 /* a full clean refresh this long after the last interaction */
 static bool     s_touched;
 static bool     s_job_screen;           /* the job in flight changes page */
 static bool     s_job_counts, s_job_resets;
@@ -427,7 +427,7 @@ static void paint_pump(void)
     {
         uint32_t now = to_ms_since_boot(get_absolute_time());
         if (s_job_resets) s_touched = false;
-        else if (local_refresh_mode() == 0 && now - s_last_input_ms < 3000u && j.mode != IT8951_MODE_GC16) s_touched = true;   /* Fast mode: a partial update the user caused */
+        else if (now - s_last_input_ms < 3000u) s_touched = true;   /* a partial the user caused: a clean refresh follows once they stop */
     }
     s_job_counts = !full;                               /* every partial wears its area slightly lighter on this panel: count them all */
     s_job_screen = local_epoch() != s_painted_epoch;
@@ -463,7 +463,8 @@ static void cleanup_if_idle(void)
     /* Residual drift from partials: a full INIT + GC16 resets it. After 30 of
      * them, or 45 minutes with any, once the panel has been idle 20 s (the
      * flash is just the panel, no light, so nights are fine). */
-    bool due = s_partials >= 30 || (s_partials > 0 && now - s_last_full_ms > 45u * 60u * 1000u);
+    uint32_t interval = (uint32_t)(local_state()->clean_min > 0 ? local_state()->clean_min : 10) * 60u * 1000u;
+    bool due = s_partials >= 30 || (s_partials > 0 && now - s_last_full_ms > interval);
     if (due && !painter_busy() && !s_flush_pending && now - s_last_input_ms > 20000 && local_screen() == SCR_HOME) {
         printf("paint: full clean refresh after %lu partial updates\n", (unsigned long)s_partials);
         s_partials = 0; s_last_full_ms = now;
