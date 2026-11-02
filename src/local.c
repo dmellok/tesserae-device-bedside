@@ -552,6 +552,13 @@ const char *local_label_for_action(const char *spec)
 
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 static mode_t_ s_mode = M_HOME;
+/* Crisp menus: everything the menus draw is black or white, so the panel's
+ * two-level mode (DU: no flash, ~0.45 s) can paint them exactly: opening,
+ * stepping, choices, sliders. GC16 (which flashes its whole rectangle and
+ * wears the picture on this panel) is then only for the dashboards. */
+static bool crisp(void) { return S.quick_menus && s_mode != M_HOME; }
+#define DIM_G   (crisp() ? G_BLACK : G_DARK)
+#define LIGHT_G (crisp() ? G_BLACK : G_LIGHT)
 
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
                N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_COUNT } node_t;
@@ -720,7 +727,6 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ I_MENUKEY, K_INFO, "MENU key", ICON_KEYBOARD, 0 };
         r[n++] = (row_def_t){ T_TURNHINTS, K_TOGGLE, "Turn counts", ICON_LIST, 0 };
         r[n++] = (row_def_t){ T_QUICKMENU, K_TOGGLE, "Quick menu moves", ICON_PLAY, 0 };
-        r[n++] = (row_def_t){ T_SETTLEFULL, K_TOGGLE, "Full redraw on settle", ICON_SUN, 0 };
         r[n++] = (row_def_t){ V_KEYS, K_VALUE, "Brightness", ICON_SUN, 0 };
         r[n++] = (row_def_t){ C_KEYCOL, K_CHOICE, "Key colour", ICON_KEYBOARD, 0 };
         r[n++] = (row_def_t){ C_MENUCOL, K_CHOICE, "Menu key colour", ICON_KEYBOARD, 0 };
@@ -1101,7 +1107,7 @@ static int s_list_n;                   /* rows in the list on screen */
 
 static void build_top(layer_t *l, bool inv)
 {
-    uint8_t fg = inv ? G_WHITE : G_BLACK, bg = inv ? G_BLACK : G_WHITE, dim = inv ? G_LIGHT : G_DARK;
+    uint8_t fg = inv ? G_WHITE : G_BLACK, bg = inv ? G_BLACK : G_WHITE, dim = inv ? G_LIGHT : DIM_G;
     (void)dim;
     layer_reset(l, 0, 0, W, TB_H, bg);
     op_fill(l, 0, TB_H - 4, W, 4, inv ? G_DARK : G_BLACK);
@@ -1491,14 +1497,14 @@ static void build_split(layer_t *l, const char *const *labels, const char *const
                         const bool *chev, const bool *check, int n, int sel, const char *pv_icon, const char *pv_big, const char *pv_small)
 {
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_WHITE);
-    op_fill(l, LIST_W, TB_H, 3, SB_Y - TB_H, G_LIGHT);
+    op_fill(l, LIST_W, TB_H, crisp() ? 2 : 3, SB_Y - TB_H, LIGHT_G);
     s_row_h = n > 8 ? (SB_Y - LIST_Y - 10) / n : 116;
     for (int i = 0; i < n; i++) {
         int y = LIST_Y + i * s_row_h;
         bool s = (i == sel);
-        uint8_t fg = s ? G_WHITE : G_BLACK, dim = s ? G_LIGHT : G_DARK;
+        uint8_t fg = s ? G_WHITE : G_BLACK, dim = s ? (crisp() ? G_WHITE : G_LIGHT) : DIM_G;
         if (s) op_fill(l, 0, y, LIST_W, s_row_h, G_BLACK);
-        else op_fill(l, MARGIN, y + s_row_h - 2, LIST_W - MARGIN - 30, 2, G_LIGHT);
+        else op_fill(l, MARGIN, y + s_row_h - 2, LIST_W - MARGIN - 30, crisp() ? 1 : 2, LIGHT_G);
         int x = MARGIN;
         if (icons && icons[i]) { op_text(l, x, y + (s_row_h - F_IM->line_h) / 2, F_IM, dim, icons[i]); x += 80; }
         op_text(l, x, y + (s_row_h - F_M->line_h) / 2, F_M, fg, labels[i]);
@@ -1508,7 +1514,7 @@ static void build_split(layer_t *l, const char *const *labels, const char *const
         if (vals && vals[i][0]) op_text_r(l, xr, y + (s_row_h - F_LBL->line_h) / 2, F_LBL, dim, vals[i]);
         if (S.turn_hints && !s) {           /* turns from the highlighted row: clockwise is down */
             char t[8]; snprintf(t, sizeof t, "%+d", i - sel);
-            op_text_r(l, MARGIN - 12, y + (s_row_h - F_S->line_h) / 2, F_S, G_DARK, t);
+            op_text_r(l, MARGIN - 12, y + (s_row_h - F_S->line_h) / 2, F_S, DIM_G, t);
         }
     }
     s_list_n = n;
@@ -1517,7 +1523,7 @@ static void build_split(layer_t *l, const char *const *labels, const char *const
     const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < W - LIST_W - 80 ? F_NUM : F_XL;
     if (draw_font_w(bf, pv_big) > W - LIST_W - 80) bf = F_M;
     op_text_c(l, cx, y, bf, G_BLACK, pv_big); y += bf->line_h + 18;
-    op_text_c(l, cx, y, F_LBL, G_DARK, pv_small);
+    op_text_c(l, cx, y, F_LBL, DIM_G, pv_small);
 }
 
 static void build_list(layer_t *l)
@@ -1584,13 +1590,13 @@ static void build_value(layer_t *l)
     op_text_c(l, W / 2, y, numeric(t) ? F_NUM : F_XL, G_BLACK, t);
     y = TB_H + 700;
     int fx = (int)((long)TRACK_W * (m.v - m.min) / (m.max - m.min ? m.max - m.min : 1));
-    op_fill(l, TRACK_X, y, TRACK_W, 22, G_LIGHT);
+    if (crisp()) op_frame(l, TRACK_X, y, TRACK_W, 22, 2, G_BLACK); else op_fill(l, TRACK_X, y, TRACK_W, 22, G_LIGHT);
     op_fill(l, TRACK_X, y, fx, 22, G_BLACK);
     op_circle(l, TRACK_X + fx, y + 11, 34, G_BLACK);
     op_circle(l, TRACK_X + fx, y + 11, 22, G_WHITE);
-    op_text(l, TRACK_X, y + 60, F_LBL, G_DARK, m.lo);
-    op_text_r(l, TRACK_X + TRACK_W, y + 60, F_LBL, G_DARK, m.hi);
-    op_text_c(l, W / 2, y + 160, F_S, G_DARK, "turn to adjust, faster for bigger steps  " DOT "  press or MENU when done");
+    op_text(l, TRACK_X, y + 60, F_LBL, DIM_G, m.lo);
+    op_text_r(l, TRACK_X + TRACK_W, y + 60, F_LBL, DIM_G, m.hi);
+    op_text_c(l, W / 2, y + 160, F_S, DIM_G, "turn to adjust, faster for bigger steps  " DOT "  press or MENU when done");
 }
 
 static void build_ring(layer_t *l)
@@ -1879,7 +1885,7 @@ static void toast(const char *icon, const char *txt, const char *val)
     snprintf(s_toast_val, sizeof s_toast_val, "%s", val ? val : "");
     s_toast_until = (now_ms() + 3000u) | 1u;          /* long enough to read from the pillow */
     rebuild();
-    mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, IT8951_MODE_GL16);
+    mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);
 }
 
 static bool s_toast_loading;
@@ -1937,7 +1943,7 @@ static void build_toast(layer_t *l)
         x += 210 + 64;
     }
     int ty = cy - (F_M->line_h + 8 + F_XL->line_h) / 2;
-    op_text(l, x, ty, F_M, G_DARK, s_toast_txt);
+    op_text(l, x, ty, F_M, DIM_G, s_toast_txt);
     const char *v = s_toast_val[0] ? s_toast_val : s_toast_txt;
     int room = TOAST_X + TOAST_W - 56 - x;
     const bfont_t *vf = draw_font_w(F_XL, v) <= room ? F_XL : draw_font_w(F_L, v) <= room ? F_L : F_M;   /* long titles */
@@ -2014,7 +2020,7 @@ static void mark_screen(void)
     s_settle_due = 0;                       /* the list is going away */
     rebuild();
     if (s_mode == M_HOME && S.dash_page > 0) { mark(0, 0, W, H, IT8951_MODE_GC16); return; }   /* overlay layouts differ */
-    mark(0, 0, W, SB_Y, IT8951_MODE_GC16);
+    mark(0, 0, W, SB_Y, crisp() ? IT8951_MODE_DU : IT8951_MODE_GC16);   /* menus: two-level, no flash; home: the dashboard's greys */
     /* The strip stays as it is between the home screen and the menus; marking
      * it here merged with the content into a full-screen job, which costs an
      * INIT clear and a flash on every menu open. Its own changes mark it. */
@@ -2034,8 +2040,7 @@ static void mark_rows(int a, int b)
         mark_apart(MARGIN - 8, y0, LIST_W - MARGIN + 8, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed */
         if (S.turn_hints) mark_apart(0, LIST_Y, MARGIN - 8, s_list_n * s_row_h, IT8951_MODE_DU);   /* every row's number moved */
         else mark_apart(0, y0, MARGIN - 8, y1 - y0, IT8951_MODE_DU);
-        s_settle_due = now_ms() + SETTLE_MS; s_settle_due |= 1u;
-        return;
+        return;                                     /* the art is black and white: DU paints it exactly, nothing to settle */
     }
     mark(0, y0, LIST_W, y1 - y0, IT8951_MODE_GL16);
     mark(PREVIEW_RECT, IT8951_MODE_GL16);
@@ -2054,7 +2059,7 @@ bool local_settle_tick(void)
 static void mark_value(void)
 {
     rebuild();
-    mark(MARGIN, TB_H + 60 + icon170.line_h + 20, W - 2 * MARGIN, 720 - icon170.line_h, IT8951_MODE_GL16);
+    mark(MARGIN, TB_H + 60 + icon170.line_h + 20, W - 2 * MARGIN, 720 - icon170.line_h, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);
 }
 
 static void go_home(void) { s_mode = M_HOME; s_depth = 0; printf("local: home\n"); mark_screen(); }
