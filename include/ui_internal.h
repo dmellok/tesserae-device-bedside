@@ -178,6 +178,7 @@ typedef enum {
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
+    C_CLOCKDU,
 } item_t;
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
 typedef struct { int v, min, max, step; const char *lo, *hi; bool wrap; } vmeta_t;
@@ -239,6 +240,7 @@ extern const char *const SOFTENS[6];
 extern const char *const LOWCUTS[5];
 extern const char *const PEAKS[3];
 extern const char *const TESTS[5];
+extern const char *const CLOCKDU[3];
 extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;
@@ -352,6 +354,8 @@ void build_overlay(layer_t *l);
 void build_toast(layer_t *l);
 void fmt_hm(char *b, size_t n, int mins);
 void mark_ov(void);
+bool strip_du(void);
+int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *ct);
 void overlay_apply(void);
 void toast(const char *icon, const char *txt, const char *val);
 void toast_loading(const char *title);

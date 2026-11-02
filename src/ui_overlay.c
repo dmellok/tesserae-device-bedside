@@ -32,7 +32,7 @@ void viewport(int *x, int *y, int *w, int *h)
     default: *x = 0; *y = 0; *w = W; *h = H; break;
     }
 }
-void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark_changed(&s_prev_sb, &L_sb, x, y, w, h, IT8951_MODE_GL16); }
+void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark_changed(&s_prev_sb, &L_sb, x, y, w, h, strip_du() ? IT8951_MODE_DU : IT8951_MODE_GL16); }
 /* The overlay settings changed: tell Tesserae what the dashboard has now. */
 void overlay_apply(void)
 {
@@ -94,6 +94,35 @@ static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char
     return n;
 }
 
+/* The clock, one op per character in fixed slots (every digit as wide as the
+ * widest), so a minute tick changes one small op and nothing to the right of
+ * the clock moves: the diff then repaints one digit cell, not the whole strip.
+ * (Overnight that was a GC16 partial over most of the strip every minute.)
+ * l == NULL only measures. Returns the width. */
+int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *ct)
+{
+    int dw = 0;
+    for (char d = '0'; d <= '9'; d++) { char s[2] = { d, 0 }; int w = draw_font_w(f, s); if (w > dw) dw = w; }
+    int x0 = x;
+    for (const char *p = ct; *p; p++) {
+        char s[2] = { *p, 0 };
+        int w = draw_font_w(f, s);
+        bool digit = *p >= '0' && *p <= '9';
+        if (l) op_text(l, digit ? x + (dw - w) / 2 : x, y, f, g, s);
+        x += digit ? dw : w;
+    }
+    return x - x0;
+}
+
+/* The strip's clock painted two-level (DU): no flash, and none of the GC16
+ * partial-refresh fade overnight; the digits are black and white, so no
+ * anti-aliasing. Settings > Home screen > Clock updates. The card layouts
+ * keep GC16: their grey cards would threshold to white. */
+bool strip_du(void)
+{
+    return ov_kind() == 0 && (S.clock_du == 2 || (S.clock_du == 1 && S.night));
+}
+
 void build_overlay(layer_t *l)
 {
     int ox, oy, ow, oh;
@@ -107,18 +136,19 @@ void build_overlay(layer_t *l)
     int kind = ov_kind();
 
     if (kind == 0) {                                         /* the strip */
+        uint8_t dim = strip_du() ? G_BLACK : G_DARK;
         op_fill(l, 0, oy, W, 4, G_BLACK);
         int cy = oy + 4 + (OV_STRIP_H - 4) / 2, x = MARGIN;
         if (solo) {
-            int tw = draw_font_w(F_XL, ct) + (ap[0] ? 12 + draw_font_w(F_M, ap) : 0);
+            int tw = clock_slots(NULL, 0, 0, F_XL, 0, ct) + (ap[0] ? 12 + draw_font_w(F_M, ap) : 0);
             x = (W - tw) / 2;
         }
         if (clock) {
-            op_text(l, x, cy - F_XL->line_h / 2, F_XL, G_BLACK, ct); x += draw_font_w(F_XL, ct);
-            if (ap[0]) { x += 12; op_text(l, x, cy - F_M->line_h / 2 + 14, F_M, G_DARK, ap); x += draw_font_w(F_M, ap); }
+            x += clock_slots(l, x, cy - F_XL->line_h / 2, F_XL, G_BLACK, ct);
+            if (ap[0]) { x += 12; op_text(l, x, cy - F_M->line_h / 2 + 14, F_M, dim, ap); x += draw_font_w(F_M, ap); }
             x += 96;
         }
-        for (int i = 0; i < n; i++) x = ov_item(l, x, cy, v[i].icon, v[i].val, v[i].tail, G_BLACK, G_DARK, F_L) + 96;
+        for (int i = 0; i < n; i++) x = ov_item(l, x, cy, v[i].icon, v[i].val, v[i].tail, G_BLACK, dim, F_L) + 96;
         if (links && !solo) {
             int xr = W - MARGIN;
             if (!net_connected()) { xr -= draw_font_w(F_L, "Offline"); op_text(l, xr, cy - F_L->line_h / 2, F_L, G_BLACK, "Offline"); xr -= 18; }
@@ -140,8 +170,8 @@ void build_overlay(layer_t *l)
     if (clock) {
         op_rrect(l, x, y, cw, ch_clock, 28, G_BLACK);
         int ty = left ? y + 34 : y + (ch_clock - F_XL->line_h - 10 - F_S->line_h) / 2;
-        op_text(l, x + 34, ty, F_XL, G_WHITE, ct);
-        if (ap[0]) op_text(l, x + 44 + draw_font_w(F_XL, ct), ty + F_XL->line_h - F_M->line_h - 6, F_M, G_LIGHT, ap);
+        int cw = clock_slots(l, x + 34, ty, F_XL, G_WHITE, ct);
+        if (ap[0]) op_text(l, x + 44 + cw, ty + F_XL->line_h - F_M->line_h - 6, F_M, G_LIGHT, ap);
         if (date[0]) op_text(l, x + 34, ty + F_XL->line_h + 10, F_S, G_LIGHT, date);
         if (left) y += ch_clock + 26; else x += cw + 26;
     }

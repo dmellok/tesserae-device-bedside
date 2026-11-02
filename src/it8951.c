@@ -458,6 +458,13 @@ int  it8951_temp_forced_rb(void) { return s_forced_rb; }
 bool it8951_reinit_pending(void) { bool p = s_reinit_pending; s_reinit_pending = false; return p; }
 int it8951_temp_forced(void) { return s_force_temp_c; }
 int it8951_temp_sensed(void) { return s_sensed_temp_c; }
+/* Read the board sensor again (the caller holds the painter); -1 when it can't. */
+int it8951_sense_temp(void)
+{
+    if (!s_up || s_asleep) return -1;
+    read_temp();
+    return s_sensed_temp_c;
+}
 
 /* Before a paint: the controller must be up, and still holding its settings.
  * A controller that reset itself (brown-out, a glitch) comes back with its

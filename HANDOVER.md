@@ -721,3 +721,32 @@ then while changing sound settings, and that the bird calls can be very sharp.
   to `/desktop` unless `?m` (or its "Phone layout" link) was used.
 - `net_rest.c` freed cJSON's output with libc `free()`: with the PSRAM heap in
   place that is the wrong allocator. Now `cJSON_free()`.
+
+## 2026-11-03, morning: fade again overnight, and why the strip was being repainted whole
+
+Kayden: "some more fade in the morning" (on the Bedside server dashboard with
+the strip, VCOM -1.90 V since the afternoon before). The log explained the
+mechanism: 920 paints in 12 h. The strip's clock was one text op and the
+items after it were laid out from the clock's measured width; the digits are
+not fixed-width, so when the minute changed the alarm and sound items shifted
+a few pixels, the diff marked all three, and the refresh (one DPY_AREA over
+the bounding box) was a GC16 partial over ~1100 x 124 px every minute, all
+night, with a full clean refresh every 10 minutes.
+
+- **Clock digits in fixed slots** (`clock_slots()` in ui_overlay.c, used by the
+  strip, the cards and the Live page): one op per character, every digit as
+  wide as the widest, so a minute tick marks one digit cell and nothing moves.
+  The Live page's "in 13 h 30 min" rounds to 5 min (15 past 3 h), so that text
+  changes rarely too.
+- **Clock updates** (Settings > Home screen; web Display page; `clock_du`):
+  the strip's partials painted two-level (DU) at night (default), always, or
+  never. DU paints black and white only (no anti-aliasing on the digits) with
+  no flash, and does not run the GC16 partial waveform that fades this glass.
+  The card layouts keep GC16 (their grey cards would threshold to white).
+- **Waveform temperature**: the board sensor runs warm, never cold, so when it
+  reads below the 20 C default the glass is at least that cold and its longer
+  waveform is used (`main.c`); the sensor is read again before every clean
+  refresh and logged with the forced value and VCOM, so the next overnight
+  report has numbers.
+- VCOM -1.95 V (platformio.ini): -1.90 let the blacks drift, -2.00 darkened
+  greys; the middle.

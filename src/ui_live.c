@@ -172,7 +172,7 @@ void build_live(layer_t *l)
     else if (S.clock12) { int hh = sec / 3600 % 12; snprintf(b, sizeof b, "%d:%02d", hh ? hh : 12, sec / 60 % 60); }
     else snprintf(b, sizeof b, "%02d:%02d", sec / 3600, sec / 60 % 60);
     int base = LV_HEAD_Y + LV_HEAD_H - 8;
-    op_text(l, MARGIN, base - clock214.ascent, &clock214, G_BLACK, b);
+    clock_slots(l, MARGIN, base - clock214.ascent, &clock214, G_BLACK, b);   /* one op per digit: a minute tick repaints one cell */
     int xd = MARGIN + draw_font_w(&clock214, "00:00") + 56;
     op_fill(l, xd, base - 132, 3, 130, 0xC);
     int xa = xd + 3 + 56;
@@ -188,7 +188,10 @@ void build_live(layer_t *l)
         static const char *const DAYF[7] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
         if (delta < 0) c[0] = 0;
         else if (mins >= 24 * 60) snprintf(c, sizeof c, "on %s", DAYF[(wday + (sec + delta) / 86400) % 7]);
-        else if (mins >= 60) snprintf(c, sizeof c, "in %d h %d min", mins / 60, mins % 60); else snprintf(c, sizeof c, "in %d min", mins);
+        else if (mins >= 60) {                              /* hours away: to 5 min (15 past 3 h), so the text, and its partial refresh, change rarely */
+            int step = mins >= 180 ? 15 : 5, r = (mins + step / 2) / step * step;
+            if (r % 60) snprintf(c, sizeof c, "in %d h %d min", r / 60, r % 60); else snprintf(c, sizeof c, "in %d h", r / 60);
+        } else snprintf(c, sizeof c, "in %d min", mins);
         op_text(l, xa + draw_font_w(&ui72, b) + 22, base - 58 - F_M->ascent, F_M, 0x4, c);
         int win = early > 0 ? early : 10, cm = ((h * 60 + m - win) % 1440 + 1440) % 1440;
         if (S.birds && S.rain_on) snprintf(c, sizeof c, "Dawn chorus from %02d:%02d " DOT " rain fades out", cm / 60, cm % 60);

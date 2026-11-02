@@ -324,6 +324,10 @@ static void audio_update(void)
 
     /* The waveform temperature from the settings (0 = the firmware default). */
     {   int want = ls->wf_temp > 0 ? ls->wf_temp : 20;
+        /* The board sensor runs warm from refreshing, never cold, so when it reads
+         * below the default the glass is at least that cold: use its longer waveform. */
+        int board = it8951_temp_sensed();
+        if (ls->wf_temp == 0 && board > 0 && board < want) want = board;
         if (want != it8951_temp_forced()) { painter_lock(); it8951_set_temp(want); painter_unlock(); }
         if (it8951_reinit_pending()) { printf("paint: full repaint after the controller re-init\n"); local_set_dirty_full(); local_flush(); }
     }

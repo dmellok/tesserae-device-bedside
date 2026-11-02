@@ -150,6 +150,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_OVERLAY, K_CHOICE, "Overlay", ICON_HOUSE, 0 };
         for (int i = 0; i < 5; i++) r[n++] = (row_def_t){ T_SHOW, K_TOGGLE, SHOW_L[i], SHOW_I[i], i };
         r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", ICON_MOON, 0 };
+        r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", ICON_SUN, 0 };
         r[n++] = (row_def_t){ I_VIEWPORT, K_INFO, "Tesserae gets", ICON_WIFI_HIGH, 0 };
         break; }
     case N_NIGHTG:
@@ -381,6 +382,7 @@ static int choice_opts(item_t id, const char *const **o)
     case C_THUNDER:   *o = THUNDERS; return 3;
     case C_OVERLAY:   *o = OVERLAYS; return 4;
     case C_ATNIGHT:   *o = ATNIGHT; return 2;
+    case C_CLOCKDU:   *o = CLOCKDU; return 3;
     case C_NIGHTKEYS: *o = NIGHTKEYS; return 2;
     case C_KEY_PRESS: case C_KEY_HOLD: *o = KEYACT_NAME; return N_KEYACT;
     case C_KNOB_HOLD: *o = KNOBACT_NAME; return N_KNOBACT;
@@ -416,6 +418,7 @@ static int choice_get(item_t id)
     case C_THUNDER:   return !S.thunder ? 0 : S.thunder_near < 50 ? 1 : 2;
     case C_OVERLAY:   return S.overlay;
     case C_ATNIGHT:   return S.at_night;
+    case C_CLOCKDU:   return S.clock_du;
     case C_NIGHTKEYS: return S.night_keys;
     case C_KEY_PRESS: case C_KEY_HOLD: {
         const char *b = config_get()->bind[(id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + s_ki];
@@ -458,6 +461,7 @@ static void choice_set(item_t id, int k)
     case C_RESET:     if (k == 1) { printf("local: master reset asked for\n"); s_req = LREQ_RESET; } break;
     case C_OVERLAY:   S.overlay = k; overlay_apply(); break;
     case C_ATNIGHT:   S.at_night = k; break;
+    case C_CLOCKDU:   S.clock_du = k; break;
     case C_NIGHTKEYS: S.night_keys = k; apply_colours(); break;
     case C_KEY_PRESS: case C_KEY_HOLD:
         config_set_bind((id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + s_ki, KEYACT_ID[k]); config_save(); break;
@@ -639,6 +643,7 @@ void build_list(layer_t *l)
     if (r->id == T_SETTLEFULL) snprintf(small, sizeof small, "When you stop: the whole screen, cleared first " DOT " flashes");
     if (r->id == C_CLEANMIN) snprintf(small, sizeof small, "Partial updates wear the picture; this resets it while idle");
     if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Tone, low cut, loud moments and a test sound");
+    if (r->id == C_CLOCKDU) snprintf(small, sizeof small, "Two-level: black-and-white digits, no flash, no fade");
     if (r->id == V_BIRD_SOFT) snprintf(small, sizeof small, "Takes the edge off whistles and chirps");
     if (r->id == C_SPK_SOFT) snprintf(small, sizeof small, "Rolls off everything above this: sharp calls, hiss");
     if (r->id == C_SPK_LIMIT) snprintf(small, sizeof small, "Holds the loudest moments down");

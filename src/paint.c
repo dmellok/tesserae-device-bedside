@@ -145,7 +145,9 @@ void cleanup_if_idle(void)
     uint32_t interval = (uint32_t)(local_state()->clean_min > 0 ? local_state()->clean_min : 10) * 60u * 1000u;
     bool due = s_partials >= 30 || (s_partials > 0 && now - s_last_full_ms > interval);
     if (due && !painter_busy() && !s_flush_pending && now - s_last_input_ms > 20000 && local_screen() == SCR_HOME) {
-        printf("paint: full clean refresh after %lu partial updates\n", (unsigned long)s_partials);
+        painter_lock(); int board = it8951_sense_temp(); painter_unlock();     /* the night's temperature, for the log and the waveform choice */
+        printf("paint: full clean refresh after %lu partial updates, board %d C, waveform %d C, VCOM %d mV\n",
+               (unsigned long)s_partials, board, it8951_temp_forced(), (int)it8951_cached_vcom());
         s_partials = 0; s_last_full_ms = now;
         local_set_dirty_full();
         local_flush_now();

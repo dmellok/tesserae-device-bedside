@@ -54,6 +54,7 @@ typedef struct {
      * 2 sound, 3 room, 4 connection), at night (0 same, 1 clock only); the
      * time zone (0 = from Tesserae, else a TZONES index) and automatic time */
     int  night_keys, overlay, show, at_night, tz; bool auto_time;
+    int  clock_du;                     /* the strip's clock: 0 full quality (GC16), 1 two-level at night, 2 two-level always (DU: no flash, no partial-refresh fade) */
     /* screen updates: 0 fast (partial, a full refresh once input settles),
      * 1 clean (every change with GC16, just its area), 2 full (every change
      * repaints the whole screen with GC16) */
