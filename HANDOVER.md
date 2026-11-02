@@ -625,3 +625,15 @@ record fix stay: they are correct and cheap.
 - Custom waveforms: possible in principle (the table lives in the HAT's
   flash, replaceable with the IT8951 USB tool) but E Ink's files are
   proprietary and per-lot; a wrong waveform can damage the panel. Not pursued.
+
+## 2026-11-02, midday: making it predictable
+
+"Sometimes fine, sometimes bad" is where in the partial-refresh cycle you
+look: best right after a full INIT + GC16, a little worse with each partial.
+Now deterministic: a full clean refresh 15 s after the last interaction if
+any partial happened (all modes; SETTLE_MS), and every N minutes while idle
+(Settings > Device > Clean refresh every; web Panel card; default 10,
+`clean_min`), plus after 30 partials. The panel rails stay on again: the
+first refresh after powering them up looked weak, which made the fade look
+bimodal (`epdpower=1` re-enables idle power-off to test). Screen-updates mode
+is now cosmetic: GL16 is never used, and the settle refresh runs in every mode.
