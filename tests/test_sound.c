@@ -261,6 +261,34 @@ static void the_test_sound_plays_with_the_sleep_sound_off(void)
     CHECK(clip == 0);
 }
 
+static void alarm_sounds_ring_and_stop(void)
+{
+    /* Every alarm sound plays with nothing else on, at the chorus's volume,
+     * inside full scale; the chorus-only choice and a level of 0 are silent;
+     * clearing it fades out within a second. */
+    for (int t = 1; t < RS_TONES; t++) {
+        rs_init(21 + t);
+        rs_params_t p = { .on = false, .volume = 0, .fade = 1.0f, RS_DEFAULTS, .bird_vol = 8, .ring = t, .ring_level = 1.0f };
+        render(&p, out, SR * 4);
+        CHECK(rms(out, SR * 4) > 32767 * 0.03);                  /* audible over four seconds of the pattern */
+        int clip = 0; for (int i = 0; i < SR * 4; i++) if (out[i] >= 32700 || out[i] <= -32700) clip++;
+        CHECK(clip == 0);
+        p.ring = 0;
+        render(&p, out, SR * 2);
+        CHECK(rms(out + SR, SR) < 5);                            /* gone within a second */
+    }
+    rs_init(9);
+    rs_params_t q = { .on = false, .volume = 0, .fade = 1.0f, RS_DEFAULTS, .bird_vol = 8, .ring = 3, .ring_level = 0.0f };
+    render(&q, out, SR * 2);
+    CHECK(rms(out, SR * 2) < 5);                                 /* a level of 0: the ring has not started */
+    q.ring_level = 0.35f;
+    render(&q, out, SR * 3);
+    double soft = rms(out + SR, SR * 2);
+    q.ring_level = 1.0f;
+    render(&q, out, SR * 3);
+    CHECK(soft > 100 && rms(out + SR, SR * 2) > soft * 1.8);   /* louder as the ring builds */
+}
+
 /* ---- the radio kind: the engine pulls the decoded stream and treats it like any other bed ---- */
 static int pull_calls;
 static int fake_pull(int16_t *dst, int n)
@@ -304,6 +332,7 @@ int main(void)
     RUN(level_and_limiter_hold_the_peaks);
     RUN(softness_takes_the_edge_off_the_birds);
     RUN(the_test_sound_plays_with_the_sleep_sound_off);
+    RUN(alarm_sounds_ring_and_stop);
     RUN(the_radio_plays_what_it_is_handed);
     return test_summary("sound");
 }

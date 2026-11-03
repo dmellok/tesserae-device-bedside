@@ -53,8 +53,9 @@ typedef struct {
     int  key_col, menu_col, night_col; bool knob_light; int auto_night; bool clock12; int snooze_min;
     /* Mk II: keys at night (0 dim, 1 off); the home overlay (0 strip, 1 cards
      * left, 2 cards bottom, 3 off), which items it shows (bit 0 clock, 1 alarm,
-     * 2 sound, 3 room, 4 connection), at night (0 same, 1 clock only); the
-     * time zone (0 = from Tesserae, else a TZONES index) and automatic time */
+     * 2 sound, 3 room, 4 connection), at night (0 same, 1 clock only, 2 the
+     * clock and the next alarm); the time zone (0 = from Tesserae, else a
+     * TZONES index) and automatic time */
     int  night_keys, overlay, show, at_night, tz; bool auto_time;
     int  clock_du;                     /* the strip's clock: 0 full quality (GC16), 1 two-level at night, 2 two-level always (DU: no flash, no partial-refresh fade) */
     bool live_demo;                    /* show realistic sample values on the Live dashboard, not MQTT placeholders */
@@ -66,7 +67,10 @@ typedef struct {
     int  refresh_mode;
     int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
     bool turn_hints;                   /* menus: the turns needed to reach each row, beside it */
+    bool large_text;                   /* menus: one size up (60 px rows, 8 to a page) */
     bool quick_menus;                  /* menus: knob steps paint black-and-white (fast), full quality once the knob rests */
+    bool quick_a2;                     /* ...with the A2 waveform in the menus (API quick_a2, experiments only): faster, but on this panel it left old ink under new */
+    int  load_1bpp;                    /* two-level loads one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental, it8951.h) */
     int  clean_min;                    /* a full clean refresh this many minutes after partials while idle (default 10) */
     bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
     bool auto_update;                  /* install the newest stable release overnight */
@@ -80,6 +84,10 @@ typedef struct {
      * (0 none, 1 pink, 2 1 kHz, 3 100 Hz, 4 sweep), which stops itself */
     int  spk_gain, spk_eq[5], spk_soft, spk_hpf, spk_limit;    /* spk_eq: SPK_EQ_BANDS, dB per band */
     int  test; uint32_t test_until;
+    /* the alarm sound (rainsynth.h RS_TONE_NAMES): the one chosen; the one
+     * playing now (the ring, or a preview that stops itself at tone_until)
+     * and how loud, 0..1 (the ring starts gently) */
+    int  alarm_tone; int tone_playing; float tone_level; uint32_t tone_until;
 } local_state_t;
 
 /* How much of the panel a repaint needs, and which waveform suits it. */

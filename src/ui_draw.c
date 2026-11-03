@@ -43,7 +43,7 @@ void op_dash(layer_t *l, int x, int y, int w, int h, int d, uint8_t g)
 void op_circle(layer_t *l, int cx, int cy, int r, uint8_t g)
 { op_t *o = op_new(l); o->kind = OP_CIRCLE; o->x = cx; o->y = cy; o->w = r; o->g = g; }
 
-__attribute__((unused)) static void op_ring(layer_t *l, int cx, int cy, int r, int b, uint8_t g, uint8_t inner)
+void op_ring(layer_t *l, int cx, int cy, int r, int b, uint8_t g, uint8_t inner)
 { op_t *o = op_new(l); o->kind = OP_RING; o->x = cx; o->y = cy; o->w = r; o->border = b; o->g = g; o->h = inner; }
 
 static int isqrt_i(int v) { int r = 0; while ((r + 1) * (r + 1) <= v) r++; return r; }
@@ -158,7 +158,7 @@ void local_overlay_row(int y, uint8_t row[IT8951_ROW_BYTES])
 
 /* The panel paints from a frozen copy of the layers, so core 0 can rebuild
  * them while core 1 is still streaming the previous state. */
-static layer_t P_top, P_body, P_sb, P_ring;
+layer_t P_top, P_body, P_sb, P_ring;        /* what the painter was last handed: the menus mark what differs from these */
 
 /* Every grey to its opposite (white on black): the dark Live page. */
 void layer_invert(layer_t *l)

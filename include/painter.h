@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include "it8951.h"
 
-#define PAINTER_MAX_RECTS 9
+#define PAINTER_MAX_RECTS 24
 
 typedef enum { PJ_AREAS, PJ_FULL, PJ_CLEAR, PJ_REDISPLAY } painter_kind_t;   /* REDISPLAY: run the waveform again over rects, no load */
 

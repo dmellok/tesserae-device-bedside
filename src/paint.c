@@ -60,6 +60,7 @@ void local_flush(void) { s_flush_pending = true; }
 
 void paint_pump(void)
 {
+    if (!painter_busy() && it8951_bitmap() != local_state()->load_1bpp) it8951_set_bitmap(local_state()->load_1bpp);   /* only between jobs */
     if (painter_take_done()) {
         if (s_job_resets) s_partials = 0; else if (s_job_counts) s_partials++;
         if (s_job_screen) inputs_discard();     /* taps and turns made while the page changed */
@@ -94,7 +95,9 @@ void paint_pump(void)
         if (d.mode != IT8951_MODE_DU) all_du = false;
     }
     if (!full && !j.n) return;
-    if (!full && all_du) j.mode = IT8951_MODE_DU;       /* menu steps: black and white, ~0.25 s; the settle pass restores the greys */
+    /* Two-level jobs: DU. A2 (quick_a2, API only) is faster but on this panel it left old
+     * ink under new, digits stacking on the Live clock; menus only, never the clocks. */
+    if (!full && all_du) j.mode = (local_state()->quick_a2 && local_screen() != SCR_HOME) ? IT8951_MODE_A2 : IT8951_MODE_DU;
     /* Screen updates: Clean draws every change with GC16 (just its area), Full
      * repaints the whole screen with GC16 every time. Both keep blacks black. */
     if (cur_content == CONTENT_BOOT) { if (!full) j.mode = IT8951_MODE_DU; }   /* the boot log: fast, black and white */

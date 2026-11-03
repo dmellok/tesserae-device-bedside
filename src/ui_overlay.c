@@ -56,14 +56,43 @@ static int ov_item(layer_t *l, int x, int cy, const char *icon, const char *val,
     if (tail && tail[0]) { x += 18; op_text(l, x, cy - f->line_h / 2, f, dim, tail); x += draw_font_w(f, tail); }
     return x;
 }
+static int ov_item_w(const ov_val_t *v, const bfont_t *f)
+{
+    int w = 0;
+    if (v->icon) w += draw_font_w(F_IM, v->icon) + 18;
+    if (v->val[0]) w += draw_font_w(f, v->val);
+    if (v->tail[0]) w += 18 + draw_font_w(f, v->tail);
+    return w;
+}
 
-/* The values the overlay shows, in order; returns how many (clock first when shown). */
-static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char *date)
+/* The confirmation of a key press: the overlay's own item, on a black pill
+ * for three seconds, instead of a card over the dashboard (the item already
+ * shows the result; the pill says it just changed). */
+static int      s_flash_bit;
+static uint32_t s_flash_until;
+static void ov_flash(int bit)
+{
+    s_flash_bit = bit; s_flash_until = (now_ms() + 3000u) | 1u;
+    rebuild(); mark_ov();
+}
+bool ov_flash_tick(void)
+{
+    if (!s_flash_until || (int32_t)(now_ms() - s_flash_until) < 0) return false;
+    s_flash_until = 0; s_flash_bit = 0;
+    rebuild(); mark_ov();
+    return true;
+}
+static bool flashing(int bit) { return s_flash_until && s_flash_bit == bit; }
+
+/* The values the overlay shows, in order; returns how many (clock first when
+ * shown). At night the strip keeps the clock alone, or the clock and the next
+ * alarm (quiet: drawn dim, as the one thing worth a glance from the pillow). */
+static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char *date, bool *quiet)
 {
     int n = 0, wd, sec; int64_t mn;
     bool have = clock_now(&wd, &sec, &mn);
-    bool solo = S.night && S.at_night == 1;
-    *clock = (S.show & 1) != 0;
+    bool solo = S.night && S.at_night == 1, alarm_only = S.night && S.at_night == 2;
+    *clock = (S.show & 1) != 0; *quiet = false;
     clock_ampm[0] = 0;
     if (have) {
         int m = sec / 60;
@@ -72,26 +101,40 @@ static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char
     } else snprintf(clk, 8, "--:--");
     { int y, mo, d, w; if (local_ymd(&y, &mo, &d, &w)) snprintf(date, 24, "%.3s %d %.3s", DAY_NAMES[w], d, MONTHS[mo - 1]); else date[0] = 0; }
     if (solo && *clock) return 0;
+    if (alarm_only && *clock) { if (!(S.show & 2)) return 0; *quiet = true; }
     if (S.show & 2) {
         int ai = -1; int32_t dl = 0; next_alarm(&ai, &dl);
-        v[n].icon = ICON_ALARM; v[n].tail[0] = 0;
+        v[n].icon = ICON_ALARM; v[n].tail[0] = 0; v[n].bit = 2;
         if (ai >= 0) { int h, m, on, mask, early; local_alarm_get(ai, &h, &m, &on, &mask, &early); fmt_hm(v[n].val, sizeof v[n].val, h * 60 + m); }
         else snprintf(v[n].val, sizeof v[n].val, "Off");
         n++;
+        if (*quiet) return n;
     }
     if (S.show & 4) {
-        v[n].icon = S.rain_on ? ICON_CLOUD_RAIN : ICON_PAUSE;
+        v[n].icon = S.rain_on ? ICON_CLOUD_RAIN : ICON_PAUSE; v[n].bit = 4;
         snprintf(v[n].val, sizeof v[n].val, "%s", !S.rain_on ? "Paused" : S.rain_kind == RS_RADIO ? radio_station() : KINDS[S.rain_kind]);
         snprintf(v[n].tail, sizeof v[n].tail, "%d", S.vol);
         n++;
     }
     if (S.show & 8) {
-        v[n].icon = S.ac_mode ? ICON_SNOWFLAKE : (S.lights_on ? ICON_LIGHTBULB : ICON_SNOWFLAKE);
+        v[n].icon = S.ac_mode ? ICON_SNOWFLAKE : (S.lights_on ? ICON_LIGHTBULB : ICON_SNOWFLAKE); v[n].bit = 8;
         if (S.ac_mode) snprintf(v[n].val, sizeof v[n].val, "%d" DEG, S.sp_x2 / 2); else snprintf(v[n].val, sizeof v[n].val, "Off");
         snprintf(v[n].tail, sizeof v[n].tail, "%s", S.lights_on ? "lights" : "");
         n++;
     }
     return n;
+}
+
+/* A key press confirmed where its result shows: the overlay item flashed when
+ * the overlay has one for it (bit as in Shows), else a card over the page. */
+void confirm(const char *icon, const char *txt, const char *val, int ov_bit)
+{
+    if (ov_bit && ov_active() && ov_kind() != 3 && (S.show & ov_bit)) {
+        bool clock_only = S.night && S.at_night == 1 && (S.show & 1);
+        bool alarm_only = S.night && S.at_night == 2 && (S.show & 1) && ov_bit != 2;
+        if (!clock_only && !alarm_only) { ov_flash(ov_bit); return; }
+    }
+    toast(icon, txt, val);
 }
 
 /* The clock, one op per character in fixed slots (every digit as wide as the
@@ -133,9 +176,9 @@ void build_overlay(layer_t *l)
     int ox, oy, ow, oh;
     if (!ov_rect(&ox, &oy, &ow, &oh)) { l->on = false; return; }
     layer_reset(l, ox, oy, ow, oh, G_WHITE);
-    ov_val_t v[4]; bool clock; char ct[8], ap[4], date[24];
-    int n = ov_values(v, &clock, ct, ap, date);
-    bool solo = clock && S.night && S.at_night == 1;
+    ov_val_t v[4]; bool clock, quiet; char ct[8], ap[4], date[24];
+    int n = ov_values(v, &clock, ct, ap, date, &quiet);
+    bool solo = (clock && S.night && S.at_night == 1) || quiet;   /* the night: centred, nothing else */
     bool links = (S.show & 16) || !net_connected();       /* a lost connection always shows */
     const char *wifi = net_connected() ? ICON_WIFI_HIGH : ICON_WIFI_SLASH;
     int kind = ov_kind();
@@ -146,6 +189,7 @@ void build_overlay(layer_t *l)
         int cy = oy + 4 + (OV_STRIP_H - 4) / 2, x = MARGIN;
         if (solo) {
             int tw = clock_slots(NULL, 0, 0, F_XL, 0, ct) + (ap[0] ? 12 + draw_font_w(F_M, ap) : 0);
+            for (int i = 0; i < n; i++) tw += 96 + ov_item_w(&v[i], F_L);
             x = (W - tw) / 2;
         }
         if (clock) {
@@ -153,7 +197,13 @@ void build_overlay(layer_t *l)
             if (ap[0]) { x += 12; op_text(l, x, cy - F_M->line_h / 2 + 14, F_M, dim, ap); x += draw_font_w(F_M, ap); }
             x += 96;
         }
-        for (int i = 0; i < n; i++) x = ov_item(l, x, cy, v[i].icon, v[i].val, v[i].tail, G_BLACK, dim, F_L) + 96;
+        for (int i = 0; i < n; i++) {
+            bool fl = flashing(v[i].bit);
+            int w = ov_item_w(&v[i], F_L);
+            op_rrect(l, x - 28, cy - 60, w + 56, 120, 60, fl ? G_BLACK : G_WHITE);   /* the pill: white (nothing) until a key press flashes it */
+            ov_item(l, x, cy, v[i].icon, v[i].val, v[i].tail, fl ? G_WHITE : quiet ? dim : G_BLACK, fl ? G_WHITE : dim, F_L);
+            x += w + 96;
+        }
         if (links && !solo) {
             int xr = W - MARGIN;
             if (!net_connected()) { xr -= draw_font_w(F_L, "Offline"); op_text(l, xr, cy - F_L->line_h / 2, F_L, G_BLACK, "Offline"); xr -= 18; }
@@ -181,8 +231,9 @@ void build_overlay(layer_t *l)
         if (left) y += ch_clock + 26; else x += cw + 26;
     }
     for (int i = 0; i < n; i++) {
-        op_rrect(l, x, y, cw, ch, 28, CARD_GREY);
-        ov_item(l, x + 30, y + ch / 2, v[i].icon, v[i].val, v[i].tail, G_BLACK, G_DARK, F_L);
+        bool fl = flashing(v[i].bit);                        /* a key press: the card goes black for three seconds */
+        op_rrect(l, x, y, cw, ch, 28, fl ? G_BLACK : CARD_GREY);
+        ov_item(l, x + 30, y + ch / 2, v[i].icon, v[i].val, v[i].tail, fl ? G_WHITE : quiet ? G_DARK : G_BLACK, fl ? G_LIGHT : G_DARK, F_L);
         if (left) y += ch + 26; else x += cw + 26;
     }
     if (links && !solo && left) {

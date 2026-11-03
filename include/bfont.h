@@ -24,4 +24,4 @@ typedef struct {
     const uint8_t  *bits;
 } bfont_t;
 
-extern const bfont_t ui30, ui34, ui46, ui72, ui96, num180, num270, clock214, icon34, icon46, icon170;
+extern const bfont_t ui30, ui34, ui46, ui60, ui72, ui96, num180, num270, clock214, icon34, icon40, icon46, icon170;

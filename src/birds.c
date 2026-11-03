@@ -14,7 +14,7 @@ extern const uint8_t bird_data[];  /* src/birds_data.S */
 
 static const char *const NAMES[BIRD_COUNT] = {
     "Magpie", "Butcherbird", "Fairy-wren", "Whipbird", "Wattlebird", "Kookaburra",
-    "Bell miner", "Pardalote", "Golden whistler", "Rosella",
+    "Shrike-thrush", "Frogmouth", "Golden whistler", "Rosella",
 };
 const char *bird_name(int b) { return (b >= 0 && b < BIRD_COUNT) ? NAMES[b] : ""; }
 
@@ -28,8 +28,8 @@ static const sp_t SP[BIRD_COUNT] = {
     { 0.40f, 14.0f },   /* whipbird */
     { 0.55f, 11.0f },   /* wattlebird */
     { 0.75f, 40.0f },   /* kookaburras, near the top */
-    { 0.18f,  5.0f },   /* bell miner (synth) */
-    { 0.06f,  6.0f },   /* pardalote (synth): quiet, early */
+    { 0.20f, 11.0f },   /* shrike-thrush (synth) */
+    { 0.04f,  9.0f },   /* frogmouth (synth): the first voice, in the dark */
     { 0.48f, 13.0f },   /* golden whistler (synth) */
     { 0.32f, 12.0f },   /* rosella (synth) */
 };
@@ -90,23 +90,29 @@ static void make_call(svoice_t *v, int b)
     float t = 0;
     int j;
     switch (b) {
-    case BIRD_BELLMINER: {                       /* 1-3 "tinks", each bird its own pitch */
-        float f = 2750.0f + 450.0f * uni();
-        int k = 1 + (int)(uni() * 2.99f);
+    case BIRD_SHRIKETHRUSH: {                    /* "pip pip pip ... hoo-EE": a few round pips, then a long fluting note */
+        float f = 1350.0f + 300.0f * uni();
+        int k = 2 + (int)(uni() * 2.99f);
         for (int i = 0; i < k; i++) {
-            j = add(v, t, 0.16f, f, f * 1.004f, f * 0.998f, 0.75f);
-            v->n[j].att = 0.0015f; v->n[j].rel = 0.15f; v->n[j].h2 = 0.05f; v->n[j].h3 = 0.0f;
-            t += 0.35f + 0.6f * uni(); f *= 0.99f + 0.02f * uni();
+            j = add(v, t, 0.10f, f, f * 1.04f, f * 1.01f, 0.5f);
+            v->n[j].att = 0.015f; v->n[j].rel = 0.04f; v->n[j].h2 = 0.10f; v->n[j].h3 = 0.02f;
+            t += 0.17f + 0.04f * uni();
+        }
+        t += 0.08f;
+        j = add(v, t, 0.42f + 0.15f * uni(), f * 0.95f, f * 1.45f, f * 1.25f, 0.6f);       /* the flute: up, then settling */
+        v->n[j].pk = 0.55f; v->n[j].att = 0.03f; v->n[j].rel = 0.14f; v->n[j].h2 = 0.12f; v->n[j].h3 = 0.03f; v->n[j].vr = 6; v->n[j].vd = 0.006f;
+        if (uni() < 0.5f) {                      /* sometimes a second, lower flute */
+            j = add(v, t + 0.62f, 0.38f, f * 1.2f, f * 1.05f, f * 0.9f, 0.55f);
+            v->n[j].pk = 0.3f; v->n[j].att = 0.03f; v->n[j].rel = 0.14f; v->n[j].h2 = 0.12f; v->n[j].vr = 6; v->n[j].vd = 0.006f;
         }
         break; }
-    case BIRD_PARDALOTE: {                       /* "sleep - may - be", repeated */
-        float k = 0.94f + 0.12f * uni();
-        int reps = 2 + (int)(uni() * 1.99f);
-        for (int r = 0; r < reps; r++) {
-            j = add(v, t, 0.15f, 3500 * k, 3450 * k, 3350 * k, 0.45f);         v->n[j].att = 0.02f;  v->n[j].rel = 0.06f;
-            j = add(v, t + 0.27f, 0.11f, 2950 * k, 2920 * k, 2900 * k, 0.40f); v->n[j].att = 0.015f; v->n[j].rel = 0.05f;
-            j = add(v, t + 0.48f, 0.19f, 3050 * k, 3150 * k, 3180 * k, 0.45f); v->n[j].att = 0.02f;  v->n[j].rel = 0.08f;
-            t += 2.2f + 1.2f * uni();
+    case BIRD_FROGMOUTH: {                       /* "oom oom oom oom": low, soft, steady, from the dark */
+        float f = 240.0f + 60.0f * uni();
+        int k = 5 + (int)(uni() * 6.99f);
+        for (int i = 0; i < k; i++) {
+            j = add(v, t, 0.17f, f * 1.03f, f, f * 0.97f, 0.55f);
+            v->n[j].pk = 0.3f; v->n[j].att = 0.03f; v->n[j].rel = 0.06f; v->n[j].h2 = 0.30f; v->n[j].h3 = 0.12f;   /* body, so a small speaker carries it */
+            t += 0.26f + 0.03f * uni();
         }
         break; }
     case BIRD_WHISTLER: {                        /* wi-wi-wi-wi ... WHIT (or ee-CHONG) */

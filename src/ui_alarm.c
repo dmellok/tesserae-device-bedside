@@ -3,14 +3,37 @@
  */
 #include "ui_internal.h"
 
-/* The alarm screen: the time, huge, and what the keys do while it rings. */
+/* A key cap and a knob seen from above: the two controls the alarm screen names. */
+static void key_cap(layer_t *l, int x, int cy, uint8_t ink, uint8_t paper)
+{
+    op_rrect(l, x, cy - 36, 72, 72, 14, ink);
+    op_rrect(l, x + 6, cy - 30, 60, 54, 10, paper);
+}
+static void knob_glyph(layer_t *l, int cx, int cy, uint8_t ink, uint8_t paper)
+{
+    op_ring(l, cx, cy, 36, 7, ink, paper);
+    op_circle(l, cx, cy, 10, ink);
+}
+
+/* The alarm screen: the time, huge, then the two ways out named as Apple's
+ * alarm names them: snooze on the prominent block (any key or a turn, what a
+ * half-asleep hand finds first) and stop, deliberate, on the knob. */
 void build_ring(layer_t *l)
 {
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_BLACK);
-    op_text_c(l, W / 2, TB_H + 90, F_M, G_LIGHT, "Good morning");
+    op_text_c(l, W / 2, TB_H + 70, F_M, G_LIGHT, "Good morning");
     char t[8]; alarm_txt(t, sizeof t);
-    op_text_c(l, W / 2, TB_H + 200, F_HUGE, G_WHITE, t);
-    op_text_c(l, W / 2, TB_H + 620, F_LBL, G_LIGHT, "Press or hold the knob to stop  " DOT "  any key or a turn snoozes");
+    op_text_c(l, W / 2, TB_H + 170, F_HUGE, G_WHITE, t);
+    const int bw = 800, bh = 200, gap = 64, by = TB_H + 700;
+    int bx1 = (W - 2 * bw - gap) / 2, bx2 = bx1 + bw + gap, ty = by + (bh - F_L->line_h) / 2;
+    char s[24]; snprintf(s, sizeof s, "Snooze %d min", S.snooze_min);
+    op_rrect(l, bx1, by, bw, bh, 44, G_WHITE);
+    key_cap(l, bx1 + 70, by + bh / 2, G_BLACK, G_WHITE);
+    op_text(l, bx1 + 180, ty, F_L, G_BLACK, s);
+    op_rrect(l, bx2, by, bw, bh, 44, G_WHITE);
+    op_rrect(l, bx2 + 5, by + 5, bw - 10, bh - 10, 39, G_BLACK);
+    knob_glyph(l, bx2 + 106, by + bh / 2, G_WHITE, G_BLACK);
+    op_text(l, bx2 + 180, ty, F_L, G_WHITE, "Stop");
 }
 
 /* ---- the alarm clock and the dawn chorus ------------------------------------
@@ -48,24 +71,47 @@ bool next_alarm(int *idx, int32_t *delta_s)
     return *idx >= 0;
 }
 
+/* The alarm sound: it starts with the ring at a third of its volume and is at
+ * full after half a minute (RING_RAMP_MS); a preview plays at full and stops itself. */
+#define RING_RAMP_MS 30000u
+static uint32_t s_tone_due;          /* a preview asked for by the menu, once the knob has settled */
+static int      s_tone_want;
+void tone_preview(int tone, int seconds)
+{
+    s_tone_due = 0;
+    if (tone <= 0 || tone >= RS_TONES || seconds <= 0) { if (S.phase != PHASE_RINGING) { S.tone_playing = 0; S.tone_until = 0; } return; }
+    S.tone_playing = tone; S.tone_level = 1.0f; S.tone_until = (now_ms() + (uint32_t)seconds * 1000u) | 1u;
+}
+/* Moving the highlight over the sounds plays the one it rests on, 350 ms later (one, not every one passed). */
+void tone_preview_soon(int tone)
+{
+    s_tone_want = tone; s_tone_due = (now_ms() + 350u) | 1u;
+}
+
 void ring(int i)
 {
     s_ring_alarm = i; s_ring_ms = now_ms(); s_snooze_until_ms = 0; s_preview_len_ms = 0;
     if (i >= 0 && i < s_nalarms) { S.alarm_h = s_alarms[i].h; S.alarm_m = s_alarms[i].m; }
     S.phase = PHASE_RINGING; S.rain_on = false; S.lights_on = true;
+    s_tone_due = 0; S.tone_playing = S.alarm_tone; S.tone_level = 0.35f; S.tone_until = 0;   /* the sound, after the chorus has built: gently at first */
     publish("event", "alarm_ringing");
     s_mode = M_HOME; s_depth = 0; mark_screen();
 }
 
 void snooze(void)
 {
-    S.phase = PHASE_IDLE; s_snooze_until_ms = now_ms() + SNOOZE_MS;
+    S.phase = PHASE_IDLE; s_snooze_until_ms = now_ms() + SNOOZE_MS; S.tone_playing = 0; S.tone_until = 0;
     publish("event", "alarm_snoozed %d min", S.snooze_min); go_home();
+    /* when it comes back, on the way out: the one fact worth knowing after a snooze */
+    int wd, sec; int64_t mn; char v[32];
+    if (clock_now(&wd, &sec, &mn)) { char hm[8]; fmt_hm(hm, sizeof hm, (sec / 60 + S.snooze_min) % 1440); snprintf(v, sizeof v, "Rings again %s", hm); }
+    else snprintf(v, sizeof v, "Rings again in %d min", S.snooze_min);
+    toast(ICON_ALARM, "Snoozed", v);
 }
 
 void stop_alarm(void)
 {
-    S.phase = PHASE_IDLE; s_snooze_until_ms = 0;
+    S.phase = PHASE_IDLE; s_snooze_until_ms = 0; S.tone_playing = 0; S.tone_until = 0;
     int i = s_ring_alarm; s_ring_alarm = -1;
     if (i >= 0 && i < s_nalarms) {
         if (alarm_is_once(&s_alarms[i])) { s_alarms[i].on = false; alarms_save(); sync_alarm_summary(); }
@@ -105,9 +151,12 @@ void local_alarm_tick(bool *changed)
         else if (el < s_preview_len_ms + 20000u) c = 1.0f;
         else { s_preview_len_ms = 0; if (changed) *changed = true; rebuild(); }
     }
+    if (s_tone_due && (int32_t)(t - s_tone_due) >= 0) tone_preview(s_tone_want, 6);   /* the menu's highlight came to rest on a sound */
     if (S.phase == PHASE_RINGING) {
         c = 1.0f;
-        if (t - s_ring_ms > RING_MAX_MS) { stop_alarm(); if (changed) *changed = true; }
+        uint32_t el = t - s_ring_ms;
+        S.tone_level = el >= RING_RAMP_MS ? 1.0f : 0.35f + 0.65f * (float)el / (float)RING_RAMP_MS;
+        if (el > RING_MAX_MS) { stop_alarm(); if (changed) *changed = true; }
         S.chorus = c; return;
     }
     if (s_snooze_until_ms) {

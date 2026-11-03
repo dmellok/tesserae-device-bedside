@@ -61,7 +61,8 @@
 #define DEG     "\x7f"
 #define DOT     "\x80"
 #define F_I     (&icon34)    /* icons beside 34 px text */
-#define F_IM    (&icon46)    /* icons beside 46 px text */
+#define F_IM    (&icon46)    /* icons on their own (the keys, the overlay) */
+#define F_IR    (&icon40)    /* icons inline with 46 px text: sized to its capitals, so they weigh the same */
 
 /* the draw list */
 #define MAX_OPS 180
@@ -81,7 +82,7 @@
 #define N_TZ 9
 
 /* dirty regions and the repaint macros */
-#define MAX_DIRTY 8
+#define MAX_DIRTY 24                 /* rects per job: a page change is many small ones; merging them into few streams mostly white */
 #define R_LABELS()  mark(1080, 0, W - 1080, TB_H, IT8951_MODE_GL16)       /* key labels */
 #define R_TOPBAR()  mark(0, 0, W, TB_H, IT8951_MODE_GL16)
 #define R_VOL()     do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
@@ -159,7 +160,7 @@ typedef struct { const char *id, *label; } action_t;
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
                N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_RADIO, N_STATIONS,
-               N_DISPLAY, N_SHOWS, N_KEYLIGHTS, N_MENUS, N_EQ, N_COUNT } node_t;
+               N_DISPLAY, N_SHOWS, N_KEYLIGHTS, N_MENUS, N_EQ, N_PANEL, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -188,6 +189,12 @@ typedef enum {
     C_LIVE_LAYOUT, C_LIVE_DARK,
     /* Settings groups one level down: Display; Shows; Key lights; Menus; the Equaliser */
     S_DISPLAY, S_SHOWS, S_KEYLIGHTS, S_MENUS, S_EQ,
+    /* Device > Panel (the tuning that was under Display) and Display > Large text */
+    S_PANEL, T_LARGE,
+    /* Alarms > Alarm sound (the choice previews as the highlight moves) */
+    C_ALARM_TONE,
+    /* Keys and knob > Menus > Fastest steps (A2 for the quick steps) */
+    T_QUICK_A2,
 } item_t;
 
 /* Lists longer than this scroll in a window of LIST_FIT rows at full height
@@ -197,7 +204,7 @@ typedef enum {
 #define ROWS_MAX     72
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
 typedef struct { int v, min, max, step; const char *lo, *hi; bool wrap; } vmeta_t;
-typedef struct { const char *icon; char val[16]; char tail[8]; } ov_val_t;
+typedef struct { const char *icon; char val[16]; char tail[8]; int bit; } ov_val_t;   /* bit: its Shows bit (2 alarm, 4 sound, 8 room) */
 typedef struct {
     int8_t vol, rain_kind, rain_lvl, surface;
     uint8_t patter, wash, tone, wind, thunder, thunder_near, bird_vol, pad;
@@ -262,7 +269,7 @@ extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;
 extern const char *const OVERLAYS[4];
-extern const char *const ATNIGHT[2];
+extern const char *const ATNIGHT[3];
 extern const char *const NIGHTKEYS[2];
 extern const char *const REFRESHES[3];
 extern const char *const KEYACT_ID[N_KEYACT];
@@ -296,6 +303,7 @@ extern int s_eqb;
 extern mode_t_ s_mode;
 extern int s_depth;
 extern int s_rel_armed;
+extern int s_armed;
 extern int s_row_h;
 extern int s_list_n;
 
@@ -306,6 +314,8 @@ bool next_alarm(int *idx, int32_t *delta_s);
 int sleep_left_s(void);
 void build_ring(layer_t *l);
 void chorus_preview(int seconds);
+void tone_preview(int tone, int seconds);
+void tone_preview_soon(int tone);
 void ring(int i);
 void snooze(void);
 void stop_alarm(void);
@@ -326,6 +336,7 @@ void dash_go(int k);
 void dash_pick(int k);
 void mark(int x, int y, int w, int h, uint8_t mode);
 void mark_changed(const layer_t *prev, const layer_t *now, int fx, int fy, int fw, int fh, uint8_t mode);
+void mark_diff(const layer_t *old, const layer_t *now, uint8_t mode);
 void mark_rows(int a, int b);
 void mark_list(void);
 void mark_screen(void);
@@ -334,6 +345,7 @@ void publish(const char *topic, const char *fmt, ...);
 void rebuild(void);
 
 /* ui_draw.c */
+extern layer_t P_top, P_body, P_sb, P_ring;    /* the layers as last handed to the painter */
 void layer_copy(layer_t *d, const layer_t *s);
 void layer_invert(layer_t *l);
 void layer_reset(layer_t *l, int x, int y, int w, int h, uint8_t bg);
@@ -342,6 +354,7 @@ void op_circle(layer_t *l, int cx, int cy, int r, uint8_t g);
 void op_dash(layer_t *l, int x, int y, int w, int h, int d, uint8_t g);
 void op_fill(layer_t *l, int x, int y, int w, int h, uint8_t g);
 void op_frame(layer_t *l, int x, int y, int w, int h, int b, uint8_t g);
+void op_ring(layer_t *l, int cx, int cy, int r, int b, uint8_t g, uint8_t inner);
 void op_line(layer_t *l, int x0, int y0, int x1, int y1, int t, uint8_t g);
 void op_rrect(layer_t *l, int x, int y, int w, int h, int r, uint8_t g);
 void op_text(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *t);
@@ -357,7 +370,7 @@ bool live_is_known(int slot);
 void fmt_temp(int slot, char *b, size_t n);
 void fmt_word(const char *v, char *b, size_t n);
 const bfont_t *lv_fit(const char *t, int w, const bfont_t *a, const bfont_t *b, const bfont_t *c);
-void card_title(layer_t *l, int x, int y, const char *icon, const char *label, bool dark);
+void card_title(layer_t *l, int x, int y, int w, const char *icon, const char *label, bool dark, const char *tail);
 bool live_alarm(int *h, int *m, int *early, int32_t *delta);
 int live_sunrise_today(int alarm_min);
 void live_sound_line(char *b, size_t n);
@@ -395,9 +408,13 @@ int choice_get(item_t id);
 void choice_set(item_t id, int k);
 const char *radio_name(void);
 void row_value(const row_def_t *r, char *b, size_t n);
+void row_desc(const row_def_t *r, char *b, size_t n);
 
 /* ui_menu.c */
 bool crisp(void);
+const bfont_t *mf_s(void);
+const bfont_t *mf_lbl(void);
+const bfont_t *mf_m(void);
 void build_choice(layer_t *l);
 void build_list(layer_t *l);
 void build_top(layer_t *l, bool inv);
@@ -418,5 +435,7 @@ bool strip_du(void);
 int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *ct);
 void overlay_apply(void);
 void toast(const char *icon, const char *txt, const char *val);
+void confirm(const char *icon, const char *txt, const char *val, int ov_bit);
+bool ov_flash_tick(void);
 void toast_loading(const char *title);
 void viewport(int *x, int *y, int *w, int *h);

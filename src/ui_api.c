@@ -53,7 +53,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "night_keys")) { if (v < 0 || v > 1) return false; S.night_keys = v; apply_colours(); return true; }
     else if (!strcmp(key, "overlay"))    { if (v < 0 || v > 3) return false; S.overlay = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "show"))       { if (v < 0 || v > 31) return false; S.show = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
-    else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 1) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
+    else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 2) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
+    else if (!strcmp(key, "large_text")) { S.large_text = v != 0; if (s_mode != M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "clock_du"))   { if (v < 0 || v > 2) return false; S.clock_du = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "live_demo"))  { S.live_demo = v != 0; if (s_mode == M_HOME && S.dash_page == 0) mark_screen(); return true; }
     else if (!strcmp(key, "live_layout")) { if (v < 0 || v > 3) return false; S.live_layout = v; live_layout_changed(); return true; }
@@ -79,6 +80,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "refresh_mode")) { if (v < 0 || v > 2) return false; S.refresh_mode = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "turn_hints"))   { S.turn_hints = v != 0; if (s_mode == M_LIST || s_mode == M_CHOICE) mark_screen(); return true; }
     else if (!strcmp(key, "quick_menus"))  { S.quick_menus = v != 0; return true; }
+    else if (!strcmp(key, "quick_a2"))     { S.quick_a2 = v != 0; return true; }
+    else if (!strcmp(key, "onebit"))       { if (v < 0 || v > 2) return false; S.load_1bpp = v; return true; }
     else if (!strcmp(key, "settle_full"))  { S.settle_full = v != 0; return true; }
     else if (!strcmp(key, "clean_min"))    { if (v < 1 || v > 240) return false; S.clean_min = v; return true; }
     else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
@@ -87,6 +90,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "bird_vol"))  { if (v < 1 || v > 10) return false; S.bird_vol = v; return true; }
     else if (!strcmp(key, "audition"))  { if (v < 0 || v >= BIRD_COUNT) return false; S.audition_bird = v; S.audition++; return true; }
     else if (!strcmp(key, "chorus_preview")) { if (v < 0 || v > 900) return false; chorus_preview(v); }
+    else if (!strcmp(key, "alarm_tone"))   { if (v < 0 || v >= RS_TONES) return false; S.alarm_tone = v; publish("config/alarm_tone", "%s", RS_TONE_NAMES[v]); }
+    else if (!strcmp(key, "tone_preview")) { if (v < -1 || v >= RS_TONES) return false; tone_preview(v < 0 ? S.alarm_tone : v, v ? 6 : 0); return true; }   /* -1: the chosen one; 0 stops */
     else if (!strcmp(key, "alarm_stop"))  { if (S.phase == PHASE_RINGING) stop_alarm(); else if (s_snooze_until_ms) { s_snooze_until_ms = 0; s_ring_alarm = -1; } else return false; }
     else if (!strcmp(key, "alarm_snooze")) { if (S.phase != PHASE_RINGING) return false; snooze(); }
     else if (!strcmp(key, "alarm")) {
@@ -167,7 +172,7 @@ void settings_load(void)
 {
     set_blob_t b; set1_blob_t o;
     if (config_blob_load(4, SET2_MAGIC, &b, sizeof b)) {
-        S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 4; S.show = b.show & 0x1F; S.at_night = b.at_night % 2;
+        S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 4; S.show = b.show & 0x1F; S.at_night = b.at_night % 3;
         S.tz = b.tz % N_TZ; S.auto_time = b.auto_time; S.refresh_mode = b.refresh_mode % 3; S.auto_update = b.auto_update == 1;
         S.wf_temp = b.pad[0] <= 50 ? b.pad[0] : 0;
     } else if (config_blob_load(4, SET_MAGIC, &o, sizeof o)) {
@@ -190,8 +195,11 @@ static void ext_pack(ext_blob_t *b)
 {
     memset(b, 0, sizeof *b);
     b->speaker = S.speaker; b->power_mon = S.power_mon;
-    b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0)     /* bits 0-1 set = off (older blobs read as on); bit 2 set = on */
-                        | ((S.clock_du + 1) & 3) << 3 | (S.live_demo ? 0x20 : 0));                       /* bits 3-4: clock updates + 1; bit 5: Live demo */
+    /* bit 7 marks this layout: bit 0 set = turn counts on (before it, set meant off, and the
+     * default was on; an old blob now reads as off, the new default); bit 1 set = quick menus
+     * off; bit 2 set = settle full; bits 3-4: clock updates + 1; bit 5: Live demo; bit 6: large text */
+    b->rsv0 = (uint8_t)(0x80 | (S.turn_hints ? 1 : 0) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0)
+                        | ((S.clock_du + 1) & 3) << 3 | (S.live_demo ? 0x20 : 0) | (S.large_text ? 0x40 : 0));
     b->pad = (uint8_t)S.clean_min;
     b->spk_gain = (int8_t)S.spk_gain;                           /* bass / treble: the equaliser replaced them (rsv1[17..]) */
     b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
@@ -201,6 +209,8 @@ static void ext_pack(ext_blob_t *b)
     b->rsv1[17] = 1;                                            /* the equaliser is stored (older blobs: from bass / treble) */
     for (int i = 0; i < SPK_EQ_BANDS; i++) b->rsv1[18 + i] = (char)(int8_t)S.spk_eq[i];
     b->rsv1[23] = (char)(S.live_layout + 1); b->rsv1[24] = (char)(S.live_dark + 1);   /* + 1: 0 = not set */
+    b->rsv1[25] = (char)(S.alarm_tone + 1);
+    b->rsv1[26] = (char)(S.quick_a2 ? 3 : 1);   /* 2 was this morning's "on": reads as off */ b->rsv1[27] = (char)(S.load_1bpp + 1);
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -208,9 +218,10 @@ void ext_load(void)
     ext_blob_t b;
     if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
         S.speaker = b.speaker; S.power_mon = b.power_mon;
-        S.turn_hints = !(b.rsv0 & 1); S.quick_menus = !(b.rsv0 & 2); S.settle_full = (b.rsv0 & 4) != 0;
+        S.turn_hints = (b.rsv0 & 0x80) ? (b.rsv0 & 1) != 0 : false;
+        S.quick_menus = !(b.rsv0 & 2); S.settle_full = (b.rsv0 & 4) != 0;
         if ((b.rsv0 >> 3) & 3) S.clock_du = ((b.rsv0 >> 3) & 3) - 1;
-        S.live_demo = (b.rsv0 & 0x20) != 0;
+        S.live_demo = (b.rsv0 & 0x20) != 0; S.large_text = (b.rsv0 & 0x40) != 0;
         S.clean_min = (b.pad >= 1 && b.pad <= 240) ? b.pad : 10;
         S.spk_gain = clampi(b.spk_gain, -12, 6);
         if (b.rsv1[17]) for (int i = 0; i < SPK_EQ_BANDS; i++) S.spk_eq[i] = clampi((int8_t)b.rsv1[18 + i], -SPK_EQ_MAX_DB, SPK_EQ_MAX_DB);
@@ -220,6 +231,9 @@ void ext_load(void)
         }
         if (b.rsv1[23]) S.live_layout = clampi((uint8_t)b.rsv1[23] - 1, 0, 3);
         if (b.rsv1[24]) S.live_dark = clampi((uint8_t)b.rsv1[24] - 1, 0, 2);
+        if (b.rsv1[25]) S.alarm_tone = clampi((uint8_t)b.rsv1[25] - 1, 0, RS_TONES - 1);
+        if (b.rsv1[26]) S.quick_a2 = (uint8_t)b.rsv1[26] == 3;
+        if (b.rsv1[27]) S.load_1bpp = clampi((uint8_t)b.rsv1[27] - 1, 0, 2);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
         if (b.rsv1[0]) {
@@ -317,7 +331,11 @@ size_t local_state_json(char *b, size_t cap)
     {
         int left = s_preview_len_ms ? (int)((int32_t)(s_preview_start_ms + s_preview_len_ms + 20000u - now_ms()) / 1000) : 0;
         int snz = s_snooze_until_ms ? (int)((int32_t)(s_snooze_until_ms - now_ms()) / 1000) : 0;
-        J("\"chorus\":{\"birds\":%u,\"vol\":%d,\"soft\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"names\":[", S.birds, S.bird_vol, S.bird_soft, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0);
+        int tp = S.tone_playing && S.tone_until ? (int)((int32_t)(S.tone_until - now_ms()) / 1000) : 0;   /* a preview's seconds left */
+        J("\"chorus\":{\"birds\":%u,\"vol\":%d,\"soft\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"tone\":%d,\"tone_preview_s\":%d,\"tones\":[",
+          S.birds, S.bird_vol, S.bird_soft, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0, S.alarm_tone, tp > 0 ? tp : 0);
+        for (int i = 0; i < RS_TONES; i++) J("%s\"%s\"", i ? "," : "", RS_TONE_NAMES[i]);
+        J("],\"names\":[");
         for (int i = 0; i < BIRD_COUNT; i++) J("%s\"%s\"", i ? "," : "", bird_name(i));
         J("]},");
     }
@@ -325,8 +343,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"turn_hints\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.turn_hints, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"large_text\":%d,\"quick_a2\":%d,\"onebit\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.large_text, S.quick_a2, S.load_1bpp, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

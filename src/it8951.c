@@ -44,8 +44,16 @@
 
 /* LD_IMG_AREA argument 0: endian << 8 | bpp << 4 | rotate */
 #define LDIMG_L_ENDIAN  0
+#define LDIMG_2BPP      0
 #define LDIMG_4BPP      2
+#define LDIMG_8BPP      3
 #define LDIMG_ROT0      0
+/* Bitmap (1 bit per pixel) mode, as Waveshare's 1bp refresh uses it: the
+ * area is loaded as 8bpp at x/8 and w/8 (each byte eight pixels), then bit 2
+ * of UP1SR+2 tells the display engine to expand it, BGVR giving the grey for
+ * a 1 (high byte) and a 0 (low byte). */
+#define REG_UP1SR2      0x113A
+#define REG_BGVR        0x1250
 
 static it8951_info_t s_info;
 static bool     s_up;                   /* identified and in SYS_RUN           */
@@ -260,7 +268,6 @@ void it8951_set_standby(bool on) { s_standby = on; printf("it8951: standby betwe
 void it8951_set_rails_off(bool on) { s_rails_off_between = on; printf("it8951: panel power off when idle %s\n", on ? "on" : "off"); if (!on) panel_power(true); }
 bool it8951_rails_off(void) { return s_rails_off_between; }
 static void apply_temp(void);
-static void white_fill_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx) { (void)y; (void)ctx; memset(out, 0xFF, IT8951_ROW_BYTES); }
 static int32_t s_vcom_cached = -1;
 
 uint16_t it8951_get_vcom(void)
@@ -529,15 +536,16 @@ static void row_to_wire(const uint8_t *row, int nbytes, uint8_t *wire)
 }
 
 /* Open a load into the image buffer for panel-space rectangle (px, y, w, h)
- * and start the single long "write data" transaction. */
-static void load_begin(int px, int y, int w, int h)
+ * in pixel format fmt (LDIMG_*BPP) and start the single long "write data"
+ * transaction. */
+static void load_begin(int px, int y, int w, int h, int fmt)
 {
     write_cmd(CMD_SYS_RUN);              /* power the panel back up from standby */
     wait_display_ready(30000);
     write_reg(REG_LISAR + 2, (uint16_t)(s_info.img_addr >> 16));
     write_reg(REG_LISAR,     (uint16_t)(s_info.img_addr & 0xFFFF));
     const uint16_t args[5] = {
-        (LDIMG_L_ENDIAN << 8) | (LDIMG_4BPP << 4) | LDIMG_ROT0,
+        (uint16_t)((LDIMG_L_ENDIAN << 8) | (fmt << 4) | LDIMG_ROT0),
         (uint16_t)px, (uint16_t)y, (uint16_t)w, (uint16_t)h,
     };
     write_cmd_args(CMD_LD_IMG_AREA, args, 5);
@@ -545,6 +553,57 @@ static void load_begin(int px, int y, int w, int h)
     hrdy(); epd_cs(true);
     epd_spi_write16(PRE_DATA);
     hrdy();
+}
+
+/* One bit per pixel, for the two-level loads (DU, A2) when bitmap mode is on:
+ * four times fewer bytes than 4bpp. s_bitmap_inv swaps which bit is ink, in
+ * case the controller reads BGVR the other way round. */
+static bool s_bitmap, s_bitmap_inv, s_job_bitmap;
+void it8951_set_bitmap(int mode) { s_bitmap = mode != 0; s_bitmap_inv = mode == 2; }
+int  it8951_bitmap(void)         { return s_bitmap ? (s_bitmap_inv ? 2 : 1) : 0; }
+static uint8_t bitrev8(uint8_t b) { b = (uint8_t)((b & 0xF0) >> 4 | (b & 0x0F) << 4); b = (uint8_t)((b & 0xCC) >> 2 | (b & 0x33) << 2); return (uint8_t)((b & 0xAA) >> 1 | (b & 0x55) << 1); }
+/* row: packed 4bpp pixels from logical x0, lw of them; out: lw/8 bytes, bit 7 the leftmost pixel, 1 = ink. */
+static void row_to_bits(const uint8_t *row, int lw, uint8_t *out)
+{
+    int nb = lw / 8;
+    for (int k = 0; k < nb; k++) {
+        uint8_t b = 0;
+        for (int i = 0; i < 4; i++) {
+            uint8_t p = row[k * 4 + i];
+            if ((p >> 4) < 8)   b |= (uint8_t)(0x80 >> (2 * i));
+            if ((p & 0x0F) < 8) b |= (uint8_t)(0x40 >> (2 * i));
+        }
+        if (s_bitmap_inv) b = (uint8_t)~b;
+        out[k] = b;
+    }
+    if (s_mirror) {                      /* the panel reads the row backwards: bytes and bits */
+        for (int k = 0; k < nb / 2; k++) { uint8_t t = out[k]; out[k] = out[nb - 1 - k]; out[nb - 1 - k] = t; }
+        for (int k = 0; k < nb; k++) out[k] = bitrev8(out[k]);
+    }
+    for (int k = 0; k + 1 < nb; k += 2) { uint8_t t = out[k]; out[k] = out[k + 1]; out[k + 1] = t; }   /* the word's low byte first, as 4bpp */
+}
+
+static void display(int px, int y, int w, int h, uint8_t mode);
+/* The INIT pass before a full GC16 only needs the image buffer white: load
+ * it at 2 bits per pixel, half the bytes of the frame it clears for. */
+static void init_white(void)
+{
+    static uint8_t ff[IT8951_W / 4];
+    memset(ff, 0xFF, sizeof ff);
+    uint32_t t0 = now_ms();
+    load_begin(0, 0, IT8951_W, IT8951_H, LDIMG_2BPP);
+    for (int y = 0; y < IT8951_H; y++) {
+        epd_spi_write_wait();
+        if (!epd_hrdy()) hrdy();
+        epd_spi_write_async(ff, sizeof ff);
+    }
+    epd_spi_write_wait();
+    epd_cs(false);
+    write_cmd(CMD_LD_IMG_END);
+    uint32_t t1 = now_ms();
+    display(0, 0, IT8951_W, IT8951_H, IT8951_MODE_INIT);
+    s_ref_stale = false;
+    printf("it8951: white at 2bpp in %lu ms, INIT in %lu ms\n", (unsigned long)(t1 - t0), (unsigned long)(now_ms() - t1));
 }
 
 /* Two wire buffers: row N goes out by DMA while row N+1 is being built. */
@@ -566,14 +625,20 @@ static void load_end(void)
     write_cmd(CMD_LD_IMG_END);
 }
 
+/* Around a display of areas loaded one bit per pixel: tell the engine, and the greys for 1 and 0. */
+static void bitmap_on(void)  { write_reg(REG_UP1SR2, (uint16_t)(read_reg(REG_UP1SR2) | 0x0004)); write_reg(REG_BGVR, 0x00F0); }
+static void bitmap_off(void) { write_reg(REG_UP1SR2, (uint16_t)(read_reg(REG_UP1SR2) & ~0x0004)); }
+
 static void display(int px, int y, int w, int h, uint8_t mode)
 {
     const uint16_t args[5] = { (uint16_t)px, (uint16_t)y, (uint16_t)w, (uint16_t)h, mode };
     force_temp();                        /* the waveform is picked at display time */
     ready_panel();
+    if (s_job_bitmap) bitmap_on();
     write_cmd_args(CMD_DPY_AREA, args, 5);
     sleep_ms(20);                        /* let the LUT engine pick the job up */
     wait_display_ready(30000);
+    if (s_job_bitmap) { bitmap_off(); s_job_bitmap = false; }
     rest_panel();
 }
 
@@ -605,10 +670,21 @@ static bool load_area(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, i
     const int lw = x1 - x0, lh = y1 - y0;
     const int px = s_mirror ? (IT8951_W - x0 - lw) : x0;        /* panel-space x */
     uint8_t row[IT8951_ROW_BYTES];
+    static uint8_t bits[2][IT8951_W / 8];
+    bool onebit = s_load_bw && s_bitmap;
     s_win_x0 = x0; s_win_x1 = x1;
-    load_begin(px, y0, lw, lh);
+    if (onebit) { load_begin(px / 8, y0, lw / 8, lh, LDIMG_8BPP); s_job_bitmap = true; }
+    else load_begin(px, y0, lw, lh, LDIMG_4BPP);
     for (int yy = y0; yy < y1; yy++) {
         fn(yy, row, ctx);
+        if (onebit) {
+            uint8_t *b = bits[yy & 1];
+            row_to_bits(row + x0 / 2, lw, b);
+            epd_spi_write_wait();
+            if (!epd_hrdy()) hrdy();
+            epd_spi_write_async(b, (size_t)(lw / 8));
+            continue;
+        }
         if (s_load_bw) for (int k = x0 / 2; k < x1 / 2; k++) row[k] = bw_byte(row[k]);
         load_row(row + x0 / 2, lw / 2, yy);
     }
@@ -686,7 +762,8 @@ static void paint(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, uint8
     s_load_bw = (mode == IT8951_MODE_DU || mode == IT8951_MODE_A2);
     if (s_clean_full && mode == IT8951_MODE_GC16 && s_ref_stale && x <= 0 && y <= 0 && w >= IT8951_W && h >= IT8951_H) {
         printf("it8951: INIT first: the controller's reference is stale\n");
-        paint(0, 0, IT8951_W, IT8951_H, white_fill_row, NULL, IT8951_MODE_INIT);
+        if (!ensure_up()) return;
+        init_white();
     }
     uint32_t t0 = now_ms();
     if (!load_area(x, y, w, h, fn, ctx, &ax, &ay, &aw, &ah)) return;
@@ -707,10 +784,10 @@ static void paint(int x, int y, int w, int h, it8951_row_fn fn, void *ctx, uint8
  * them, so the rectangles are never merged into a bounding box. */
 void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *ctx, uint8_t mode)
 {
-    int a[8][4], loaded = 0;
+    int a[24][4], loaded = 0;
     uint32_t t0 = now_ms();
     s_load_bw = (mode == IT8951_MODE_DU || mode == IT8951_MODE_A2);
-    for (int i = 0; i < n && loaded < 8; i++) {
+    for (int i = 0; i < n && loaded < 24; i++) {
         int ax, ay, aw, ah;
         if (!load_area(rects[i][0], rects[i][1], rects[i][2], rects[i][3], fn, ctx, &ax, &ay, &aw, &ah)) continue;
         a[loaded][0] = ax; a[loaded][1] = ay; a[loaded][2] = aw; a[loaded][3] = ah; loaded++;
@@ -732,6 +809,7 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
         if (a[i][1] + a[i][3] > y1) y1 = a[i][1] + a[i][3];
     }
     ready_panel();
+    if (s_job_bitmap) bitmap_on();
     {
         const int px = s_mirror ? (IT8951_W - x1) : x0;
         const uint16_t args[5] = { (uint16_t)px, (uint16_t)y0, (uint16_t)(x1 - x0), (uint16_t)(y1 - y0), mode };
@@ -740,6 +818,7 @@ void it8951_update_areas(const int (*rects)[4], int n, it8951_row_fn fn, void *c
     s_ref_stale = true;
     sleep_ms(20);
     wait_display_ready(30000);
+    if (s_job_bitmap) { bitmap_off(); s_job_bitmap = false; }
     rest_panel();
     uint32_t t2 = now_ms();
     s_last_stream = t1 - t0; s_last_refresh = t2 - t1; s_paints++;
@@ -753,7 +832,7 @@ void it8951_redisplay_areas(const int (*rects)[4], int n, uint8_t mode)
     uint32_t t0 = now_ms();
     wait_display_ready(30000);
     ready_panel();
-    for (int i = 0; i < n && i < 9; i++) {
+    for (int i = 0; i < n && i < 24; i++) {
         int x0 = rects[i][0] & ~15, x1 = (rects[i][0] + rects[i][2] + 15) & ~15;
         if (x0 < 0) x0 = 0;
         if (x1 > IT8951_W) x1 = IT8951_W;

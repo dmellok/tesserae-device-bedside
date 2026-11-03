@@ -23,51 +23,54 @@ int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ S_ALARMS, K_SUB, "Alarms", ICON_ALARM, 0 };
         r[n++] = (row_def_t){ C_DASH, K_CHOICE, "Dashboard", ICON_HOUSE, 0 };
         r[n++] = (row_def_t){ S_SETTINGS, K_SUB, "Settings", ICON_GEAR, 0 };
-        break;      /* Back (appended below) goes home */
+        break;
+    /* Icons go on a list only when every row can have one of its own (the
+     * menu, Settings, Sound, Shows); a list of facets of one thing has none. */
     case N_RAIN:
         r[n++] = (row_def_t){ T_RAIN, K_TOGGLE, "Playing", ICON_PLAY, 0 };
-        r[n++] = (row_def_t){ V_RAIN_LVL, K_VALUE, "Intensity", ICON_CLOUD_RAIN, 0 };
+        r[n++] = (row_def_t){ V_RAIN_LVL, K_VALUE, "Intensity", ICON_DROP, 0 };
         r[n++] = (row_def_t){ C_RAIN_KIND, K_CHOICE, "Sound", ICON_SPEAKER_HIGH, 0 };
-        if (S.rain_kind == RS_RADIO) r[n++] = (row_def_t){ C_STATION, K_CHOICE, "Station", ICON_SPEAKER_HIGH, 0 };  /* the radio's presets */
+        if (S.rain_kind == RS_RADIO) r[n++] = (row_def_t){ C_STATION, K_CHOICE, "Station", ICON_LIST, 0 };  /* the radio's presets */
         if (S.rain_kind == 0) r[n++] = (row_def_t){ C_SURFACE, K_CHOICE, "Falling on", ICON_CLOUD_RAIN, 0 };          /* rain only */
         if (S.rain_kind == 0 || S.rain_kind == 4) r[n++] = (row_def_t){ C_THUNDER, K_CHOICE, "Thunder", ICON_CLOUD_LIGHTNING, 0 };   /* over rain or a recording */
-        r[n++] = (row_def_t){ C_SLEEP, K_CHOICE, "Sleep timer", ICON_MOON, 0 };
+        r[n++] = (row_def_t){ C_SLEEP, K_CHOICE, "Sleep timer", ICON_TIMER, 0 };
         break;
     case N_LIGHTS:
-        r[n++] = (row_def_t){ T_LIGHTS, K_TOGGLE, "Bedroom lights", ICON_LIGHTBULB, 0 };
-        r[n++] = (row_def_t){ V_BRIGHT, K_VALUE, "Brightness", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ C_COLOUR, K_CHOICE, "Colour", ICON_LIGHTBULB, 0 };
+        r[n++] = (row_def_t){ T_LIGHTS, K_TOGGLE, "Bedroom lights", NULL, 0 };
+        r[n++] = (row_def_t){ V_BRIGHT, K_VALUE, "Brightness", NULL, 0 };
+        r[n++] = (row_def_t){ C_COLOUR, K_CHOICE, "Colour", NULL, 0 };
         break;
     case N_AC:
-        r[n++] = (row_def_t){ T_AC, K_TOGGLE, "A/C", ICON_SNOWFLAKE, 0 };
-        r[n++] = (row_def_t){ V_SETPOINT, K_VALUE, "Temperature", ICON_THERMOMETER, 0 };
-        r[n++] = (row_def_t){ C_AC_MODE, K_CHOICE, "Mode", ICON_SNOWFLAKE, 0 };
-        r[n++] = (row_def_t){ C_FAN, K_CHOICE, "Fan", ICON_SNOWFLAKE, 0 };
+        r[n++] = (row_def_t){ T_AC, K_TOGGLE, "A/C", NULL, 0 };
+        r[n++] = (row_def_t){ V_SETPOINT, K_VALUE, "Temperature", NULL, 0 };
+        r[n++] = (row_def_t){ C_AC_MODE, K_CHOICE, "Mode", NULL, 0 };
+        r[n++] = (row_def_t){ C_FAN, K_CHOICE, "Fan", NULL, 0 };
         break;
     case N_ALARMS:
         for (int i = 0; i < s_nalarms; i++) {
             snprintf(s_labels[i], sizeof s_labels[i], "%02d:%02d", s_alarms[i].h, s_alarms[i].m);
-            r[n++] = (row_def_t){ S_ALARM_ITEM, K_SUB, s_labels[i], ICON_ALARM, i };
+            r[n++] = (row_def_t){ S_ALARM_ITEM, K_SUB, s_labels[i], NULL, i };
         }
-        if (s_nalarms < MAX_ALARMS) r[n++] = (row_def_t){ A_ADD_ALARM, K_ACTION, "Add alarm", ICON_BELL_RINGING, 0 };
-        r[n++] = (row_def_t){ S_CHORUS, K_SUB, "Dawn chorus", ICON_BIRD, 0 };
-        r[n++] = (row_def_t){ C_SNOOZE, K_CHOICE, "Snooze", ICON_BELL_RINGING, 0 };
+        if (s_nalarms < MAX_ALARMS) r[n++] = (row_def_t){ A_ADD_ALARM, K_ACTION, "Add alarm", NULL, 0 };
+        r[n++] = (row_def_t){ S_CHORUS, K_SUB, "Dawn chorus", NULL, 0 };
+        r[n++] = (row_def_t){ C_ALARM_TONE, K_CHOICE, "Alarm sound", NULL, 0 };
+        r[n++] = (row_def_t){ C_SNOOZE, K_CHOICE, "Snooze", NULL, 0 };
         break;
     case N_ALARM:
-        r[n++] = (row_def_t){ T_ALARM_ON, K_TOGGLE, "Alarm", ICON_ALARM, s_ai };
-        r[n++] = (row_def_t){ V_ALARM_TIME, K_VALUE, "Time", ICON_ALARM, s_ai };
-        r[n++] = (row_def_t){ S_DAYS, K_SUB, "Days", ICON_CALENDAR_BLANK, s_ai };
-        r[n++] = (row_def_t){ C_EARLY, K_CHOICE, "Wake up early", ICON_SUN, s_ai };
-        r[n++] = (row_def_t){ A_DELETE_ALARM, K_ACTION, "Delete alarm", ICON_BELL_RINGING, s_ai };
+        r[n++] = (row_def_t){ T_ALARM_ON, K_TOGGLE, "Alarm", NULL, s_ai };
+        r[n++] = (row_def_t){ V_ALARM_TIME, K_VALUE, "Time", NULL, s_ai };
+        r[n++] = (row_def_t){ S_DAYS, K_SUB, "Days", NULL, s_ai };
+        r[n++] = (row_def_t){ C_EARLY, K_CHOICE, "Wake up early", NULL, s_ai };
+        r[n++] = (row_def_t){ A_DELETE_ALARM, K_ACTION, "Delete alarm", NULL, s_ai };
         break;
     case N_DAYS:
         for (int i = 0; i < 7; i++) r[n++] = (row_def_t){ T_DAY, K_TOGGLE, DAY_NAMES[i], NULL, i };
         break;
     case N_CHORUS:
-        for (int i = 0; i < BIRD_COUNT; i++) r[n++] = (row_def_t){ T_BIRD, K_TOGGLE, bird_name(i), ICON_BIRD, i };
-        r[n++] = (row_def_t){ V_BIRD_VOL, K_VALUE, "Alarm volume", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ V_BIRD_SOFT, K_VALUE, "Softness", ICON_BIRD, 0 };
-        r[n++] = (row_def_t){ A_PREVIEW, K_ACTION, "Preview", ICON_PLAY, 0 };
+        for (int i = 0; i < BIRD_COUNT; i++) r[n++] = (row_def_t){ T_BIRD, K_TOGGLE, bird_name(i), NULL, i };
+        r[n++] = (row_def_t){ V_BIRD_VOL, K_VALUE, "Alarm volume", NULL, 0 };
+        r[n++] = (row_def_t){ V_BIRD_SOFT, K_VALUE, "Softness", NULL, 0 };
+        r[n++] = (row_def_t){ A_PREVIEW, K_ACTION, "Preview", NULL, 0 };
         break;
     case N_SETTINGS:
         r[n++] = (row_def_t){ S_HOMESCR, K_SUB, "Home screen", ICON_HOUSE, 0 };
@@ -79,12 +82,12 @@ int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ S_DEVICE, K_SUB, "Device", ICON_GEAR, 0 };
         break;
     case N_HOMESCR:
-        r[n++] = (row_def_t){ C_OVERLAY, K_CHOICE, "Overlay", ICON_HOUSE, 0 };
-        r[n++] = (row_def_t){ S_SHOWS, K_SUB, "Shows", ICON_LIST, 0 };
-        r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", ICON_MOON, 0 };
-        r[n++] = (row_def_t){ C_LIVE_LAYOUT, K_CHOICE, "Live layout", ICON_HOUSE, 0 };
-        r[n++] = (row_def_t){ C_LIVE_DARK, K_CHOICE, "Live colours", ICON_MOON, 0 };
-        r[n++] = (row_def_t){ T_DEMO, K_TOGGLE, "Demo data", ICON_CLOUD_SUN, 0 };
+        r[n++] = (row_def_t){ C_OVERLAY, K_CHOICE, "Overlay", NULL, 0 };
+        r[n++] = (row_def_t){ S_SHOWS, K_SUB, "Shows", NULL, 0 };
+        r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", NULL, 0 };
+        r[n++] = (row_def_t){ C_LIVE_LAYOUT, K_CHOICE, "Live layout", NULL, 0 };
+        r[n++] = (row_def_t){ C_LIVE_DARK, K_CHOICE, "Live colours", NULL, 0 };
+        r[n++] = (row_def_t){ T_DEMO, K_TOGGLE, "Demo data", NULL, 0 };
         break;
     case N_SHOWS: {
         static const char *const SHOW_L[5] = { "Clock", "Alarm", "Sound", "Room", "Connection" };
@@ -92,92 +95,96 @@ int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 5; i++) r[n++] = (row_def_t){ T_SHOW, K_TOGGLE, SHOW_L[i], SHOW_I[i], i };
         break; }
     case N_DISPLAY:
-        r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", ICON_THERMOMETER, 0 };
-        r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh now", ICON_HOUSE, 0 };
+        r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", NULL, 0 };
+        r[n++] = (row_def_t){ T_LARGE, K_TOGGLE, "Large text", NULL, 0 };
+        r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh now", NULL, 0 };
+        break;
+    case N_PANEL:                                   /* the panel's tuning: rarely touched, under Device */
+        r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", NULL, 0 };
+        r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", NULL, 0 };
+        r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", NULL, 0 };
         break;
     case N_NIGHTG:
-        r[n++] = (row_def_t){ T_NIGHT, K_TOGGLE, "Night mode", ICON_MOON, 0 };
-        r[n++] = (row_def_t){ C_AUTONIGHT, K_CHOICE, "Auto night", ICON_MOON, 0 };
-        r[n++] = (row_def_t){ C_NIGHTKEYS, K_CHOICE, "Keys at night", ICON_KEYBOARD, 0 };
+        r[n++] = (row_def_t){ T_NIGHT, K_TOGGLE, "Night mode", NULL, 0 };
+        r[n++] = (row_def_t){ C_AUTONIGHT, K_CHOICE, "Auto night", NULL, 0 };
+        r[n++] = (row_def_t){ C_NIGHTKEYS, K_CHOICE, "Keys at night", NULL, 0 };
         break;
     case N_KEYS: {
         static const char *const KEY_L[3] = { "Key 1", "Key 2", "Key 3" };
-        for (int i = 0; i < 3; i++) r[n++] = (row_def_t){ S_KEY, K_SUB, KEY_L[i], ICON_KEYBOARD, i };
-        r[n++] = (row_def_t){ C_KNOB_HOLD, K_CHOICE, "Knob hold", ICON_ARROW_U_UP_LEFT, 0 };
-        r[n++] = (row_def_t){ S_KEYLIGHTS, K_SUB, "Key lights", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ S_MENUS, K_SUB, "Menus", ICON_LIST, 0 };
+        for (int i = 0; i < 3; i++) r[n++] = (row_def_t){ S_KEY, K_SUB, KEY_L[i], NULL, i };
+        r[n++] = (row_def_t){ C_KNOB_HOLD, K_CHOICE, "Knob hold", NULL, 0 };
+        r[n++] = (row_def_t){ S_KEYLIGHTS, K_SUB, "Key lights", NULL, 0 };
+        r[n++] = (row_def_t){ S_MENUS, K_SUB, "Menus", NULL, 0 };
         break; }
     case N_KEYLIGHTS:
-        r[n++] = (row_def_t){ V_KEYS, K_VALUE, "Brightness", ICON_SUN, 0 };
-        r[n++] = (row_def_t){ C_KEYCOL, K_CHOICE, "Key colour", ICON_KEYBOARD, 0 };
-        r[n++] = (row_def_t){ C_MENUCOL, K_CHOICE, "Menu key colour", ICON_KEYBOARD, 0 };
-        r[n++] = (row_def_t){ T_KNOB, K_TOGGLE, "Knob light", ICON_SUN, 0 };
+        r[n++] = (row_def_t){ V_KEYS, K_VALUE, "Brightness", NULL, 0 };
+        r[n++] = (row_def_t){ C_KEYCOL, K_CHOICE, "Key colour", NULL, 0 };
+        r[n++] = (row_def_t){ C_MENUCOL, K_CHOICE, "Menu key colour", NULL, 0 };
+        r[n++] = (row_def_t){ T_KNOB, K_TOGGLE, "Knob light", NULL, 0 };
         break;
     case N_MENUS:
-        r[n++] = (row_def_t){ T_TURNHINTS, K_TOGGLE, "Turn counts", ICON_LIST, 0 };
-        r[n++] = (row_def_t){ T_QUICKMENU, K_TOGGLE, "Quick menu moves", ICON_PLAY, 0 };
+        r[n++] = (row_def_t){ T_TURNHINTS, K_TOGGLE, "Turn counts", NULL, 0 };
+        r[n++] = (row_def_t){ T_QUICKMENU, K_TOGGLE, "Quick menu moves", NULL, 0 };
         break;
     case N_KEY:
-        r[n++] = (row_def_t){ C_KEY_PRESS, K_CHOICE, "Press", ICON_KEYBOARD, s_ki };
-        r[n++] = (row_def_t){ C_KEY_HOLD, K_CHOICE, "Hold", ICON_KEYBOARD, s_ki };
+        r[n++] = (row_def_t){ C_KEY_PRESS, K_CHOICE, "Press", NULL, s_ki };
+        r[n++] = (row_def_t){ C_KEY_HOLD, K_CHOICE, "Hold", NULL, s_ki };
         break;
     case N_SOFTWARE: {
         static char lab[OTA_REL_MAX][32];
-        r[n++] = (row_def_t){ I_FWVER, K_INFO, "Installed", ICON_GEAR, 0 };
-        r[n++] = (row_def_t){ A_OTACHECK, K_ACTION, "Check for updates", ICON_WIFI_HIGH, 0 };
-        r[n++] = (row_def_t){ T_AUTOUPD, K_TOGGLE, "Auto-update overnight", ICON_MOON, 0 };
+        r[n++] = (row_def_t){ I_FWVER, K_INFO, "Installed", NULL, 0 };
+        r[n++] = (row_def_t){ A_OTACHECK, K_ACTION, "Check for updates", NULL, 0 };
+        r[n++] = (row_def_t){ T_AUTOUPD, K_TOGGLE, "Auto-update overnight", NULL, 0 };
         for (int i = 0; i < ota_release_count() && n < 15; i++) {
             const ota_release_t *e = ota_release(i);
             snprintf(lab[i], sizeof lab[i], "%s%s", e->tag, e->pre ? " (pre)" : "");
-            r[n++] = (row_def_t){ A_RELEASE, K_ACTION, lab[i], ICON_HOUSE, i };
+            r[n++] = (row_def_t){ A_RELEASE, K_ACTION, lab[i], NULL, i };
         }
         break; }
     case N_TIMEG:
-        r[n++] = (row_def_t){ T_AUTOTIME, K_TOGGLE, "Set automatically", ICON_WIFI_HIGH, 0 };
-        r[n++] = (row_def_t){ C_TZ, K_CHOICE, "Time zone", ICON_HOUSE, 0 };
-        r[n++] = (row_def_t){ V_TIME, K_VALUE, "Time", ICON_ALARM, 0 };
-        r[n++] = (row_def_t){ V_DATE, K_VALUE, "Date", ICON_CALENDAR_BLANK, 0 };
-        r[n++] = (row_def_t){ C_CLOCK, K_CHOICE, "Clock", ICON_ALARM, 0 };
+        r[n++] = (row_def_t){ T_AUTOTIME, K_TOGGLE, "Set automatically", NULL, 0 };
+        r[n++] = (row_def_t){ C_TZ, K_CHOICE, "Time zone", NULL, 0 };
+        r[n++] = (row_def_t){ V_TIME, K_VALUE, "Time", NULL, 0 };
+        r[n++] = (row_def_t){ V_DATE, K_VALUE, "Date", NULL, 0 };
+        r[n++] = (row_def_t){ C_CLOCK, K_CHOICE, "Clock", NULL, 0 };
         break;
     case N_DEVICE:
-        r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", ICON_GEAR, 0 };
-        r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", ICON_PLUG, 0 };
-        r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", ICON_BATTERY_CHARGING, 0 };
-        r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", ICON_WIFI_HIGH, 0 };
-        r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", ICON_PLUG, 0 };
-        r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
+        r[n++] = (row_def_t){ S_SOFTWARE, K_SUB, "Software", NULL, 0 };
+        r[n++] = (row_def_t){ S_PANEL, K_SUB, "Panel", NULL, 0 };
+        r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", NULL, 0 };
+        r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", NULL, 0 };
+        r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", NULL, 0 };
+        r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", NULL, 0 };
+        r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", NULL, 0 };
         break;
     case N_SPEAKER:
-        r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SPK_PRESET, K_CHOICE, "Preset", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ S_EQ, K_SUB, "Equaliser", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SPK_SOFT, K_CHOICE, "Soften highs", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SPK_HPF, K_CHOICE, "Low cut", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SPK_LIMIT, K_CHOICE, "Loud moments", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ C_SPK_TEST, K_CHOICE, "Test sound", ICON_PLAY, 0 };
+        r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", NULL, 0 };
+        r[n++] = (row_def_t){ C_SPK_PRESET, K_CHOICE, "Preset", NULL, 0 };
+        r[n++] = (row_def_t){ S_EQ, K_SUB, "Equaliser", NULL, 0 };
+        r[n++] = (row_def_t){ C_SPK_SOFT, K_CHOICE, "Soften highs", NULL, 0 };
+        r[n++] = (row_def_t){ C_SPK_HPF, K_CHOICE, "Low cut", NULL, 0 };
+        r[n++] = (row_def_t){ C_SPK_LIMIT, K_CHOICE, "Loud moments", NULL, 0 };
+        r[n++] = (row_def_t){ C_SPK_TEST, K_CHOICE, "Test sound", NULL, 0 };
         break;
     case N_EQ:
-        for (int i = 0; i < SPK_EQ_BANDS; i++) r[n++] = (row_def_t){ V_SPK_EQ, K_VALUE, SPK_EQ_NAMES[i], ICON_SPEAKER_HIGH, i };
-        r[n++] = (row_def_t){ V_SPK_GAIN, K_VALUE, "Level", ICON_SPEAKER_HIGH, 0 };
+        for (int i = 0; i < SPK_EQ_BANDS; i++) r[n++] = (row_def_t){ V_SPK_EQ, K_VALUE, SPK_EQ_NAMES[i], NULL, i };
+        r[n++] = (row_def_t){ V_SPK_GAIN, K_VALUE, "Level", NULL, 0 };
         break;
     case N_RADIO:
-        r[n++] = (row_def_t){ T_RADIO, K_TOGGLE, "Playing", ICON_PLAY, 0 };
-        r[n++] = (row_def_t){ S_STATIONS, K_SUB, "My stations", ICON_LIST, 0 };
+        r[n++] = (row_def_t){ T_RADIO, K_TOGGLE, "Playing", NULL, 0 };
+        r[n++] = (row_def_t){ S_STATIONS, K_SUB, "My stations", NULL, 0 };
         for (int i = 0; i < radio_soma_count() && n < ROWS_MAX - 1; i++) r[n++] = (row_def_t){ A_SOMA, K_ACTION, radio_soma(i)->title, NULL, i };
         break;
     case N_STATIONS:
         for (int i = 0; i < radio_preset_count(); i++) {
             const radio_preset_t *p = radio_preset(i);
-            if (p->url[0]) r[n++] = (row_def_t){ A_STATION, K_ACTION, p->name[0] ? p->name : p->url, ICON_SPEAKER_HIGH, i };
+            if (p->url[0]) r[n++] = (row_def_t){ A_STATION, K_ACTION, p->name[0] ? p->name : p->url, NULL, i };
         }
-        if (!n) r[n++] = (row_def_t){ I_STATUS, K_INFO, "Set stations in the web app", ICON_LIST, 0 };
+        if (!n) r[n++] = (row_def_t){ I_STATUS, K_INFO, "Set stations in the web app", NULL, 0 };
         break;
     default: break;
     }
-    r[n++] = (row_def_t){ R_BACK, K_BACK, "Back", ICON_ARROW_U_UP_LEFT, 0 };
+    /* No Back row: the MENU key is labelled Back on every page and a knob hold does the same. */
     return n;
 }
 const char *node_title(node_t nd)
@@ -192,7 +199,121 @@ const char *node_title(node_t nd)
     case N_KEY:   snprintf(b, sizeof b, "Key %d", s_ki + 1); return b;
     case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device"; case N_SOFTWARE: return "Software"; case N_SPEAKER: return "Speaker";
     case N_DISPLAY: return "Display"; case N_SHOWS: return "Shows"; case N_KEYLIGHTS: return "Key lights"; case N_MENUS: return "Menus"; case N_EQ: return "Equaliser";
+    case N_PANEL: return "Panel";
     default: return "";
+    }
+}
+
+/* ---- what each row does: the line under the preview ---------------------------
+ * A description of the setting (what it does when it is on), never how to work
+ * the knob: the top bar already labels the keys. Dynamic lines show the state. */
+void row_desc(const row_def_t *r, char *b, size_t n)
+{
+    b[0] = 0;
+    switch (r->id) {
+    case S_RAIN:      snprintf(b, n, "Rain, ocean, wind, a recording or the radio"); break;
+    case S_RADIO:     snprintf(b, n, "Internet radio: SomaFM and your own stations"); break;
+    case S_LIGHTS:    snprintf(b, n, "The bedroom lights, their brightness and colour"); break;
+    case S_AC:        snprintf(b, n, "Mode, temperature and fan"); break;
+    case S_ALARMS:    snprintf(b, n, "Alarms, the dawn chorus and snooze"); break;
+    case C_DASH:      snprintf(b, n, "Live, drawn here, or a page from the server"); break;
+    case S_SETTINGS:  snprintf(b, n, "Screen, night, keys, speaker, time and device"); break;
+    case T_RAIN:      snprintf(b, n, "Plays the sleep sound at the volume set"); break;
+    case V_RAIN_LVL:  snprintf(b, n, "How heavy the rain, the sea or the wind is"); break;
+    case C_RAIN_KIND: snprintf(b, n, "Rain, ocean, noise, wind, a recording or radio"); break;
+    case C_SURFACE:   snprintf(b, n, "What the rain lands on"); break;
+    case C_THUNDER:   snprintf(b, n, "Distant rolls, or a storm overhead"); break;
+    case C_SLEEP:     snprintf(b, n, "Fades the sound out after this long"); break;
+    case T_LIGHTS:    snprintf(b, n, "Switches the bedroom lights"); break;
+    case V_BRIGHT:    snprintf(b, n, "How bright the lights are"); break;
+    case C_COLOUR:    snprintf(b, n, "Warm white, or a dim night glow"); break;
+    case T_AC:        snprintf(b, n, "Switches the air conditioner"); break;
+    case V_SETPOINT:  snprintf(b, n, "The room temperature to hold"); break;
+    case C_AC_MODE:   snprintf(b, n, "Cool, heat, fan or dry"); break;
+    case C_FAN:       snprintf(b, n, "Fan speed, or automatic"); break;
+    case S_ALARM_ITEM: snprintf(b, n, "Time, days, early wake, delete"); break;
+    case A_ADD_ALARM: snprintf(b, n, "Adds an alarm at 07:00 on weekdays"); break;
+    case S_CHORUS:    snprintf(b, n, "Birds that build up before the alarm"); break;
+    case C_ALARM_TONE: snprintf(b, n, S.tone_playing && S.tone_until ? "Playing; rings after the chorus has built" : "Rings after the chorus has built; each plays as you pass it"); break;
+    case C_SNOOZE:    snprintf(b, n, "How long a snooze lasts"); break;
+    case T_ALARM_ON:  snprintf(b, n, "Rings at its time on its days"); break;
+    case V_ALARM_TIME: snprintf(b, n, "When it rings"); break;
+    case S_DAYS:      snprintf(b, n, "Which days it rings; none means once"); break;
+    case C_EARLY:     snprintf(b, n, "Chorus and lights start this long before"); break;
+    case A_DELETE_ALARM: snprintf(b, n, "Removes this alarm"); break;
+    case T_DAY:       snprintf(b, n, "Rings on this day"); break;
+    case T_BIRD:      snprintf(b, n, "Sings in the dawn chorus"); break;
+    case V_BIRD_VOL:  snprintf(b, n, "How loud the chorus is when the alarm rings"); break;
+    case V_BIRD_SOFT: snprintf(b, n, "Takes the edge off whistles and chirps"); break;
+    case A_PREVIEW:   snprintf(b, n, s_preview_len_ms ? "Playing; press to stop" : "Plays the chorus building up"); break;
+    case S_HOMESCR:   snprintf(b, n, "The overlay and the Live page"); break;
+    case S_DISPLAY:   snprintf(b, n, "Clock updates, text size, a refresh"); break;
+    case S_NIGHTG:    snprintf(b, n, "Night mode, when it comes on, the keys at night"); break;
+    case S_KEYS:      snprintf(b, n, "What the keys do, their lights, the menus"); break;
+    case S_SPEAKER:   snprintf(b, n, "On or off, presets, the equaliser, low cut, loud moments"); break;
+    case S_TIMEG:     snprintf(b, n, "Automatic time, the zone, 12 or 24 hours"); break;
+    case S_DEVICE:    snprintf(b, n, "Software, the panel, power, Wi-Fi, restart"); break;
+    case C_OVERLAY:   { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(b, n, "Where the clock and controls sit; dashboard %d x %d", w, h); } break;
+    case S_SHOWS:     snprintf(b, n, "What the overlay shows beside the dashboard"); break;
+    case C_ATNIGHT:   snprintf(b, n, "What the overlay keeps while night mode is on"); break;
+    case C_LIVE_LAYOUT: snprintf(b, n, "Bento, a big clock, the weather or tonight's plan"); break;
+    case C_LIVE_DARK: snprintf(b, n, "White on black, for the night"); break;
+    case T_DEMO:      snprintf(b, n, "Fills the Live page with sample values"); break;
+    case T_SHOW:      snprintf(b, n, "Shown in the overlay"); break;
+    case C_CLOCKDU:   snprintf(b, n, "Two-level: black-and-white digits, no flash, no fade"); break;
+    case T_LARGE:     snprintf(b, n, "Bigger menu text, eight rows to a page"); break;
+    case A_REFRESH:   snprintf(b, n, "Clears and repaints the whole screen"); break;
+    case S_PANEL:     snprintf(b, n, "Screen updates, clean refreshes, the waveform"); break;
+    case C_REFRESHMODE: snprintf(b, n, "%s", S.refresh_mode == 2 ? "Whole screen, every change; flashes"
+                                             : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop"); break;
+    case C_CLEANMIN:  snprintf(b, n, "Partial updates wear the picture; this resets it while idle"); break;
+    case C_WFTEMP:    { int s = it8951_temp_sensed(); if (s >= 0) snprintf(b, n, "Board sensor says %d C; lower is darker", s); else snprintf(b, n, "Lower is darker, higher is lighter"); } break;
+    case T_NIGHT:     snprintf(b, n, "Dim keys, a quiet overlay, a dark Live page"); break;
+    case C_AUTONIGHT: snprintf(b, n, "Night mode comes on by itself between these hours"); break;
+    case C_NIGHTKEYS: snprintf(b, n, "The key lights at night: a low glow, or off"); break;
+    case S_KEY:       snprintf(b, n, "What a press and a hold of key %d do", r->arg + 1); break;
+    case C_KNOB_HOLD: snprintf(b, n, "What holding the knob down does"); break;
+    case S_KEYLIGHTS: snprintf(b, n, "Brightness and colours"); break;
+    case S_MENUS:     snprintf(b, n, "Turn counts and quick moves"); break;
+    case V_KEYS:      snprintf(b, n, "How bright the key lights are"); break;
+    case C_KEYCOL:    snprintf(b, n, "The colour of keys 1 to 3"); break;
+    case C_MENUCOL:   snprintf(b, n, "The colour of the MENU key"); break;
+    case T_KNOB:      snprintf(b, n, "Lights the ring around the knob"); break;
+    case T_TURNHINTS: snprintf(b, n, "Beside each row: turns to reach it, + clockwise"); break;
+    case T_QUICKMENU: snprintf(b, n, "Steps in black and white, full quality when you stop"); break;
+    case T_QUICK_A2:  snprintf(b, n, "The fastest waveform for steps; faint ghosts until the clean refresh"); break;
+    case T_SETTLEFULL: snprintf(b, n, "When you stop: the whole screen, cleared first; flashes"); break;
+    case C_KEY_PRESS: case C_KEY_HOLD: snprintf(b, n, "Key %d, %s", s_ki + 1, r->id == C_KEY_HOLD ? "held" : "pressed"); break;
+    case I_FWVER:     { int sl = ota_boot_partition(); snprintf(b, n, "slot %c " DOT " from github.com/%s", sl >= 0 ? 'A' + sl : '-', "dmellok"); } break;
+    case A_OTACHECK:  snprintf(b, n, "%d release(s) listed; asks GitHub for the list", ota_release_count()); break;
+    case T_AUTOUPD:   snprintf(b, n, "Newest stable, 03:10, never near an alarm"); break;
+    case A_RELEASE:   { const ota_release_t *e = ota_release(r->arg);
+                        if (e) snprintf(b, n, "%s " DOT " %s", e->date, s_rel_armed == r->arg ? "press again to install" : "installs this release"); } break;
+    case T_AUTOTIME:  snprintf(b, n, "The time from the network, the zone from Tesserae"); break;
+    case C_TZ:        snprintf(b, n, "Your own zone instead of the server's"); break;
+    case V_TIME: case V_DATE: snprintf(b, n, S.auto_time ? "Set automatically; switch that off to change it" : "Set by hand"); break;
+    case C_CLOCK:     snprintf(b, n, "12-hour or 24-hour"); break;
+    case S_SOFTWARE:  snprintf(b, n, "Version, updates, overnight auto-update"); break;
+    case I_STATUS:    snprintf(b, n, "Wi-Fi %s " DOT " %s", net_connected() ? "on" : "off", tesserae_state_name()); break;
+    case T_POWERMON:  snprintf(b, n, "Watches the battery and says when it is low"); break;
+    case A_WIFISETUP: snprintf(b, n, s_armed == A_WIFISETUP ? "Press again: restarts into setup" : "Restarts into setup; join its Wi-Fi from a phone"); break;
+    case A_RESTART:   snprintf(b, n, s_armed == A_RESTART ? "Press again to restart" : "Restarts the panel; it asks twice"); break;
+    case C_RESET:     snprintf(b, n, "Back to factory settings; it asks first"); break;
+    case T_SPEAKER:   snprintf(b, n, "Plays through the speaker"); break;
+    case C_SPK_PRESET: snprintf(b, n, "A starting point; the bands below fine-tune it"); break;
+    case S_EQ:        snprintf(b, n, "Five bands, 80 Hz to 7 kHz, and the level"); break;
+    case V_SPK_EQ:    snprintf(b, n, "Boost or cut around %s", SPK_EQ_NAMES[r->arg]); break;
+    case V_SPK_GAIN:  snprintf(b, n, "The overall level into the speaker"); break;
+    case C_SPK_SOFT:  snprintf(b, n, "Rolls off everything above this: sharp calls, hiss"); break;
+    case C_SPK_HPF:   snprintf(b, n, "Removes rumble below this"); break;
+    case C_SPK_LIMIT: snprintf(b, n, "Holds the loudest moments down"); break;
+    case C_SPK_TEST:  snprintf(b, n, "Plays for 20 s at the current volume"); break;
+    case T_RADIO:     { const char *t = radio_title(); snprintf(b, n, "%.24s " DOT " %s", radio_name(), radio_state() == RADIO_PLAYING && t[0] ? t : radio_state_name()); } break;
+    case S_STATIONS:  snprintf(b, n, "Your own streams, set in the web app"); break;
+    case C_STATION:   { const char *t = radio_title(); if (radio_state() == RADIO_PLAYING && t[0]) snprintf(b, n, "%.60s", t); else snprintf(b, n, "%s " DOT " stations are set in the web app", radio_state_name()); } break;
+    case A_SOMA:      snprintf(b, n, "%.62s", radio_soma(r->arg)->desc); break;
+    case A_STATION:   { const radio_preset_t *p = radio_preset(r->arg); snprintf(b, n, "%.62s", p ? p->url : ""); } break;
+    default: break;
     }
 }
 
@@ -222,6 +343,8 @@ bool toggle_get(const row_def_t *r)
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus; case T_SETTLEFULL: return S.settle_full;
+    case T_QUICK_A2: return S.quick_a2;
+    case T_LARGE: return S.large_text;
     case T_DEMO: return S.live_demo;
     case T_NIGHT: return S.night; default: return false;
     }
@@ -243,6 +366,8 @@ void toggle_flip(const row_def_t *r)
     case T_TURNHINTS: S.turn_hints = !S.turn_hints; break;
     case T_QUICKMENU: S.quick_menus = !S.quick_menus; break;
     case T_SETTLEFULL: S.settle_full = !S.settle_full; break;
+    case T_QUICK_A2: S.quick_a2 = !S.quick_a2; break;
+    case T_LARGE:   S.large_text = !S.large_text; break;
     case T_DEMO:    S.live_demo = !S.live_demo; break;
     case T_POWERMON: S.power_mon = !S.power_mon; if (!S.power_mon) S.on_battery = false; break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
@@ -328,6 +453,7 @@ int choice_opts(item_t id, const char *const **o)
     case C_AUTONIGHT: *o = AUTONIGHT; return 4;
     case C_CLOCK:     *o = CLOCKF; return 2;
     case C_SNOOZE:    *o = SNOOZES; return 4;
+    case C_ALARM_TONE: *o = RS_TONE_NAMES; return RS_TONES;
     case C_RESET:     *o = RESETS; return 2;
     case C_THUNDER:   *o = THUNDERS; return 3;
     case C_OVERLAY:   *o = OVERLAYS; return 4;
@@ -374,6 +500,7 @@ int choice_get(item_t id)
     case C_AUTONIGHT: return S.auto_night;
     case C_CLOCK:     return S.clock12 ? 1 : 0;
     case C_SNOOZE:    for (int i = 0; i < 4; i++) if (SNOOZE_V[i] == S.snooze_min) return i; return 1;
+    case C_ALARM_TONE: return S.alarm_tone;
     case C_RESET:     return 0;
     case C_THUNDER:   return !S.thunder ? 0 : S.thunder_near < 50 ? 1 : 2;
     case C_OVERLAY:   return S.overlay;
@@ -422,6 +549,7 @@ void choice_set(item_t id, int k)
     case C_AUTONIGHT: S.auto_night = k; break;
     case C_CLOCK:     S.clock12 = k == 1; break;
     case C_SNOOZE:    S.snooze_min = SNOOZE_V[k]; break;
+    case C_ALARM_TONE: S.alarm_tone = k; publish("config/alarm_tone", "%s", RS_TONE_NAMES[k]); break;
     case C_RESET:     if (k == 1) { printf("local: master reset asked for\n"); s_req = LREQ_RESET; } break;
     case C_OVERLAY:   S.overlay = k; overlay_apply(); break;
     case C_ATNIGHT:   S.at_night = k; break;
@@ -485,6 +613,7 @@ void row_value(const row_def_t *r, char *b, size_t n)
         else snprintf(b, n, "Mains");
         break;
     case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing");
+                   if ((r->id == A_RESTART || r->id == A_WIFISETUP) && s_armed == (int)r->id) snprintf(b, n, "Press again");
                    if (r->id == A_SOMA && radio_now(-1, radio_soma(r->arg)->id)) snprintf(b, n, "Playing");
                    if (r->id == A_STATION && radio_now(r->arg, NULL)) snprintf(b, n, "Playing");
                    if (r->id == A_OTACHECK && ota_checked_ms()) { int m = (int)((now_ms() - ota_checked_ms()) / 60000); if (m < 1) snprintf(b, n, "just now"); else snprintf(b, n, "%d min ago", m); }
@@ -523,6 +652,7 @@ node_t sub_node(item_t id)
     case S_HOMESCR: return N_HOMESCR; case S_NIGHTG: return N_NIGHTG; case S_KEYS: return N_KEYS; case S_KEY: return N_KEY;
     case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE; case S_SPEAKER: return N_SPEAKER; case S_RADIO: return N_RADIO; case S_STATIONS: return N_STATIONS;
     case S_DISPLAY: return N_DISPLAY; case S_SHOWS: return N_SHOWS; case S_KEYLIGHTS: return N_KEYLIGHTS; case S_MENUS: return N_MENUS; case S_EQ: return N_EQ;
+    case S_PANEL: return N_PANEL;
     default: return N_SETTINGS;
     }
 }

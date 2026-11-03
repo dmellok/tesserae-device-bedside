@@ -138,6 +138,11 @@ extern stdio_driver_t s_log_drv;
 /* main.c */
 bool action_valid(const char *spec);
 int binding_index(const char *name);
+/* A USB flash: the "Updating firmware" screen is a full paint that clears
+ * first (INIT, then GC16: about 5.5 s); the wait for it, and the fail-safe
+ * alarm that resets even if the main loop is stuck, must both outlast it. */
+#define USB_BOOT_PAINT_MS     10000u
+#define USB_BOOT_FAILSAFE_MS  11000
 int64_t usb_boot_now(alarm_id_t id, void *u);
 void boot_service(void);
 void enter_usb_boot(void);

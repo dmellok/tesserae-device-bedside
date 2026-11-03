@@ -25,16 +25,19 @@ typedef enum {               /* the order of assets/birds/clips.json */
     BIRD_WHIPBIRD,           /* eastern whipbird: long whistle, whip crack */
     BIRD_WATTLEBIRD,         /* red wattlebird: harsh "chock" coughs */
     BIRD_KOOKABURRA,         /* laughing kookaburra: a family laughing */
-    /* synthesised (whistles and pings synthesise well; birds.c builds each call) */
-    BIRD_BELLMINER,          /* bell miner: pure "tink" pings, a colony */
-    BIRD_PARDALOTE,          /* spotted pardalote: soft "sleep-may-be" */
+    /* synthesised (whistles and hoots synthesise well; birds.c builds each call).
+     * The bell miner and the pardalote were here first: too sharp from the
+     * pillow (3 kHz pings), so the shrike-thrush and the frogmouth took their
+     * slots, and a saved chorus keeps its bits. */
+    BIRD_SHRIKETHRUSH,       /* grey shrike-thrush: rich, mellow fluting whistles */
+    BIRD_FROGMOUTH,          /* tawny frogmouth: a soft, low "oom-oom-oom" before first light */
     BIRD_WHISTLER,           /* golden whistler: rising whistles, then a whip crack */
     BIRD_ROSELLA,            /* crimson rosella: bell-like "too-ee-too" */
     BIRD_COUNT
 } bird_t;
 
 #define BIRDS_ALL ((uint16_t)((1u << BIRD_COUNT) - 1))
-#define BIRD_FIRST_SYNTH BIRD_BELLMINER
+#define BIRD_FIRST_SYNTH BIRD_SHRIKETHRUSH
 #define BIRDS_SYNTH ((uint16_t)(BIRDS_ALL & ~((1u << BIRD_FIRST_SYNTH) - 1)))
 static inline bool bird_is_synth(int b) { return b >= BIRD_FIRST_SYNTH; }
 

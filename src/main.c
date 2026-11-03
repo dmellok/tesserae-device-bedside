@@ -58,8 +58,12 @@ int64_t usb_boot_now(alarm_id_t id, void *u) { (void)id; (void)u; reset_usb_boot
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *lc)
 {
     (void)itf;
-    if (lc->bit_rate == 1200 && !s_usb_flash) { s_usb_flash = true; add_alarm_in_ms(6000, usb_boot_now, NULL, true); }
+    if (lc->bit_rate == 1200 && !s_usb_flash) { s_usb_flash = true; add_alarm_in_ms(USB_BOOT_FAILSAFE_MS, usb_boot_now, NULL, true); }
 }
+/* The "Updating firmware" screen is a full paint that clears first (INIT, 2.8 s
+ * streamed + 1.7 s) and then refreshes (GC16, 0.8 s): about 5.5 s. The wait
+ * and the fail-safe alarm behind it must outlast that, or the panel resets
+ * with the glass blank from the clear (it did, with 5 s and 6 s). */
 void enter_usb_boot(void)
 {
     printf("rebooting into the USB bootloader\n");
@@ -67,7 +71,7 @@ void enter_usb_boot(void)
     show_content(CONTENT_FLASHING);
     uint32_t t0 = to_ms_since_boot(get_absolute_time());
     do { paint_pump(); sleep_ms(20); }
-    while ((s_flush_pending || painter_busy()) && to_ms_since_boot(get_absolute_time()) - t0 < 5000);
+    while ((s_flush_pending || painter_busy()) && to_ms_since_boot(get_absolute_time()) - t0 < USB_BOOT_PAINT_MS);
     sleep_ms(100);
     reset_usb_boot(0, 0);
 }
@@ -305,6 +309,7 @@ static void audio_update(void)
                       .thunder = ls->thunder, .thunder_near = ls->thunder_near, .strike = ls->strike,
                       .chorus = ls->chorus, .birds = ls->birds, .bird_vol = ls->bird_vol,
                       .audition = ls->audition, .audition_bird = ls->audition_bird, .bird_soft = ls->bird_soft, .test = ls->test,
+                      .ring = ls->tone_playing, .ring_level = ls->tone_level,
                       .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0,
                       .radio_pull = radio_pull };
     audio_set(&p);
@@ -338,8 +343,9 @@ static void audio_update(void)
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (ls->audition != last_aud || ls->strike != last_strike) { last_aud = ls->audition; last_strike = ls->strike; extra_until = now + 15000; }
     if (ls->test && (int32_t)(ls->test_until - now) <= 0) local_state()->test = 0;   /* the test sound stops itself */
+    if (ls->tone_playing && ls->tone_until && (int32_t)(ls->tone_until - now) <= 0) { local_state()->tone_playing = 0; local_state()->tone_until = 0; }   /* so does an alarm sound preview */
     audio_speaker_enable(ls->speaker);
-    audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || ls->test || (int32_t)(extra_until - now) > 0);
+    audio_speaker_audible((ls->rain_on && ls->vol > 0) || ls->chorus > 0 || ls->test || ls->tone_playing || (int32_t)(extra_until - now) > 0);
     audio_speaker_tick();
     /* The speaker's tone stage follows the settings (spk_dsp.h). */
     static spk_tune_t tuned = { .gain_db = 99 };

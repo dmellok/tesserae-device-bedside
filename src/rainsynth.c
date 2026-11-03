@@ -244,6 +244,63 @@ static pink_t   s_tpk;
 static float    s_test_ph, s_sweep_t;
 static float  s_level_s = 3.0f, s_patter = 0.6f, s_wash = 0.55f, s_tone = 0.5f, s_windk = 0.2f;
 
+/* ---- the alarm sound: a short pattern that repeats while the alarm rings ----
+ * Synthesised, so there is nothing to store: a voice (how a note sounds) and a
+ * score (when each note starts, how long it lasts, its pitch). Each voice
+ * keeps one envelope per note: beeps are gated, bells and marimba decay. */
+const char *const RS_TONE_NAMES[RS_TONES] = { "Chorus only", "Beep", "Digital", "Chime", "Marimba", "Rising" };
+typedef struct { float t, dur, hz; } tn_note_t;
+typedef struct { int voice; float period; int n; const tn_note_t *notes; } tn_pattern_t;
+enum { TV_BEEP, TV_BELL, TV_MARIMBA, TV_SOFT };
+#define TN_MAX 8
+static const tn_note_t N_BEEP[]    = { {0, 0.12f, 1000}, {0.25f, 0.12f, 1000}, {0.5f, 0.12f, 1000}, {0.75f, 0.12f, 1000} };
+static const tn_note_t N_DIGITAL[] = { {0, 0.06f, 2200}, {0.1f, 0.06f, 2200}, {0.2f, 0.06f, 2200}, {0.5f, 0.06f, 2200}, {0.6f, 0.06f, 2200}, {0.7f, 0.06f, 2200} };
+static const tn_note_t N_CHIME[]   = { {0, 1.8f, 523.25f}, {0.45f, 1.8f, 659.25f}, {0.9f, 2.6f, 783.99f} };                       /* C5 E5 G5 */
+static const tn_note_t N_MARIMBA[] = { {0, 0.5f, 392.0f}, {0.22f, 0.5f, 523.25f}, {0.44f, 0.5f, 659.25f}, {0.66f, 0.9f, 783.99f},
+                                       {1.4f, 0.5f, 659.25f}, {1.62f, 0.9f, 523.25f} };                                           /* G4 C5 E5 G5, E5 C5 */
+static const tn_note_t N_RISING[]  = { {0, 0.5f, 329.63f}, {0.4f, 0.5f, 392.0f}, {0.8f, 0.5f, 493.88f}, {1.2f, 0.5f, 587.33f}, {1.6f, 1.2f, 659.25f} };   /* E4 G4 B4 D5 E5 */
+static const tn_pattern_t TONES[RS_TONES] = {
+    { TV_SOFT, 1.0f, 0, NULL },
+    { TV_BEEP, 2.0f, 4, N_BEEP }, { TV_BEEP, 1.6f, 6, N_DIGITAL }, { TV_BELL, 4.0f, 3, N_CHIME },
+    { TV_MARIMBA, 3.2f, 6, N_MARIMBA }, { TV_SOFT, 3.6f, 5, N_RISING },
+};
+static float g_tone, s_tn_t, s_tn_ph[TN_MAX], s_tn_amp[TN_MAX];
+static bool  s_tn_on[TN_MAX];
+
+/* The next sample of the pattern; dec_bell / dec_mar: the per-sample decay of those voices. */
+static float tone_tick(const tn_pattern_t *tp, float dec_bell, float dec_mar)
+{
+    float sig = 0;
+    for (int k = 0; k < tp->n && k < TN_MAX; k++) {
+        const tn_note_t *nt = &tp->notes[k];
+        float age = s_tn_t - nt->t;
+        if (age < 0 || age >= nt->dur) { s_tn_on[k] = false; continue; }
+        if (!s_tn_on[k]) { s_tn_on[k] = true; s_tn_ph[k] = 0; s_tn_amp[k] = 1.0f; }
+        s_tn_ph[k] += nt->hz / SR; if (s_tn_ph[k] >= 1.0f) s_tn_ph[k] -= 1.0f;
+        float ph = 6.2831853f * s_tn_ph[k], v;
+        switch (tp->voice) {
+        case TV_BEEP: {                                             /* a clock radio: a square-ish pip, gated with 4 ms ramps */
+            float r = 0.004f, env = age < r ? age / r : nt->dur - age < r ? (nt->dur - age) / r : 1.0f;
+            v = (sinf(ph) + 0.35f * sinf(3.0f * ph)) * 0.5f * env; break; }
+        case TV_BELL:                                               /* a chime: the strike, an inharmonic partial, a long ring */
+            s_tn_amp[k] *= dec_bell;
+            v = (sinf(ph) + 0.45f * sinf(2.76f * ph) * s_tn_amp[k] + 0.2f * sinf(5.4f * ph) * s_tn_amp[k]) * 0.5f * s_tn_amp[k] * (age < 0.003f ? age / 0.003f : 1.0f);
+            break;
+        case TV_MARIMBA:                                            /* a wooden bar: quick decay, a bright tap at the start */
+            s_tn_amp[k] *= dec_mar;
+            v = (sinf(ph) + 0.4f * sinf(4.0f * ph) * s_tn_amp[k] * s_tn_amp[k]) * 0.7f * s_tn_amp[k] * (age < 0.002f ? age / 0.002f : 1.0f);
+            break;
+        default: {                                                  /* a soft tone: 40 ms in, 120 ms out */
+            float rel = nt->dur - 0.12f, env = age < 0.04f ? age / 0.04f : age > rel ? (nt->dur - age) / 0.12f : 1.0f;
+            v = (sinf(ph) + 0.2f * sinf(2.0f * ph)) * 0.45f * env; break; }
+        }
+        sig += v;
+    }
+    s_tn_t += 1.0f / SR;
+    if (s_tn_t >= tp->period) s_tn_t -= tp->period;
+    return sig;
+}
+
 
 
 void rs_init(uint32_t seed)
@@ -264,6 +321,7 @@ void rs_init(uint32_t seed)
     s_level_s = 3.0f; s_patter = 0.6f; s_wash = 0.55f; s_tone = 0.5f; s_windk = 0.2f;
     g_birds = 0; s_last_audition = 0;
     s_bird_lp1 = s_bird_lp2 = 0; g_test = 0; g_radio = 0; s_test_ph = s_sweep_t = 0; memset(&s_tpk, 0, sizeof s_tpk);
+    g_tone = 0; s_tn_t = 0; memset(s_tn_ph, 0, sizeof s_tn_ph); memset(s_tn_amp, 0, sizeof s_tn_amp); memset(s_tn_on, 0, sizeof s_tn_on);
     bs_init(seed * 2654435761u + 1u);
 }
 
@@ -300,6 +358,11 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     /* softness: 0 leaves the birds alone (9 kHz, nothing to hear at 22 kHz), 100 rolls them off above ~1.6 kHz */
     float a_bird = lp_coef(9000.0f * powf(0.18f, clamp01(p->bird_soft / 100.0f)));
     float tt = p->test > 0 && p->test <= 4 ? 1.0f : 0.0f;
+    /* the alarm sound: the pattern chosen, at the chorus's volume, as loud as tone_level says */
+    const tn_pattern_t *tp = &TONES[p->ring > 0 && p->ring < RS_TONES ? p->ring : 0];
+    float ta = tp->n ? clamp01(p->ring_level) : 0.0f;
+    float tg = powf(bv, 1.5f) * 0.9f;
+    float dec_bell = expf(-2.4f / SR), dec_mar = expf(-8.0f / SR);
     float vol = p->volume < 0 ? 0 : p->volume > 10 ? 10 : (float)p->volume;
     float tm = (vol / 10.0f) * (vol / 10.0f) * clamp01(p->fade);
     float lvl_t = (float)(p->level < 1 ? 1 : p->level > 5 ? 5 : p->level);
@@ -385,7 +448,8 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         g_rec    += (tc - g_rec)   * glide * 4.0f;
         g_test   += (tt - g_test)  * glide * 6.0f;
         g_radio  += (tq - g_radio) * glide * 4.0f;
-        if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise + g_wind + g_rec < 1e-4f && !T.on && !birds_on) { out[i] = 0; continue; }
+        g_tone   += (ta - g_tone)  * glide * 6.0f;
+        if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise + g_wind + g_rec < 1e-4f && !T.on && !birds_on && g_tone < 1e-4f && ta == 0.0f) { out[i] = 0; continue; }
 
         float w = white();
         float x = 0;
@@ -489,6 +553,10 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
 
         x *= g_master * 0.9f;
         if (birds_on) x += lp(&s_bird_lp2, lp(&s_bird_lp1, bs_tick(), a_bird), a_bird) * g_birds * 0.9f;
+        if (g_tone > 1e-4f || ta > 0.0f) {                        /* the alarm sound over the chorus, the rest held back under it */
+            float sig = tone_tick(tp, dec_bell, dec_mar);
+            x = x * (1.0f - 0.55f * g_tone) + sig * tg * g_tone;
+        } else if (s_tn_t != 0.0f) { s_tn_t = 0; memset(s_tn_on, 0, sizeof s_tn_on); }   /* next time, from the top of the pattern */
         if (g_test > 1e-4f) {                                     /* the speaker test, faded in over the mix */
             float sig = 0, f = 0;
             switch (p->test) {

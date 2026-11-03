@@ -37,8 +37,9 @@ static void alarm_rel(char *c, size_t n, int32_t delta)
 /* An icon and a line of text, centred on cx; the text in f, the icon beside it. */
 static void fact_c(layer_t *l, int cx, int y, const char *icon, const bfont_t *f, const char *t)
 {
-    int iw = draw_font_w(F_IM, icon), w = iw + 20 + draw_font_w(f, t), x = cx - w / 2;
-    op_text(l, x, y + (f->line_h - F_IM->line_h) / 2, F_IM, G_BLACK, icon);
+    const bfont_t *fi = f == F_L ? F_IM : F_IR;      /* the icon sized to the text beside it */
+    int iw = draw_font_w(fi, icon), w = iw + 20 + draw_font_w(f, t), x = cx - w / 2;
+    op_text(l, x, y + (f->line_h - fi->line_h) / 2, fi, G_BLACK, icon);
     op_text(l, x + iw + 20, y, f, G_BLACK, t);
 }
 
@@ -79,7 +80,7 @@ void build_live_weather(layer_t *l)
     char b[96], c[96];
     int x = 36, y = TB_H + 20, lw = 860, ch = BODY_H - 40;
     op_rrect(l, x, y, lw, ch, 36, 0xE);
-    card_title(l, x, y, ICON_CLOUD_SUN, "Outside", false);
+    card_title(l, x, y, lw, ICON_CLOUD_SUN, "Outside", false, NULL);
     fmt_temp(LV_OUT_TEMP, b, sizeof b);
     op_text(l, x + 40, y + 100, F_NUM, G_BLACK, b);
     fmt_word(live_val(LV_OUT_COND), c, sizeof c);
@@ -99,7 +100,7 @@ void build_live_weather(layer_t *l)
 
     int rx = 940, rw = W - 36 - rx;
     op_rrect(l, rx, y, rw, ch, 36, 0xE);
-    card_title(l, rx, y, ICON_CLOUD_RAIN, "Chance of rain", false);
+    card_title(l, rx, y, rw, ICON_CLOUD_RAIN, "Chance of rain", false, NULL);
     clock_text(b, sizeof b, NULL);                              /* the time, small, in the title row */
     clock_slots(l, rx + rw - 40 - clock_slots(NULL, 0, 0, F_XL, G_BLACK, b), y + 12, F_XL, G_BLACK, b);
     int vals[8], nv = 0;

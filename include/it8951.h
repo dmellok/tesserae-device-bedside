@@ -141,6 +141,9 @@ int  it8951_sense_temp(void);          /* read the board sensor now (hold the pa
 bool it8951_reinit_pending(void);    /* true once after ensure_up re-initialised the controller: repaint everything */
 /* INIT before a full-screen GC16 once anything has been shown (on by default). */
 void it8951_set_clean_full(bool on);
+/* Two-level loads (DU, A2) one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental). */
+void it8951_set_bitmap(int mode);
+int  it8951_bitmap(void);
 /* Run the waveform again over rects (as loaded, 16 px aligned) without loading
  * the image again: a second pass that takes pixels the rest of the way. */
 void it8951_redisplay_areas(const int (*rects)[4], int n, uint8_t mode);

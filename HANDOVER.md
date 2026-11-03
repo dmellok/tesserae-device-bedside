@@ -959,3 +959,177 @@ better. Two mock-up rounds (artifact `2FMWGH4fjom2LK273nA5Kx`): he chose the
   (whatever the knob hold is bound to), and a turn while the knob is held
   (`inputs_knob_down()`) is ignored while ringing. The ring screen says
   "Press or hold the knob to stop".
+
+## 2026-11-04: the Apple HIG pass
+
+Kayden asked for a read of Apple's current Human Interface Guidelines against
+the panel, then said build it. The HIG site is a JS app; its text is DocC JSON
+at `developer.apple.com/tutorials/data/design/human-interface-guidelines/<slug>.json`
+(current to 13 October 2026; the design principles came back on 8 June 2026).
+The pages that bear on a knob-and-keys e-ink device: Digital Crown, Focus and
+selection, Remotes, Designing for watchOS and tvOS, Layout, Typography, Icons,
+Feedback, Offering help, Writing, Settings, Alerts, Scroll views, Toggles,
+Widgets (StandBy, Apple HomeView), Always On. The big decisions already matched
+(one detent one row, the whole row highlighted, Back on a button, a glanceable
+Live page); the changes are words, feedback, defaults and two components. All
+built, flashed to the bench panel and checked on the glass.
+
+- **Words.** No row says "press to …": the line under the preview describes
+  what the row does (`row_desc()` in `src/ui_tree.c`, one line per item; the
+  dynamic ones carry state), and the slider's instruction line went the same
+  way (the top bar already labels Less, More and Done). Choices show the
+  setting's description under the option.
+- **No Back rows.** Every list and choice lost its Back row: MENU is labelled
+  Back on every page and a knob hold is Back. `K_BACK` stays in the enum.
+- **Turn counts off by default.** The toggle stays (Keys and knob › Menus).
+  Flash: `rsv0` bit 7 of the hardware blob marks the new layout, in which bit 0
+  set means on; a blob without the marker reads as off (the new default).
+- **Icons.** A list carries icons only when every row can have one of its own
+  (Menu, Settings, Sound, Shows); the lists of facets of one thing have none.
+  Row icons and tile titles use a new `icon40` (Phosphor Bold at 40 px): the
+  strokes already weighed the same as Albert Sans Medium (4 px against 4.5 px,
+  measured from the bitmaps), the heaviness was size, so the inline icon is
+  now sized to the capitals of 46 px text, as SF Symbols are. The key icons and
+  the overlay stay `icon46`. The icons' Phosphor codepoints were recovered by
+  rendering every glyph of `tools/Phosphor-Bold.ttf` with Pillow and matching
+  the bitmaps in `icon46.c` (gen_font.py needs Pillow: make a venv).
+- **Toggles draw a switch** at the trailing edge: filled pill, knob on the
+  right for on; outline, knob on the left for off; white on the highlighted bar.
+- **Restart and Wi-Fi setup ask twice**: the first press arms the row ("Press
+  again"), the second does it; moving off the row or leaving the list disarms
+  (`s_armed`). Reset everything already asked through its choice.
+- **Confirmations go where the result shows.** `confirm(icon, txt, val, bit)`
+  in `src/ui_overlay.c` flashes the overlay's own item (a black pill, 3 s)
+  when the strip or the cards show it (Shows bit: alarm 2, sound 4, room 8);
+  otherwise the card as before (the Live page, Overlay off, the night clock,
+  failures, the snooze). The pill op is always drawn, white when idle, so the
+  diff marks the item and not the strip.
+- **At night: Clock and alarm** (`at_night` 2, the default for a fresh panel;
+  the bench keeps its stored Clock only): the strip centres the clock and the
+  next alarm, the alarm in grey (black in DU). Apple Watch on its nightstand
+  and iPhone in StandBy both show the next alarm beside the clock.
+- **Live tiles** with no source and no value say "Not set up / Set its sources
+  in the web app, Live" (the small tiles: "Set up in the web app"); Outside
+  and Bedroom show "N h ago" at the title's right when the newest value in the
+  tile is older than two hours (`card_title()` gained the width and a tail).
+- **A scroll bar** at the list's right edge when a list shows a window of rows.
+- **The ring screen** names its two ways out under the time: Snooze N min on a
+  white block with a key-cap glyph (any key or a turn) and Stop on an outlined
+  block with a knob glyph; the hint line went. After a snooze a card says
+  "Snoozed · Rings again HH:MM".
+- **Large text** (Settings › Display; API `large_text`; web Buttons card; blob
+  bit 6): the menu ramp one size up (34 / 46 / 60 px, new `ui60`), rows 137 px,
+  eight to a page; longer lists and choices scroll in a window of eight
+  (`list_fit()`, `s_ctop`); a label that would run into its value drops to 46 px.
+- **Settings › Display** is now Clock updates, Large text, Refresh now; Screen
+  updates, Clean refresh every and Waveform temp moved to **Device › Panel**
+  (`N_PANEL`). The gist's settings-map.md says so.
+- Fonts: `src/fonts/ui60.c` and `icon40.c` (declared in `bfont.h`); flash use
+  3.94 MB. `/api/state` `panel.large_text`; `set=large_text|0/1`, `at_night|0..2`.
+- Capture lesson: `/frame` renders only the columns the painter is streaming
+  (`it8951_stream_window`), so a capture during a partial job shows that window
+  alone, and a burst of knob turns leaves jobs queued for ten seconds or more.
+  Wait, or check `paint:` in the log, before trusting a capture.
+
+Left as they were, on purpose: the night key colour (Apple tints red in
+StandBy and HomeView; the agreed rule is dimmed day colours, and the firmware
+default `night_col` is still Red), Live colours as a setting (the device is
+the system here), and transient UI over the whole panel.
+
+## 2026-11-04: alarm sounds, two mellower birds, and the blank flashing screen
+
+- **Alarm sounds** (Kayden: "standard alarm sounds that play after the morning
+  chorus, with the ability to preview them"). Six choices in `RS_TONE_NAMES`
+  (`include/rainsynth.h`): Chorus only, Beep, Digital, Chime, Marimba, Rising.
+  Synthesised in `src/rainsynth.c` (`tone_tick()`: a voice and a score per
+  sound, one envelope per note, so nothing is stored), mixed at the chorus's
+  volume (`bird_vol`) with the rest held back 55 % under it. `rs_params_t`
+  gained `ring` (the sound) and `ring_level` (0..1; `tone` was taken by the
+  rain's brightness). The ring starts at 35 % and is at full after 30 s
+  (`RING_RAMP_MS`, `local_alarm_tick`); snooze and stop silence it. The
+  chosen sound is `S.alarm_tone` (default Chime; ext blob `rsv1[25]` + 1);
+  what plays now is `S.tone_playing` / `S.tone_level`, a preview stopping
+  itself at `S.tone_until` (main.c, beside the test sound). Panel: Alarms ›
+  Alarm sound; the sound under the highlight plays 350 ms after the knob
+  rests (`tone_preview_soon()`), opening the list plays the current one, and
+  choosing or backing out stops it. Web app: a select and a Preview button
+  in the Dawn chorus card (`set=alarm_tone|N`, `set=tone_preview|N`, -1 the
+  chosen one, 0 stop; state `chorus.tone`, `tone_preview_s`, `tones[]`).
+  Home Assistant: an "Alarm sound" select and a "Preview alarm sound" button.
+  Host test `alarm_sounds_ring_and_stop`. Checked on the glass by recording
+  `GET /audio` during previews: the chime's three notes every 4 s, the four
+  beeps then a second's gap, the five rising notes.
+- **Bell miner and pardalote replaced** (Kayden: too sharp). The two synth
+  slots are now the grey shrike-thrush (a few round pips at ~1.5 kHz, then a
+  long fluting note) and the tawny frogmouth (a soft, low "oom-oom-oom" at
+  ~260 Hz, the first voice in the dark, joining at 4 %). Same enum positions,
+  so a saved chorus keeps its bits; names in `birds.c`, the web app's
+  descriptions, the gist. Recorded auditions: 1.6 kHz and 265 Hz medians
+  against the bell miner's 3 kHz.
+- **The flashing screen went blank** (Kayden noticed). Since the fade work a
+  full paint after a content change clears first (INIT, 2.8 s streamed plus
+  1.7 s) and then refreshes (GC16): 5.5 s. `enter_usb_boot()` waited 5 s and
+  the `bootsel` fail-safe alarm fired at 6 s, so the panel reset after the
+  clear and before the refresh, white through the flash. Seen in the serial
+  log before the reset: `refreshed (mode 0)` at 4.5 s, nothing after. Now
+  `USB_BOOT_PAINT_MS` 10 s and `USB_BOOT_FAILSAFE_MS` 11 s
+  (`app_internal.h`); `tools/flash.sh` already waits long enough for the
+  bootloader. To watch a flash from the panel's side, log the USB serial port
+  before asking for BOOTSEL (the script's tail starts after the load).
+
+## 2026-11-04: the interface, faster
+
+Kayden: "the next job is to speed up the interface as fast as possible". The
+panel's SPI link is 3.75 MHz, so every move costs what it streams; the log
+lines `paint: job ...` and `it8951: ... streamed in X ms, refreshed in Y ms`
+give the numbers. Measured on the bench, before and after:
+
+| Move | Before | After |
+| --- | --- | --- |
+| Knob step in a list | 824 + 449 ms | 342 + 449 ms (254 with A2, see below) |
+| Knob step on a slider | 1305 + 449 ms | 154 + 449 ms |
+| Open a page from a page | 2547 + 470 ms | 821 + 265 ms |
+| Open a slider page | 2547 + 470 ms | 1039 + 277 ms |
+| Back to the Menu | 2547 + 470 ms | 1065 + 265 ms |
+| Six quick turns, no scrolling | about 7.8 s | 2.3 s in three jobs |
+| Ten quick turns in the Radio list | 10 s | 3.2 s in four jobs |
+| Eight detents on a slider | about 14 s | 1.2 s in three jobs |
+| Idle clean refresh (INIT then GC16) | 8.1 s | 6.7 s |
+| Menu from the Live page, or the dashboard back | 3.0 s / 3.3 s | unchanged |
+
+What changed:
+- **Marks are diffs.** `mark_diff()` in `ui_core.c` marks every op in one
+  layer without a twin in the other, between the layer the painter was last
+  handed (`P_top`, `P_body`, now exported from `ui_draw.c`) and the one built
+  now. `mark_rows`, `mark_list`, `mark_value` and `mark_screen` for a menu page
+  all go through `mark_menu()`; unchanged separators, dividers and key labels
+  cost nothing. From the Live page the whole body is marked (`s_marked_mode`).
+  Each menu mark first drops the pending marks above the status bar: they are
+  stale against the same baseline, so a burst paints the row the highlight
+  left and the one it is on, not the rows it passed.
+- **The dirty queue** (`mark()`) merges a new rect with one it overlaps, or
+  nearly touches when the join would not be mostly white; holds 24 rects
+  (`MAX_DIRTY`, `PAINTER_MAX_RECTS`, `it8951_update_areas`); and when full
+  merges into the rect that grows least. It never falls back to the whole
+  screen (that was the burst's full-width slabs). `mark_apart()` is gone.
+- **A2 for the quick steps was tried and backed out.** 250 ms a refresh
+  against DU's 449, but on this panel A2 did not drive black back to white:
+  Kayden saw updates stack on top of each other (the Live clock's digits, the
+  strip's). DU is the default again; `quick_a2` stays as an API-only
+  experiment and applies to menu screens only, never the clocks. The blob
+  byte `rsv1[26]` reads 3 as on and 2 (this morning's on) as off.
+- **The INIT pass streams white at 2 bits per pixel** (`init_white()` in
+  `it8951.c`, 1.4 s instead of 2.8) and no longer streams the frame twice.
+- **One-bit loads, experimental and off** (`onebit` 0/1/2, web Panel card,
+  `it8951_set_bitmap()`): two-level jobs loaded as 8bpp at x/8 and w/8 with
+  bit 2 of UP1SR+2 and BGVR 0x00F0 around the display, as Waveshare's 1bp
+  refresh does. Four times fewer bytes a step if this firmware (SWv_0.1)
+  honours it. Needs eyes on the glass: 1 should look the same as off, 2 is
+  for an inverted result, noise means the mode is not there. Changed only
+  between painter jobs (`paint_pump`).
+
+Not done, with the numbers that justify them: a resident dashboard frame in
+the controller's memory would take the return home from 3.3 s to the refresh
+alone (0.8 s); SPI at 12.5 MHz (`/api/cmd?spihz=12500000`, then the
+`pattern=black` and `pattern=ramp` checks and a night's watch for the fade)
+would divide every stream by 3.3. Both need eyes on the glass.

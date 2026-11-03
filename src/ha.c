@@ -181,6 +181,9 @@ static const ent_t ENTS[] = {
     /* dawn chorus */
     { "number", "bird_vol", "Dawn chorus volume", "mdi:bird", "{{ value_json.chorus.vol }}", "\"min\":1,\"max\":10,\"step\":1,\"mode\":\"slider\"", 's' },
     { "button", "chorus_preview", "Preview dawn chorus", "mdi:play-circle", NULL, "\"pl_prs\":\"90\"", 's' },
+    { "select", "alarm_tone", "Alarm sound", "mdi:music-note", "{{ ['Chorus only','Beep','Digital','Chime','Marimba','Rising'][value_json.chorus.tone] }}",
+      "\"ops\":[\"Chorus only\",\"Beep\",\"Digital\",\"Chime\",\"Marimba\",\"Rising\"],\"cmd_tpl\":\"{{ ['Chorus only','Beep','Digital','Chime','Marimba','Rising'].index(value) }}\"", 's' },
+    { "button", "tone_preview", "Preview alarm sound", "mdi:play-circle-outline", NULL, "\"pl_prs\":\"-1\"", 's' },
     { "sensor", "chorus_level", "Dawn chorus level", "mdi:bird", "{{ value_json.chorus.level }}", "\"unit_of_meas\":\"%\"", 's' },
     /* the alarm clock */
     { "sensor", "alarm_phase", "Alarm state", "mdi:alarm", "{{ ['idle','waking','ringing'][value_json.phase] }}",
@@ -533,7 +536,7 @@ bool ha_translate(const char *msg, char *name, size_t nn, char *value, size_t vn
 
     static const char *const SET[] = { "vol", "rain_on", "rain_lvl", "rain_kind", "sleep", "lights_on", "bright", "colour",
         "ac_mode", "setpoint", "fan", "night", "keylights", "speaker", "dash", "patter", "wash", "tone", "wind", "surface", "thunder",
-        "thunder_near", "strike", "bird_vol", "chorus_preview", "alarm_stop", "alarm_snooze", "alarm_add",
+        "thunder_near", "strike", "bird_vol", "chorus_preview", "alarm_tone", "tone_preview", "alarm_stop", "alarm_snooze", "alarm_add",
         "key_col", "menu_col", "night_col", "knob_light", "auto_night", "clock12", "snooze" };
     for (size_t i = 0; i < sizeof SET / sizeof SET[0]; i++)
         if (!strcmp(key, SET[i])) { snprintf(name, nn, "set"); snprintf(value, vn, "%s|%s", key, p); return true; }

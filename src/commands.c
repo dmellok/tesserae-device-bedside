@@ -223,7 +223,7 @@ static void exec_command(const char *name, const char *value)
         if (!strcmp(value, "yes")) { printf("master reset (web)\n"); config_erase_all(); sleep_ms(200); watchdog_reboot(0, 0, 0); }
     }
     else if (!strcmp(name, "reboot"))    { printf("rebooting\n"); sleep_ms(100); watchdog_reboot(0, 0, 0); }
-    else if (!strcmp(name, "bootsel"))   { add_alarm_in_ms(6000, usb_boot_now, NULL, true); enter_usb_boot(); }
+    else if (!strcmp(name, "bootsel"))   { add_alarm_in_ms(USB_BOOT_FAILSAFE_MS, usb_boot_now, NULL, true); enter_usb_boot(); }
     else printf("cmd: unknown \"%s\"\n", name);
     if (save) printf(config_save() ? "config: saved\n" : "config: SAVE FAILED\n");
 }

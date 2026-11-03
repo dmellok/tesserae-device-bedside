@@ -413,6 +413,11 @@ nav .brand,nav .side-foot{display:none}
       <div class="ends"><span>Natural</span><span>Soft: whistles and chirps lose their edge</span></div>
       <button class="btn w" id="chorus-preview" style="margin-top:12px"><span data-i="play"></span>Preview the build-up</button>
       <div class="hint" id="chorus-hint">Plays through this phone while Listen is on (Room tab).</div>
+      <div class="lbl">Alarm sound</div>
+      <div style="font-size:14px;color:var(--sub);margin-bottom:8px">Rings once the chorus has built, gently at first and at full after half a minute; the birds carry on underneath. On the panel the sounds play as you pass them in the list.</div>
+      <div class="row" style="gap:10px"><select id="alarm_tone" style="flex:1;border:0;background:var(--soft);border-radius:12px;padding:10px;font-size:14px"></select>
+        <button class="btn" id="tone-preview" style="width:auto;padding:10px 16px"><span data-i="play"></span>Preview</button></div>
+      <div class="hint" id="tone-hint">Plays on the panel's speaker, and through this phone while Listen is on.</div>
       <details class="credits"><summary>Recording credits</summary><ul><li><a href="https://commons.wikimedia.org/wiki/File:Magpiesong.ogg" target="_blank" rel="noopener">Magpiesong.ogg</a> by Meganesia, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Magpie_Caroling.ogg" target="_blank" rel="noopener">Magpie Caroling.ogg</a> by Hullwarren, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Cracticus_torquatus_-_Grey_Butcherbird_XC442754.mp3" target="_blank" rel="noopener">Cracticus torquatus - Grey Butcherbird XC442754.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Bird_song,_grassy_woodlands,_central_Victoria.ogg" target="_blank" rel="noopener">Bird song, grassy woodlands, central Victoria.ogg</a> by billinghurst, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg" target="_blank" rel="noopener">Eastern Whipbird.ogg</a> by Wardie44, Public domain</li><li><a href="https://commons.wikimedia.org/wiki/File:Anthochaera_carunculata_-_Red_Wattlebird_XC446154.mp3" target="_blank" rel="noopener">Anthochaera carunculata - Red Wattlebird XC446154.mp3</a> by James Ray, CC BY-SA 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:LaughingKookaburra.ogg" target="_blank" rel="noopener">LaughingKookaburra.ogg</a> by Kuco, Public domain</li></ul></details>
     </div>
   </div>
@@ -504,6 +509,7 @@ nav .brand,nav .side-foot{display:none}
     <div class="lbl">Knob and menus</div>
     <div class="row"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
     <div class="row" style="margin-top:14px"><div style="flex:1">Quick menu moves<small style="display:block;color:var(--sub);font-size:12px">Knob steps paint in black and white (about a quarter second); full quality once the knob rests</small></div><label class="sw"><input type="checkbox" id="quick_menus" data-set="quick_menus"><span></span></label></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Large menu text<small style="display:block;color:var(--sub);font-size:12px">The panel's menus one size up, eight rows to a page (also under Settings, Display on the panel)</small></div><label class="sw"><input type="checkbox" id="large_text" data-set="large_text"><span></span></label></div>
     <div class="lbl">Hardware</div>
     <dl id="hw"></dl>
   </div>
@@ -519,7 +525,7 @@ nav .brand,nav .side-foot{display:none}
   <div class="card">
     <div class="grid2">
       <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
-      <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option></select></label>
+      <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option><option value="2">Clock and alarm</option></select></label>
       <label class="fld"><span>Clock updates</span><select data-pset="clock_du"><option value="0">Full quality</option><option value="1">Two-level at night</option><option value="2">Two-level always</option></select></label>
       <label class="fld"><span>Live layout</span><select data-pset="live_layout"><option value="0">Bento</option><option value="1">Big clock</option><option value="2">Weather</option><option value="3">Tonight</option></select></label>
       <label class="fld"><span>Live colours</span><select data-pset="live_dark"><option value="0">Light</option><option value="1">Dark</option><option value="2">Dark at night</option></select></label>
@@ -602,6 +608,8 @@ nav .brand,nav .side-foot{display:none}
       <option value="0">Default (20 °C)</option><option value="14">14 °C</option><option value="16">16 °C</option><option value="18">18 °C</option>
       <option value="22">22 °C</option><option value="24">24 °C</option><option value="26">26 °C</option><option value="28">28 °C</option><option value="30">30 °C</option></select></label>
     <div class="hint" style="text-align:left;margin-top:6px" id="wf-hint">The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. This forces the value. Lower is darker; keep it within a few degrees of the room.</div>
+    <label class="fld" style="margin-top:14px"><span>One-bit loads (experimental)</span><select data-pset="onebit"><option value="0">Off</option><option value="1">On</option><option value="2">On, bits inverted</option></select></label>
+    <div class="hint" style="text-align:left;margin-top:6px">Black-and-white menu steps sent as one bit per pixel: a quarter of the bytes, so a step streams four times faster. Needs the controller's bitmap mode: try it and look at the glass. If the menus come out white on black, pick the inverted option; if they come out as noise, turn it off.</div>
     <div class="grid2" style="margin-top:14px">
       <button class="btn" data-cmd="white">Full refresh</button>
       <button class="btn" data-cmd="card">Test card</button>
@@ -833,7 +841,7 @@ $('#shape').addEventListener('toggle',()=>{try{localStorage.shapeOpen=$('#shape'
 
 /* ---- dawn chorus ---- */
 const BIRD_DESC=['Warbling carol, the first to sing','Rich piping phrases','A high, fast reel','Long whistle and a whip crack','Harsh "chock" coughs','The laugh, near the top',
-  'Synthesised · pure "tink" pings','Synthesised · soft "sleep-may-be"','Synthesised · rising whistles, a whip crack','Synthesised · bell-like whistles'];
+  'Synthesised · mellow fluting whistles','Synthesised · a soft, low "oom-oom-oom" in the dark','Synthesised · rising whistles, a whip crack','Synthesised · bell-like whistles'];
 let birdSig='';
 function renderChorus(){
   const c=ui.chorus; if(!c)return;
@@ -847,12 +855,18 @@ function renderChorus(){
   }
   const lvl=c.level, prev=c.preview_s>0;
   $('#chorus-preview').innerHTML=svg(prev?'pause':'play')+(prev?`Stop preview (${c.preview_s}s)`:'Preview the build-up');
+  if(c.tones){const sel=$('#alarm_tone');
+    if(sel.options.length!==c.tones.length)sel.innerHTML=c.tones.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+    if(!held('alarm_tone')&&sel!==document.activeElement)sel.value=String(c.tone);
+    const tp=c.tone_preview_s>0; $('#tone-preview').innerHTML=svg(tp?'pause':'play')+(tp?`Stop (${c.tone_preview_s}s)`:'Preview'); $('#tone-preview').disabled=!c.tone&&!tp}
   $('#chorus-sub').textContent=lvl>0?`Singing · ${lvl}%`:c.snooze_s>0?`Snoozed, back in ${Math.ceil(c.snooze_s/60)} min`:"Builds through each alarm's wake-up window";
   const ringing=ui.phase===2; $('#ringing').classList.toggle('on',ringing);
   if(ringing){const a=ui.alarms.find(a=>a.on)||{h:0,m:0};$('#ring-time').textContent=`${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}`;$('#ring-what').textContent='Good morning'}
 }
 $('#chorus-preview').onclick=()=>{const prev=ui&&ui.chorus&&ui.chorus.preview_s>0;cmd('set='+enc('chorus_preview|'+(prev?0:90)));
   if(!prev&&!AUD.on)toast('Turn on Listen (Room tab) to hear it')};
+$('#alarm_tone').onchange=e=>{touch('alarm_tone',3000);cmd('set='+enc('alarm_tone|'+e.target.value));if(+e.target.value)cmd('set='+enc('tone_preview|'+e.target.value))};
+$('#tone-preview').onclick=()=>{const tp=ui&&ui.chorus&&ui.chorus.tone_preview_s>0;cmd('set='+enc('tone_preview|'+(tp?0:-1)))};
 $('#ring-stop').onclick=()=>cmd('set='+enc('alarm_stop|1'));
 $('#ring-snooze').onclick=()=>cmd('set='+enc('alarm_snooze|1'));
 
@@ -1221,6 +1235,7 @@ function renderPanelSettings(){
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
   if(!held('turn_hints'))$('#turn_hints').checked=!!p.turn_hints;
   if(!held('quick_menus'))$('#quick_menus').checked=!!p.quick_menus;
+  if(!held('large_text'))$('#large_text').checked=!!p.large_text;
   if(!held('live_demo'))$('#live_demo').checked=!!p.live_demo;
   if(p.temp_sensed!=null)$('#wf-hint').textContent=`Forcing ${p.temp_forced} °C. ${p.temp_sensed>=0?`The board's own sensor reads ${p.temp_sensed} °C.`:"The board's own sensor can't be read."} The controller picks its e-ink waveform by temperature, but its sensor is on the driver board, not the glass, and reads warm after a lot of refreshing, which fades the picture. Lower is darker; keep it within a few degrees of the room.`;
   renderSoftware(); renderDesk(); renderHW();

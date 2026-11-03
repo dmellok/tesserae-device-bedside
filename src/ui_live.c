@@ -150,11 +150,41 @@ static bool word_in(const char *v, const char *const *list)
     return false;
 }
 
-void card_title(layer_t *l, int x, int y, const char *icon, const char *label, bool dark)
+/* A tile's title row: icon and label; tail (how old its data is) at the right edge. */
+void card_title(layer_t *l, int x, int y, int w, const char *icon, const char *label, bool dark, const char *tail)
 {
     uint8_t fg = dark ? G_WHITE : G_BLACK;
-    op_text(l, x + 32, y + 28, F_IM, fg, icon);
-    op_text(l, x + 32 + draw_font_w(F_IM, icon) + 18, y + 26, F_M, fg, label);
+    op_text(l, x + 32, y + 30, F_IR, fg, icon);
+    op_text(l, x + 32 + draw_font_w(F_IR, icon) + 18, y + 26, F_M, fg, label);
+    if (tail && tail[0]) op_text_r(l, x + w - 32, y + 34, F_S, dark ? G_LIGHT : G_DARK, tail);
+}
+
+/* A tile's feed: "" while fresh, else how long since its newest value changed
+ * (a sensor that has not moved in hours is probably not reporting). Demo data
+ * is always fresh. Only for the sensor tiles: doors and bins sit still by nature. */
+static const char *tile_age(const int *slots, int n, char *b, size_t cap)
+{
+    b[0] = 0;
+    if (S.live_demo) return b;
+    uint32_t newest = 0; bool any = false;
+    for (int i = 0; i < n; i++) if (live_known(slots[i])) { uint32_t a = live_age_s(slots[i]); if (!any || a < newest) newest = a; any = true; }
+    if (!any || newest < 2 * 3600) return b;
+    if (newest < 86400) snprintf(b, cap, "%lu h ago", (unsigned long)(newest / 3600));
+    else snprintf(b, cap, "%lu d ago", (unsigned long)(newest / 86400));
+    return b;
+}
+/* Nothing in the tile has a source or has ever reported: say where to set it up. */
+static bool tile_unset(const int *slots, int n)
+{
+    if (S.live_demo) return false;
+    for (int i = 0; i < n; i++) if (live_known(slots[i]) || live_source(slots[i])[0]) return false;
+    return true;
+}
+static void tile_unset_note(layer_t *l, int x, int y, int w)
+{
+    op_text(l, x + 32, y + 104, F_M, G_BLACK, "Not set up");
+    const char *how = w >= 640 ? "Set its sources in the web app, Live" : "Set up in the web app";   /* the small tiles take the short form */
+    op_text(l, x + 32, y + 170, lv_fit(how, w - 64, F_LBL, F_S, F_S), G_DARK, how);
 }
 
 bool live_dark_now(void) { return S.live_dark == 1 || (S.live_dark == 2 && S.night); }
@@ -236,7 +266,7 @@ static void build_live_bento(layer_t *l)
     bool dk = live_dark_now();                      /* inverted after building: a light card here reads dark grey on the glass */
     uint8_t tn_bg = dk ? 0xD : G_BLACK, tn_fg = dk ? G_BLACK : G_WHITE;
     op_rrect(l, LV_RIGHT_X, LV_HEAD_Y, LV_RIGHT_W, LV_HEAD_H, 36, tn_bg);
-    card_title(l, LV_RIGHT_X, LV_HEAD_Y, ICON_ALARM, "Tonight", !dk);
+    card_title(l, LV_RIGHT_X, LV_HEAD_Y, LV_RIGHT_W, ICON_ALARM, "Tonight", !dk, NULL);
     if (alarm) snprintf(b, sizeof b, "%02d:%02d", ah, am); else snprintf(b, sizeof b, "No alarm");
     op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 96, F_XL, tn_fg, b);
     if (alarm) {
@@ -271,8 +301,13 @@ static void build_live_bento(layer_t *l)
     else snprintf(c, sizeof c, "Sound %.5s", b);
     op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 288, lv_fit(c, LV_RIGHT_W - 80, F_LBL, F_LBL, F_S), tn_fg, c);
 
+    static const int OUT_SL[5] = { LV_OUT_TEMP, LV_OUT_COND, LV_OUT_HI, LV_OUT_LO, LV_RAIN }, BED_SL[2] = { LV_BED_TEMP, LV_BED_HUM };
+    static const int HOME_SL[4] = { LV_FRONT, LV_BACK, LV_GARAGE, LV_WASHER }, REM_SL[3] = { LV_BINS, LV_BINS_WHEN, LV_EVENT };
+    char age[16];
     op_rrect(l, 36, LV_ROW1, LV_LEFT_W, LV_TILE_H, 36, 0xE);
-    card_title(l, 36, LV_ROW1, ICON_CLOUD_SUN, "Outside", false);
+    card_title(l, 36, LV_ROW1, LV_LEFT_W, ICON_CLOUD_SUN, "Outside", false, tile_age(OUT_SL, 5, age, sizeof age));
+    if (tile_unset(OUT_SL, 5)) tile_unset_note(l, 36, LV_ROW1, LV_LEFT_W);
+    else {
     fmt_temp(LV_OUT_TEMP, b, sizeof b);
     op_text(l, 68, LV_ROW1 + 110, F_XL, G_BLACK, b);
     fmt_word(live_val(LV_OUT_COND), c, sizeof c);
@@ -298,9 +333,12 @@ static void build_live_bento(layer_t *l)
         const char *lab = i == 0 ? "Now" : (snprintf(c, sizeof c, "+%dh", i), c);
         op_text(l, bx + (cw - draw_font_w(F_S, lab)) / 2, bottom + 12, F_S, G_BLACK, lab);
     }
+    }
 
     op_rrect(l, LV_RIGHT_X, LV_ROW1, LV_SMALL_W, LV_SMALL_H, 36, 0xE);
-    card_title(l, LV_RIGHT_X, LV_ROW1, ICON_THERMOMETER, "Bedroom", false);
+    card_title(l, LV_RIGHT_X, LV_ROW1, LV_SMALL_W, ICON_THERMOMETER, "Bedroom", false, tile_age(BED_SL, 2, age, sizeof age));
+    if (tile_unset(BED_SL, 2)) tile_unset_note(l, LV_RIGHT_X, LV_ROW1, LV_SMALL_W);
+    else {
     fmt_temp(LV_BED_TEMP, b, sizeof b);
     op_text(l, LV_RIGHT_X + 32, LV_ROW1 + 100, F_XL, G_BLACK, b);
     if (live_is_known(LV_BED_HUM)) snprintf(c, sizeof c, "%s%% humidity", live_val(LV_BED_HUM)); else snprintf(c, sizeof c, "Humidity --");
@@ -308,6 +346,7 @@ static void build_live_bento(layer_t *l)
     if (S.live_demo) snprintf(c, sizeof c, "Cool 22" DEG " " DOT " fan auto");
     else if (S.ac_mode) snprintf(c, sizeof c, "%s %d" DEG, AC_MODES[S.ac_mode], S.sp_x2 / 2); else snprintf(c, sizeof c, "A/C off");
     op_text(l, LV_RIGHT_X + 32, LV_ROW1 + 264, F_LBL, G_BLACK, c);
+    }
 
     static const char *const SHUT[] = { "locked", "closed", "off", "shut", NULL };
     static const char *const DONE[] = { "done", "finished", "complete", "completed", "end", NULL };
@@ -317,10 +356,12 @@ static void build_live_bento(layer_t *l)
     for (int i = 0; i < 3; i++) if (live_is_known(SL[i])) { known++; if (!word_in(live_val(SL[i]), SHUT) && open < 0) open = i; }
     bool washing_done = word_in(live_val(LV_WASHER), DONE), dark = open >= 0 || washing_done;
     op_rrect(l, LV_HOME_X, LV_ROW1, W - 36 - LV_HOME_X, LV_SMALL_H, 36, dark ? G_BLACK : 0xE);
-    card_title(l, LV_HOME_X, LV_ROW1, dark ? ICON_BELL_RINGING : ICON_HOUSE, "Home", dark);
+    card_title(l, LV_HOME_X, LV_ROW1, W - 36 - LV_HOME_X, dark ? ICON_BELL_RINGING : ICON_HOUSE, "Home", dark, NULL);
+    if (tile_unset(HOME_SL, 4)) tile_unset_note(l, LV_HOME_X, LV_ROW1, W - 36 - LV_HOME_X);
+    else {
     if (dark) snprintf(b, sizeof b, "Attention");
     else if (known || live_is_known(LV_WASHER)) snprintf(b, sizeof b, "All clear");
-    else snprintf(b, sizeof b, "--");
+    else snprintf(b, sizeof b, "No reports yet");
     op_text(l, LV_HOME_X + 32, LV_ROW1 + 108, lv_fit(b, LV_SMALL_W - 64, &ui72, F_M, F_M), dark ? G_WHITE : G_BLACK, b);
     if (open >= 0) {
         fmt_word(live_val(SL[open]), c, sizeof c); c[0] = (char)tolower((unsigned char)c[0]);
@@ -332,9 +373,11 @@ static void build_live_bento(layer_t *l)
         if (known) snprintf(c, sizeof c, "%d of 3 doors shut", known); else snprintf(c, sizeof c, "No door reports");
         op_text(l, LV_HOME_X + 32, LV_ROW1 + 264, F_LBL, dark ? G_WHITE : G_BLACK, c);
     }
+    }
 
     op_rrect(l, LV_RIGHT_X, LV_ROW2, LV_RIGHT_W, LV_REM_H, 36, 0xE);
-    card_title(l, LV_RIGHT_X, LV_ROW2, ICON_CALENDAR_BLANK, "Reminders", false);
+    card_title(l, LV_RIGHT_X, LV_ROW2, LV_RIGHT_W, ICON_CALENDAR_BLANK, "Reminders", false, NULL);
+    if (tile_unset(REM_SL, 3)) { tile_unset_note(l, LV_RIGHT_X, LV_ROW2, LV_RIGHT_W); return; }
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 100, F_M, G_BLACK, "Bins");
     fmt_word(live_val(LV_BINS), b, sizeof b);
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 158, lv_fit(b, 440, &ui72, F_M, F_LBL), G_BLACK, b);
@@ -452,6 +495,7 @@ bool local_live_tick(void)
         mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, IT8951_MODE_GL16);
         late = true;
     }
+    if (ov_flash_tick()) late = true;                                        /* the overlay's flashed item goes back to normal */
     {   static int64_t ov_min = -1;                                           /* the overlay's clock */
         int owd, osec; int64_t omn = -1;
         if (ov_active() && (S.show & 1) && clock_now(&owd, &osec, &omn) && omn != ov_min) {

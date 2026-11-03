@@ -44,8 +44,10 @@ local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
-    .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
+    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = false, .large_text = false, .quick_menus = true, .settle_full = false, .clean_min = 10,
+    .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 2, .tz = 0, .auto_time = true, .refresh_mode = 1,
+    .alarm_tone = 3,                                                    /* Chime: gentle, after the chorus has built */
+    .quick_a2 = false, .load_1bpp = 0,                                  /* A2 did not clear on this panel: old digits stayed under new ones */
 };
 char s_date[40];
 uint32_t s_preview_start_ms, s_preview_len_ms;   /* dawn-chorus preview (local_alarm_tick) */
@@ -104,7 +106,7 @@ void apply_colours(void)
     inputs_set_colours(k, PAL[S.menu_col % N_PAL].rgb, night, S.knob_light);
 }
 const char *const OVERLAYS[4]  = { "Strip", "Cards left", "Cards bottom", "Off" };
-const char *const ATNIGHT[2]   = { "Same", "Clock only" };
+const char *const ATNIGHT[3]   = { "Same", "Clock only", "Clock and alarm" };
 const char *const NIGHTKEYS[2] = { "Dim", "Off" };
 const char *const REFRESHES[3] = { "Fast", "Clean", "Full" };
 int local_refresh_mode(void) { return S.refresh_mode; }
@@ -156,43 +158,92 @@ void dash_go(int k)
 }
 
 /* ---- dirty regions ----------------------------------------------------------
- * A list of small rectangles, each painted on its own, so changing one value
- * never resends a whole strip of the screen. A rectangle that overlaps one
- * already queued is merged into it. UI changes use GL16 (16 greys, no flash);
- * main.c runs a full GC16 clean-up after many of them. */
+ * A list of small rectangles, each streamed on its own (the refresh covers
+ * their bounding box), so changing one value never resends a whole strip of
+ * the screen. A new rectangle merges with one it overlaps or nearly touches;
+ * when the list is full it merges with the one that grows least. The list
+ * never falls back to the whole screen: a burst of knob turns used to end as
+ * full-width slabs streamed for seconds. UI changes use GL16 (16 greys, no
+ * flash); main.c runs a full GC16 clean-up after many of them. */
 static local_dirty_t s_dq[MAX_DIRTY];
 static int s_dn;
 static uint32_t s_epoch;
 uint32_t local_epoch(void) { return s_epoch; }
 
+static void merge_mode(local_dirty_t *d, uint8_t mode)
+{
+    if (mode == IT8951_MODE_GC16 || (mode == IT8951_MODE_GL16 && d->mode != IT8951_MODE_GC16)) d->mode = mode;
+}
+/* The union of d and the rect; returns how much bigger it is than the two apart (negative when they overlap). */
+static int64_t union_of(const local_dirty_t *d, int x, int y, int w, int h, int *ux, int *uy, int *uw, int *uh)
+{
+    int x0 = x < d->x ? x : d->x, y0 = y < d->y ? y : d->y;
+    int x1 = x + w > d->x + d->w ? x + w : d->x + d->w, y1 = y + h > d->y + d->h ? y + h : d->y + d->h;
+    *ux = x0; *uy = y0; *uw = x1 - x0; *uh = y1 - y0;
+    return (int64_t)(x1 - x0) * (y1 - y0) - (int64_t)d->w * d->h - (int64_t)w * h;
+}
 void mark(int x, int y, int w, int h, uint8_t mode)
 {
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > W) w = W - x;
+    if (y + h > H) h = H - y;
     if (w <= 0 || h <= 0) return;
     if (s_trace_marks) printf("local: mark [%d,%d %dx%d] mode %u\n", x, y, w, h, mode);
+    int ux, uy, uw, uh;
     for (int i = 0; i < s_dn; i++) {
         local_dirty_t *d = &s_dq[i];
         const int g = 32;   /* near enough: one refresh, and nothing much in between */
         if (x < d->x + d->w + g && d->x < x + w + g && y < d->y + d->h + g && d->y < y + h + g) {
-            int x1 = (x + w > d->x + d->w) ? x + w : d->x + d->w, y1 = (y + h > d->y + d->h) ? y + h : d->y + d->h;
-            if (x < d->x) d->x = x;
-            if (y < d->y) d->y = y;
-            d->w = x1 - d->x; d->h = y1 - d->y;
-            if (mode == IT8951_MODE_GC16 || (mode == IT8951_MODE_GL16 && d->mode != IT8951_MODE_GC16)) d->mode = mode;
+            /* ...unless joining them would stream mostly white: a thin divider
+             * beside a block of rows, or a wide bar under them, stays its own
+             * rect (the chain used to grow into most of the body). */
+            int64_t grow = union_of(d, x, y, w, h, &ux, &uy, &uw, &uh);
+            if (grow > ((int64_t)d->w * d->h + (int64_t)w * h) / 2 && s_dn < MAX_DIRTY) continue;
+            d->x = ux; d->y = uy; d->w = uw; d->h = uh;
+            merge_mode(d, mode);
             return;
         }
     }
-    if (s_dn == MAX_DIRTY) { s_dn = 0; mark(0, 0, W, H, IT8951_MODE_GL16); return; }
-    s_dq[s_dn++] = (local_dirty_t){ x, y, w, h, mode, false };
-}
-/* A rect that must stay its own job area (not merged with a neighbour): the
- * turn-count gutter beside two changed rows streams far less than the list. */
-static void mark_apart(int x, int y, int w, int h, uint8_t mode)
-{
-    if (w <= 0 || h <= 0) return;
-    if (s_dn == MAX_DIRTY) { mark(x, y, w, h, mode); return; }
-    s_dq[s_dn++] = (local_dirty_t){ x, y, w, h, mode, false };
+    if (s_dn < MAX_DIRTY) { s_dq[s_dn++] = (local_dirty_t){ x, y, w, h, mode, false }; return; }
+    int best = 0; int64_t least = 0;
+    for (int i = 0; i < s_dn; i++) {
+        int64_t grow = union_of(&s_dq[i], x, y, w, h, &ux, &uy, &uw, &uh);
+        if (i == 0 || grow < least) { least = grow; best = i; }
+    }
+    union_of(&s_dq[best], x, y, w, h, &ux, &uy, &uw, &uh);
+    s_dq[best].x = ux; s_dq[best].y = uy; s_dq[best].w = uw; s_dq[best].h = uh;
+    merge_mode(&s_dq[best], mode);
 }
 static void mark_full(uint8_t mode) { s_dn = 0; mark(0, 0, W, H, mode); }
+
+/* Mark what differs between a layer as the painter last had it and the one
+ * built now: every op in one without a twin in the other, by its footprint.
+ * Separators, dividers and labels that stay put cost nothing, so a page change
+ * streams its ink, not its body, and a burst of knob turns streams only the
+ * rows the highlight left and landed on, however many it passed. */
+static bool op_same(const op_t *a, const op_t *b)
+{
+    return a->kind == b->kind && a->g == b->g && a->border == b->border && a->font == b->font && a->x == b->x && a->y == b->y &&
+           a->w == b->w && a->h == b->h && !strcmp(a->text, b->text);
+}
+static bool op_in(const op_t *o, const layer_t *l)
+{
+    for (int i = 0; i < l->n; i++) if (op_same(o, &l->ops[i])) return true;
+    return false;
+}
+void mark_diff(const layer_t *old, const layer_t *now, uint8_t mode)
+{
+    if (!old->on && !now->on) return;
+    if (old->on != now->on || old->bg != now->bg || old->x != now->x || old->y != now->y || old->w != now->w || old->h != now->h) {
+        if (now->on) mark(now->x, now->y, now->w, now->h, mode);
+        if (old->on) mark(old->x, old->y, old->w, old->h, mode);
+        return;
+    }
+    int x, y, w, h;
+    for (int i = 0; i < now->n; i++) if (!op_in(&now->ops[i], old)) { op_bbox(&now->ops[i], &x, &y, &w, &h); mark(x - 4, y - 4, w + 8, h + 8, mode); }
+    for (int i = 0; i < old->n; i++) if (!op_in(&old->ops[i], now)) { op_bbox(&old->ops[i], &x, &y, &w, &h); mark(x - 4, y - 4, w + 8, h + 8, mode); }
+}
 void local_set_dirty_full(void) { mark_full(IT8951_MODE_GC16); }
 bool local_take_dirty(local_dirty_t *out)
 {
@@ -356,50 +407,49 @@ void rebuild(void)
 /* Mark an area outside the local UI's own layout (the banner) for repaint. */
 void local_mark_area(int x, int y, int w, int h, uint8_t mode) { mark(x, y, w, h, mode); }
 
-/* ---- repaint regions ---- */
+/* ---- repaint regions ----
+ * The menus mark what differs between the layers the painter was last handed
+ * and the ones built now (mark_diff): a knob step is the two rows and the
+ * preview's changed words; a page change is the new page's ink and the old
+ * page's; a slider step is the number and the bar's fill. The strip stays as
+ * it is between the home screen and the menus: its own changes mark it. */
+static mode_t_ s_marked_mode = M_HOME;      /* the screen the last mark_screen() was for */
+static void mark_menu(uint8_t mode)
+{
+    if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }   /* a turn beat the full-quality pass: drop it, it will come again */
+    /* The diff below is against what the painter has, so marks queued by
+     * earlier turns are stale: a burst paints the row the highlight left and
+     * the one it is on now, not every row it passed. The status bar's own
+     * marks (below SB_Y) are kept. */
+    int k = 0;
+    for (int i = 0; i < s_dn; i++) if (s_dq[i].y + s_dq[i].h > SB_Y) s_dq[k++] = s_dq[i];
+    s_dn = k;
+    mark_diff(&P_top, &L_top, mode);
+    if (s_marked_mode == M_HOME) mark(L_body.x, L_body.y, L_body.w, L_body.h, mode);   /* from the Live page: all of it changes, in one piece */
+    else mark_diff(&P_body, &L_body, mode);
+}
 void mark_screen(void)
 {
     s_epoch++;
     s_settle_due = 0;                       /* the list is going away */
     rebuild();
-    if (s_mode == M_HOME && S.dash_page > 0) { mark(0, 0, W, H, IT8951_MODE_GC16); return; }   /* overlay layouts differ */
-    mark(0, 0, W, SB_Y, crisp() ? IT8951_MODE_DU : IT8951_MODE_GC16);   /* menus: two-level, no flash; home: the dashboard's greys */
-    /* The strip stays as it is between the home screen and the menus; marking
-     * it here merged with the content into a full-screen job, which costs an
-     * INIT clear and a flash on every menu open. Its own changes mark it. */
+    if (s_mode == M_HOME && S.dash_page > 0) { mark(0, 0, W, H, IT8951_MODE_GC16); s_marked_mode = M_HOME; return; }   /* overlay layouts differ */
+    else if (s_mode == M_HOME) mark(0, 0, W, SB_Y, IT8951_MODE_GC16);                             /* the Live page: greys */
+    else mark_menu(crisp() ? IT8951_MODE_DU : IT8951_MODE_GC16);                                  /* a menu page: its ink, two-level when crisp */
+    s_marked_mode = s_mode;
 }
-/* Quick menus: a knob step paints the rows that changed and the preview, in DU
- * (black and white, no flash, about a second with the streaming). Everything
- * the crisp menus draw is black and white, so there is nothing left to settle. */
-/* The whole list and the preview: a long list scrolled by a row. */
+/* Quick menus: a knob step paints what changed, in DU or A2 (black and white,
+ * no flash). Everything the crisp menus draw is black and white, so there is
+ * nothing left to settle. */
 void mark_list(void)
 {
     rebuild();
-    if (S.quick_menus) {
-        if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }
-        mark_apart(0, LIST_Y, LIST_W, s_list_n * s_row_h, IT8951_MODE_DU);
-        mark_apart(PREVIEW_RECT, IT8951_MODE_DU);
-        return;
-    }
-    mark(0, LIST_Y, LIST_W, s_list_n * s_row_h, IT8951_MODE_GL16);
-    mark(PREVIEW_RECT, IT8951_MODE_GL16);
+    mark_menu(S.quick_menus ? IT8951_MODE_DU : IT8951_MODE_GL16);
 }
-
 void mark_rows(int a, int b)
 {
-    rebuild();
-    int ya = LIST_Y + a * s_row_h, yb = LIST_Y + b * s_row_h;
-    int y0 = ya < yb ? ya : yb, y1 = (ya > yb ? ya : yb) + s_row_h;
-    if (S.quick_menus) {
-        if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }   /* a turn beat the full-quality pass: drop it, it will come again */
-        mark_apart(12, y0, LIST_W - 12, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed, rounded bars included */
-        mark_apart(PREVIEW_RECT, IT8951_MODE_DU);                     /* and the preview: it follows the highlighted row */
-        if (S.turn_hints) mark_apart(0, LIST_Y, MARGIN - 8, s_list_n * s_row_h, IT8951_MODE_DU);   /* every row's number moved */
-        else mark_apart(0, y0, MARGIN - 8, y1 - y0, IT8951_MODE_DU);
-        return;                                     /* the art is black and white: DU paints it exactly, nothing to settle */
-    }
-    mark(0, y0, LIST_W, y1 - y0, IT8951_MODE_GL16);
-    mark(PREVIEW_RECT, IT8951_MODE_GL16);
+    (void)a; (void)b;                        /* the diff finds the rows; callers still say which they meant */
+    mark_list();
 }
 bool local_settle_tick(void)
 {
@@ -415,7 +465,7 @@ bool local_settle_tick(void)
 void mark_value(void)
 {
     rebuild();
-    mark(MARGIN, TB_H + 90, W - 2 * MARGIN, 700, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the value, the bar, its ends, the hint */
+    mark_menu(crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the number and the bar's fill, by the diff */
 }
 
 void local_init(void) { alarms_load(); sync_alarm_summary(); sound_load(); settings_load(); ext_load(); rebuild(); }
