@@ -1133,3 +1133,11 @@ the controller's memory would take the return home from 3.3 s to the refresh
 alone (0.8 s); SPI at 12.5 MHz (`/api/cmd?spihz=12500000`, then the
 `pattern=black` and `pattern=ramp` checks and a night's watch for the fade)
 would divide every stream by 3.3. Both need eyes on the glass.
+
+**v0.6.0 tagged** (4 Nov 2026, commit 040a4c0): the HIG pass, the alarm
+sounds, the two new birds, the faster menus and the flashing-screen fix.
+`release.yml` built it; the notes were written by hand (`gh release edit
+v0.6.0 --notes-file`). The gist's settings map and proposal were pushed
+for it too. The bench panel runs the same code from USB; install the
+release from Settings › Device › Software to put it on the A/B slot
+properly.
