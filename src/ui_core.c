@@ -366,6 +366,20 @@ void mark_screen(void)
 /* Quick menus: a knob step paints only the list, in DU (black and white, about
  * a quarter second, no flash); the preview and the greys follow in one GC16
  * pass once the knob has rested for SETTLE_MS. */
+/* The whole list and the preview: a long list scrolled by a row. */
+void mark_list(void)
+{
+    rebuild();
+    if (S.quick_menus) {
+        if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }
+        mark_apart(0, LIST_Y, LIST_W, s_list_n * s_row_h, IT8951_MODE_DU);
+        mark_apart(PREVIEW_RECT, IT8951_MODE_DU);
+        return;
+    }
+    mark(0, LIST_Y, LIST_W, s_list_n * s_row_h, IT8951_MODE_GL16);
+    mark(PREVIEW_RECT, IT8951_MODE_GL16);
+}
+
 void mark_rows(int a, int b)
 {
     rebuild();

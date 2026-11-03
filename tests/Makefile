@@ -33,7 +33,7 @@ $(OUT)/test_misc: test_misc.c $(ROOT)/src/sha256.c $(ROOT)/src/ota_version.c $(R
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 $(OUT)/test_sound: test_sound.c $(ROOT)/src/rainsynth.c $(ROOT)/src/birds.c $(ROOT)/src/spk_dsp.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
-$(OUT)/test_radio: test_radio.c $(ROOT)/src/icy.c $(ROOT)/src/pcm_resample.c | $(OUT)
+$(OUT)/test_radio: test_radio.c $(ROOT)/src/icy.c $(ROOT)/src/pcm_resample.c $(ROOT)/src/soma.c $(ROOT)/src/soma_snapshot.c $(ROOT)/src/vendor/cJSON.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 
 clean:

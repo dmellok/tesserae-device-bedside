@@ -104,6 +104,30 @@ static void other_rates_keep_time(void)
     CHECK_EQ(n, 2205); CHECK_EQ(out[10], in[10]);
 }
 
+/* ---- SomaFM's channel list (src/soma.c) ---- */
+#include "soma.h"
+
+static void somafm_channels_parse_and_stream_urls_follow(void)
+{
+    const char *json = "{\"channels\":[{\"id\":\"dronezone\",\"title\":\"Drone Zone\",\"description\":\"Served best chilled, safe with most medications. \",\"listeners\":\"418\"},"
+                       "{\"id\":\"\",\"title\":\"nameless\"},{\"id\":\"groovesalad\",\"title\":\"Groove Salad\"},"
+                       "{\"id\":\"longdesc\",\"title\":\"Long\",\"description\":\"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\"}]}";
+    soma_channel_t ch[8];
+    int n = soma_parse(json, ch, 8);
+    CHECK_EQ(n, 3);                                              /* the one with no id is skipped */
+    CHECK_STR(ch[0].id, "dronezone"); CHECK_STR(ch[0].title, "Drone Zone");
+    CHECK_STR(ch[0].desc, "Served best chilled, safe with most medications.");   /* trimmed */
+    CHECK_STR(ch[1].id, "groovesalad"); CHECK_STR(ch[1].desc, "");
+    CHECK_EQ((int)strlen(ch[2].desc), 79); CHECK(strstr(ch[2].desc, "...") != NULL);   /* cut to fit, with an ellipsis */
+    CHECK_EQ(soma_parse("not json", ch, 8), 0);
+    CHECK_EQ(soma_parse("{\"channels\":5}", ch, 8), 0);
+    char url[96]; soma_url("dronezone", url, sizeof url);
+    CHECK_STR(url, "http://ice1.somafm.com/dronezone-128-mp3");
+    /* the snapshot compiled in is well formed */
+    CHECK(SOMA_SNAPSHOT_N >= 30);
+    for (int i = 0; i < SOMA_SNAPSHOT_N; i++) CHECK(SOMA_SNAPSHOT[i].id[0] && SOMA_SNAPSHOT[i].title[0] && strlen(SOMA_SNAPSHOT[i].id) < 16);
+}
+
 int main(void)
 {
     make_stream();
@@ -113,5 +137,6 @@ int main(void)
     RUN(titles_with_quotes_and_headers_parse);
     RUN(stereo_44k_becomes_mono_22k);
     RUN(other_rates_keep_time);
+    RUN(somafm_channels_parse_and_stream_urls_follow);
     return test_summary("radio");
 }

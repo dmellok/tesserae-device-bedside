@@ -787,3 +787,25 @@ Stations). The chosen preset (`station`) lives in the hardware blob's spare
 byte. Panel: Sound > Station (shown when the kind is Radio). HA's Sleep sound
 select gained Radio. Not done: wake-to-radio, HLS/AAC stations, a station
 list fetched from SomaFM's API.
+
+## 2026-11-03, afternoon: the Radio section, and lists that scroll
+
+- **Menu > Radio**: Playing on/off (switches the sound to Radio), *My
+  stations* (the seven presets from the web app), then every SomaFM channel
+  as a row; the preview shows the channel's description; the one playing
+  says "Playing"; pressing a row plays it. The root row shows what is on.
+- **SomaFM's list** (`src/soma.c`, host-tested): a snapshot compiled in
+  (`src/soma_snapshot.c`, regenerate with `tools/soma_snapshot.py`), replaced
+  by the live `api.somafm.com/channels.json` 45 s after boot and daily (the
+  fetch is the REST client + cJSON, ~3 s, from the PSRAM heap; the table lives
+  in the radio's PSRAM work area). Every channel streams at
+  `http://ice1.somafm.com/<id>-128-mp3` (all 51 answered 200). `/api/soma`
+  gives the list to the web app, whose Station picker has a SomaFM group.
+  State: `station` -1 means a SomaFM channel, `soma` its id (hardware blob
+  spare bytes: `rsv1[0]` = station + 2, `rsv1[1..16]` the id).
+- **Lists longer than 16 rows scroll** instead of shrinking their rows: a
+  window of `LIST_FIT` (9) full-height rows that moves only when the
+  selection would leave it (`list_top()`, the `top` kept per stack entry).
+  A step inside the window repaints two rows (DU, as before); a step that
+  moves the window repaints the list (`mark_list()`). Shorter lists are
+  unchanged. `s_rows` holds `ROWS_MAX` (72) rows.

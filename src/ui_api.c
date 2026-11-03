@@ -20,6 +20,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "rain_lvl"))  { if (v < 1 || v > 5) return false; S.rain_lvl = v; publish("set/rain", "level %d", v); }
     else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 5) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
     else if (!strcmp(key, "station"))   { if (v < 0 || v >= radio_preset_count()) return false; S.station = v; }
+    else if (!strcmp(key, "soma"))      { if (radio_soma_find(val) < 0) return false; S.station = -1; snprintf(S.soma, sizeof S.soma, "%s", val); S.rain_kind = RS_RADIO; S.rain_on = true; }
     else if (!strcmp(key, "sleep"))     { if (v != 0 && v != 15 && v != 30 && v != 60) return false; S.sleep_min = v; publish("set/rain", "sleep %d", v); }
     else if (!strcmp(key, "lights_on")) { S.lights_on = v != 0; publish("set/lights", S.lights_on ? "on %d%%" : "off", S.bright); }
     else if (!strcmp(key, "bright"))    { if (v < 5 || v > 100) return false; S.bright = v; S.lights_on = true; publish("set/lights", "on %d%%", v); }
@@ -188,7 +189,8 @@ static void ext_pack(ext_blob_t *b)
     b->spk_gain = (int8_t)S.spk_gain; b->spk_bass = (int8_t)S.spk_bass; b->spk_treble = (int8_t)S.spk_treble;
     b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
     b->bird_soft_p1 = (uint8_t)(S.bird_soft + 1);
-    b->rsv1[0] = (char)(S.station + 1);                         /* the radio preset + 1 (0 = not set) */
+    b->rsv1[0] = (char)(S.station + 2);                         /* the radio preset + 2 (0 = not set, 1 = a SomaFM channel, named next) */
+    snprintf(b->rsv1 + 1, 16, "%s", S.soma);
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -202,7 +204,11 @@ void ext_load(void)
         S.spk_gain = clampi(b.spk_gain, -12, 6); S.spk_bass = clampi(b.spk_bass, -8, 8); S.spk_treble = clampi(b.spk_treble, -12, 6);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
-        if (b.rsv1[0]) S.station = clampi((uint8_t)b.rsv1[0] - 1, 0, RADIO_PRESETS - 1);
+        if (b.rsv1[0]) {
+            S.station = clampi((uint8_t)b.rsv1[0] - 2, -1, RADIO_PRESETS - 1);
+            snprintf(S.soma, sizeof S.soma, "%.15s", b.rsv1 + 1);
+            if (S.station < 0 && !S.soma[0]) S.station = 0;
+        }
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
@@ -278,7 +284,8 @@ size_t local_state_json(char *b, size_t cap)
     J("{\"vol\":%d,\"rain\":{\"on\":%d,\"lvl\":%d,\"kind\":%d,\"sleep\":%d,\"sleep_left_s\":%d},", S.vol, S.rain_on, S.rain_lvl, S.rain_kind, S.sleep_min, sleep_left_s() > 0 ? sleep_left_s() : 0);
     {   /* the radio: what it is doing, and the presets (names and URLs escaped for JSON) */
         char esc[2 * RADIO_URL_MAX];
-        J("\"radio\":{\"sel\":%d,\"state\":\"%s\",\"station\":", S.station, radio_state_name());
+        J("\"radio\":{\"sel\":%d,\"soma\":\"%s\",\"soma_n\":%d,\"soma_live\":%d,\"state\":\"%s\",\"station\":",
+          S.station, S.soma, radio_soma_count(), radio_soma_live(), radio_state_name());
         json_str(esc, sizeof esc, radio_station()); J("%s,\"title\":", esc);
         json_str(esc, sizeof esc, radio_title()); J("%s,\"err\":", esc);
         json_str(esc, sizeof esc, radio_error()); J("%s,\"kbps\":%d,\"buf_ms\":%d,\"underruns\":%lu,\"presets\":[", esc, radio_kbps(), radio_buffer_ms(), (unsigned long)radio_underruns());

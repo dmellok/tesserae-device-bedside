@@ -1,0 +1,62 @@
+/*
+ * soma_snapshot.c: SomaFM's channel list as it was on 2026-11-03, from
+ * https://api.somafm.com/channels.json. The panel shows this until it has
+ * fetched the live list (radio.c), and whenever it has no network.
+ * Regenerate: python3 tools/soma_snapshot.py > src/soma_snapshot.c
+ */
+#include "soma.h"
+
+const soma_channel_t SOMA_SNAPSHOT[] = {
+    { "beatblender", "Beat Blender", "A late night blend of deep-house and downtempo chill." },
+    { "brfm", "Black Rock FM", "From the Black Rock Desert playa to the world, year round!" },
+    { "bootliquor", "Boot Liquor", "Americana Roots music for Cowhands, Cowpokes and Cowtippers" },
+    { "bossa", "Bossa Beyond", "Silky-smooth, laid-back Brazilian-style rhythms of Bossa Nova, Samba and beyond" },
+    { "chillits", "Chillits Radio", "Celebrating 25 years of music, chilling and camping" },
+    { "christmas", "Christmas Lounge", "Chilled holiday grooves and classic winter lounge tracks. (Kid and Parent sa..." },
+    { "xmasrocks", "Christmas Rocks!", "Have your self an indie/alternative holiday season!" },
+    { "cliqhop", "cliqhop idm", "Blips'n'beeps backed mostly w/beats. Intelligent Dance Music." },
+    { "covers", "Covers", "Just covers. Songs you know by artists you don't. We've got you covered." },
+    { "darkzone", "The Dark Zone", "The darker side of deep ambient. Music for staring into the Abyss." },
+    { "deepspaceone", "Deep Space One", "Deep ambient electronic, experimental and space music. For inner and outer s..." },
+    { "defcon", "DEF CON Radio", "Music for Hacking. The DEF CON Year-Round Channel." },
+    { "deptstore", "Department Store Christmas", "Holiday Elevator Music from a more innocent time." },
+    { "digitalis", "Digitalis", "Digitally affected analog rock to calm the agitated heart." },
+    { "doomed", "Doomed", "Where every day is Halloween: Dark industrial/ambient music for tortured souls." },
+    { "dronezone", "Drone Zone", "Served best chilled, safe with most medications. Atmospheric textures with m..." },
+    { "dz2", "Drone Zone 2", "A more eclectic alternative mix of atmospheric textures with minimal beats." },
+    { "dubstep", "Dub Step Beyond", "Dubstep, Dub and Deep Bass. May damage speakers at high volume." },
+    { "fluid", "Fluid", "Drown in the electronic sound of instrumental hiphop, future soul and liquid..." },
+    { "folkfwd", "Folk Forward", "Indie Folk, Alt-folk and the occasional folk classics." },
+    { "groovesalad", "Groove Salad", "A nicely chilled plate of ambient/downtempo beats and grooves." },
+    { "groovesalad2", "Groove Salad 2", "A different mix of  nicely chilled ambient/downtempo beats and grooves." },
+    { "gsclassic", "Groove Salad Classic", "The classic (early 2000s) version of a nicely chilled plate of ambient/downt..." },
+    { "reggae", "Heavyweight Reggae", "Reggae, Ska, Rocksteady classic and deep tracks." },
+    { "illstreet", "Illinois Street Lounge", "Classic bachelor pad, playful exotica and vintage music of tomorrow." },
+    { "insound", "The In-Sound", "60s/70s Hipster Euro Pop where psychedelic melodies meets groovy vibes." },
+    { "indiepop", "Indie Pop Rocks!", "New and classic favorite indie pop tracks." },
+    { "jollysoul", "Jolly Ol' Soul", "Where we cut right to the soul of the season." },
+    { "seventies", "Left Coast 70s", "Mellow album rock from the Seventies. Yacht not required." },
+    { "lush", "Lush", "Sensuous and mellow female vocals, many with an electronic influence." },
+    { "metal", "Metal Detector", "From black to doom, prog to sludge, thrash to post, stoner to crossover, pun..." },
+    { "missioncontrol", "Mission Control", "Celebrating NASA and Space Explorers everywhere." },
+    { "n5md", "n5MD Radio", "Emotional Experiments in Music: Ambient, modern composition, post-rock, & ex..." },
+    { "poptron", "PopTron", "Electropop and indie dance rock with sparkle and pop." },
+    { "secretagent", "Secret Agent", "The soundtrack for your stylish, mysterious, dangerous life. For Spies and P..." },
+    { "7soul", "Seven Inch Soul", "Vintage soul tracks from the original 45 RPM vinyl." },
+    { "sf1033", "SF 10-33", "Ambient music mixed with the sounds of San Francisco public safety radio tra..." },
+    { "sfinsf", "SF in SF", "Author readings and discussions from the science fiction, fantasy, horror, a..." },
+    { "scanner", "SF Police Scanner", "San Francisco Public Safety Scanner Feed" },
+    { "live", "SomaFM Live", "Special Live Events and rebroadcasts of past live events" },
+    { "specials", "SomaFM Specials", "Now featuring Afternoon Jazz, Wavepool, DubX, The Surf Report & More!" },
+    { "sonicuniverse", "Sonic Universe", "Transcending the world of jazz with eclectic, avant-garde takes on tradition." },
+    { "spacestation", "Space Station Soma", "Tune in, turn on, space out. Spaced-out ambient and mid-tempo electronica." },
+    { "suburbsofgoa", "Suburbs of Goa", "Desi-influenced Asian world beats and beyond." },
+    { "synphaera", "Synphaera Radio", "Featuring the music from an independent record label focused on modern elect..." },
+    { "thistle", "ThistleRadio", "Exploring music from Celtic roots and branches" },
+    { "tikitime", "Tiki Time", "Classic Tiki music and Vintage island rhythms to sip cocktails by." },
+    { "thetrip", "The Trip", "Progressive house / trance. Tip top tunes." },
+    { "u80s", "Underground 80s", "Early 80s UK Synthpop and a bit of New Wave." },
+    { "vaporwaves", "Vaporwaves", "All Vaporwave. All the time." },
+    { "xmasinfrisko", "Xmas in Frisko", "SomaFM's wacky and eclectic holiday mix. Not for the easily offended." },
+};
+const int SOMA_SNAPSHOT_N = 51;

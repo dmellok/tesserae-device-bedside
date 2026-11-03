@@ -14,6 +14,7 @@
 #include "dhcpserver.h"
 #include "dnsserver.h"
 #include "store.h"
+#include "radio.h"
 
 extern const uint8_t www_index[];
 extern const uint8_t www_index_end[];
@@ -303,6 +304,9 @@ static void handle_request(conn_t *c, size_t hdr_end)
         stream_pump(c);
     } else if (!strcmp(path, "/api/files")) {
         size_t n = store_json(s_json, sizeof s_json);
+        respond(c, 200, "application/json", s_json, n, true);
+    } else if (!strcmp(path, "/api/soma")) {               /* SomaFM's channels, for the station picker */
+        size_t n = radio_soma_json(s_json, sizeof s_json);
         respond(c, 200, "application/json", s_json, n, true);
     } else if (!strcmp(path, "/api/file") && !post) {      /* download, straight from flash */
         char name[STORE_NAME_MAX];

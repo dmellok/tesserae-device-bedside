@@ -941,20 +941,24 @@ function renderHW(){
   renderRadio();
 }
 /* ---- the radio: station picker, now playing, the presets editor ---- */
-let radioRowsSig='';
+let radioRowsSig='', soma=null, somaT=0;
+async function loadSoma(){ if(soma&&Date.now()-somaT<1800000)return; try{soma=(await(await fetch('/api/soma',{cache:'no-store'})).json()).channels;somaT=Date.now()}catch(e){} }
 function renderRadio(){
   const r=ui.radio, box=$('#radio-box'); box.hidden=ui.rain.kind!==5; if(box.hidden||!r)return;
+  if(!soma)loadSoma();
   const sel=$('#station'), opts=r.presets.map((p,i)=>({i,p})).filter(x=>x.p.url);
-  const html=opts.map(x=>`<option value="${x.i}">${x.p.name||x.p.url}</option>`).join('')||'<option value="0">No stations yet</option>';
+  const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const html=`<optgroup label="My stations">${opts.map(x=>`<option value="p:${x.i}">${esc(x.p.name||x.p.url)}</option>`).join('')||'<option disabled>none set yet</option>'}</optgroup>`
+    +(soma?`<optgroup label="SomaFM">${soma.map(c=>`<option value="s:${c.id}">${esc(c.title)}</option>`).join('')}</optgroup>`:'');
   if(sel.innerHTML!==html)sel.innerHTML=html;
-  if(!held('station')&&sel!==document.activeElement)sel.value=String(r.sel);
+  if(!held('station')&&sel!==document.activeElement)sel.value=r.sel>=0?'p:'+r.sel:'s:'+r.soma;
   const np=r.state==='playing'?(r.title?`${r.station} · ${r.title}`:r.station):r.state==='off'?'Off: turn the sound on to listen':r.state==='failed'?`Failed: ${r.err}`:`${r.state[0].toUpperCase()+r.state.slice(1)}${r.err?' · '+r.err:''}…`;
   $('#radio-np').textContent=np+(r.state==='playing'?` · ${r.kbps} kbps, ${(r.buf_ms/1000).toFixed(1)} s ahead`:'');
   const sig=JSON.stringify(r.presets);
   if(sig!==radioRowsSig&&!$('#radio-rows').contains(document.activeElement)){radioRowsSig=sig;
     $('#radio-rows').innerHTML=r.presets.map((p,i)=>`<div class="grid2" style="margin-top:8px"><label class="fld" style="margin:0"><span>Name ${i+1}</span><input data-rn="${i}" value="${p.name.replace(/"/g,'&quot;')}" autocomplete="off"></label><label class="fld" style="margin:0"><span>Stream URL</span><input data-ru="${i}" value="${p.url.replace(/"/g,'&quot;')}" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url"></label></div>`).join('')}
 }
-$('#station').onchange=()=>{touch('station',4000);set('station',$('#station').value)};
+$('#station').onchange=()=>{const v=$('#station').value;touch('station',4000);if(v.startsWith('s:'))set('soma',v.slice(2));else set('station',v.slice(2))};
 $('#radio-save').onclick=async()=>{const r=ui.radio;let n=0;
   for(let i=0;i<r.presets.length;i++){const name=$(`[data-rn="${i}"]`).value.trim(),url=$(`[data-ru="${i}"]`).value.trim();
     if(name!==r.presets[i].name||url!==r.presets[i].url){await cmd('radio='+enc(`${i}|${name}|${url}`));n++}}

@@ -80,7 +80,7 @@ void publish_alarm(int i)
 }
 
 /* ---- the menu tree ---- */
-static row_def_t s_rows[16];
+static row_def_t s_rows[ROWS_MAX];
 static char s_labels[16][24];
 static int node_rows(node_t nd, row_def_t *r)
 {
@@ -88,6 +88,7 @@ static int node_rows(node_t nd, row_def_t *r)
     switch (nd) {
     case N_ROOT:
         r[n++] = (row_def_t){ S_RAIN, K_SUB, "Sound", ICON_CLOUD_RAIN, 0 };
+        r[n++] = (row_def_t){ S_RADIO, K_SUB, "Radio", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ S_LIGHTS, K_SUB, "Lights", ICON_LIGHTBULB, 0 };
         r[n++] = (row_def_t){ S_AC, K_SUB, "A/C", ICON_SNOWFLAKE, 0 };
         r[n++] = (row_def_t){ S_ALARMS, K_SUB, "Alarms", ICON_ALARM, 0 };
@@ -217,6 +218,18 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_SPK_LIMIT, K_CHOICE, "Loud moments", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ C_SPK_TEST, K_CHOICE, "Test sound", ICON_PLAY, 0 };
         break;
+    case N_RADIO:
+        r[n++] = (row_def_t){ T_RADIO, K_TOGGLE, "Playing", ICON_PLAY, 0 };
+        r[n++] = (row_def_t){ S_STATIONS, K_SUB, "My stations", ICON_LIST, 0 };
+        for (int i = 0; i < radio_soma_count() && n < ROWS_MAX - 1; i++) r[n++] = (row_def_t){ A_SOMA, K_ACTION, radio_soma(i)->title, NULL, i };
+        break;
+    case N_STATIONS:
+        for (int i = 0; i < radio_preset_count(); i++) {
+            const radio_preset_t *p = radio_preset(i);
+            if (p->url[0]) r[n++] = (row_def_t){ A_STATION, K_ACTION, p->name[0] ? p->name : p->url, ICON_SPEAKER_HIGH, i };
+        }
+        if (!n) r[n++] = (row_def_t){ I_STATUS, K_INFO, "Set stations in the web app", ICON_LIST, 0 };
+        break;
     default: break;
     }
     r[n++] = (row_def_t){ R_BACK, K_BACK, "Back", ICON_ARROW_U_UP_LEFT, 0 };
@@ -226,7 +239,7 @@ static const char *node_title(node_t nd)
 {
     static char b[24];
     switch (nd) {
-    case N_ROOT: return "Menu"; case N_RAIN: return "Sound"; case N_LIGHTS: return "Lights"; case N_AC: return "A/C";
+    case N_ROOT: return "Menu"; case N_RAIN: return "Sound"; case N_RADIO: return "Radio"; case N_STATIONS: return "My stations"; case N_LIGHTS: return "Lights"; case N_AC: return "A/C";
     case N_ALARMS: return "Alarms"; case N_SETTINGS: return "Settings"; case N_CHORUS: return "Dawn chorus";
     case N_ALARM: snprintf(b, sizeof b, "Alarm %d", s_ai + 1); return b;
     case N_DAYS:  snprintf(b, sizeof b, "Alarm %d days", s_ai + 1); return b;
@@ -237,7 +250,19 @@ static const char *node_title(node_t nd)
     }
 }
 
-static struct { node_t node; int sel; } s_stack[6];
+static struct { node_t node; int sel, top; } s_stack[6];   /* top: the first row shown, for lists that scroll */
+
+/* The window of a scrolling list: the first row shown, moved only when the
+ * selection would leave it. Short lists (under LIST_SCROLL rows) show whole. */
+static int list_top(int n, int sel, int *top)
+{
+    if (n < LIST_SCROLL) { *top = 0; return 0; }
+    if (sel < *top) *top = sel;
+    if (sel >= *top + LIST_FIT) *top = sel - LIST_FIT + 1;
+    if (*top > n - LIST_FIT) *top = n - LIST_FIT;
+    if (*top < 0) *top = 0;
+    return *top;
+}
 int  s_depth;
 static item_t s_edit;
 static int  s_csel;
@@ -247,7 +272,7 @@ screen_t local_screen(void)
 {
     if (s_mode == M_HOME) return SCR_HOME;
     switch (s_stack[s_depth - 1].node) {
-    case N_RAIN: return SCR_RAIN; case N_LIGHTS: return SCR_LIGHTS; case N_AC: return SCR_AC;
+    case N_RAIN: case N_RADIO: case N_STATIONS: return SCR_RAIN; case N_LIGHTS: return SCR_LIGHTS; case N_AC: return SCR_AC;
     case N_ALARMS: case N_ALARM: case N_DAYS: case N_CHORUS: return SCR_ALARM; case N_SETTINGS: case N_HOMESCR: case N_NIGHTG: case N_KEYS: case N_KEY: case N_TIMEG: case N_DEVICE: case N_SOFTWARE: case N_SPEAKER: return SCR_SETTINGS;
     default: return SCR_MENU;
     }
@@ -265,6 +290,7 @@ static const int EARLY_V[5] = { 0, 5, 10, 15, 30 };
 static bool toggle_get(const row_def_t *r)
 {
     switch (r->id) {
+    case T_RADIO: return S.rain_on && S.rain_kind == RS_RADIO;
     case T_RAIN: return S.rain_on; case T_LIGHTS: return S.lights_on; case T_AC: return S.ac_mode != 0;
     case T_ALARM_ON: return s_alarms[r->arg].on; case T_DAY: return s_alarms[s_ai].days[r->arg];
     case T_BIRD: return (S.birds >> r->arg) & 1;
@@ -281,6 +307,8 @@ void toggle_flip(const row_def_t *r)
 {
     switch (r->id) {
     case T_RAIN:   S.rain_on = !S.rain_on; publish("set/rain", S.rain_on ? "play" : "pause"); break;
+    case T_RADIO:  if (S.rain_on && S.rain_kind == RS_RADIO) S.rain_on = false; else { S.rain_kind = RS_RADIO; S.rain_on = true; }
+                   publish("set/rain", S.rain_on ? "radio" : "pause"); break;
     case T_LIGHTS: S.lights_on = !S.lights_on; publish("set/lights", S.lights_on ? "on %d%%" : "off", S.bright); break;
     case T_AC:     S.ac_mode = S.ac_mode ? 0 : 3; publish("set/ac", "%s", AC_MODES[S.ac_mode]); break;
     case T_ALARM_ON: s_alarms[r->arg].on = !s_alarms[r->arg].on; publish_alarm(r->arg); sync_alarm_summary(); break;
@@ -488,6 +516,19 @@ static void choice_set(item_t id, int k)
     default: break;
     }
 }
+/* Is this station (a preset, or a SomaFM channel when station is -1) the one the radio is playing? */
+static bool radio_now(int station, const char *soma)
+{
+    if (!S.rain_on || S.rain_kind != RS_RADIO || S.station != station) return false;
+    return station >= 0 || (soma && !strcmp(S.soma, soma));
+}
+/* What the radio is on, for the rows that say so. */
+static const char *radio_name(void)
+{
+    if (S.station >= 0) { const radio_preset_t *p = radio_preset(S.station); return p && p->name[0] ? p->name : "Radio"; }
+    int i = radio_soma_find(S.soma); return i >= 0 ? radio_soma(i)->title : "Radio";
+}
+
 static void row_value(const row_def_t *r, char *b, size_t n)
 {
     const char *const *o;
@@ -511,6 +552,8 @@ static void row_value(const row_def_t *r, char *b, size_t n)
         else snprintf(b, n, "Mains");
         break;
     case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing");
+                   if (r->id == A_SOMA && radio_now(-1, radio_soma(r->arg)->id)) snprintf(b, n, "Playing");
+                   if (r->id == A_STATION && radio_now(r->arg, NULL)) snprintf(b, n, "Playing");
                    if (r->id == A_OTACHECK && ota_checked_ms()) { int m = (int)((now_ms() - ota_checked_ms()) / 60000); if (m < 1) snprintf(b, n, "just now"); else snprintf(b, n, "%d min ago", m); }
                    if (r->id == A_RELEASE) { const ota_release_t *e = ota_release(r->arg); int c = e ? ota_version_cmp(e->ver, FW_VERSION) : 0;
                                              snprintf(b, n, "%s", !e ? "" : s_rel_armed == r->arg ? "Press again" : !strcmp(e->ver, FW_VERSION) ? "Installed" : c > 0 ? "Newer" : "Older"); }
@@ -518,6 +561,7 @@ static void row_value(const row_def_t *r, char *b, size_t n)
     case K_SUB:
         switch (r->id) {
         case S_RAIN:   if (S.rain_on) snprintf(b, n, "%s %d", KINDS[S.rain_kind], S.rain_lvl); else snprintf(b, n, "Off"); break;
+        case S_RADIO:  if (S.rain_on && S.rain_kind == RS_RADIO) snprintf(b, n, "%.22s", radio_name()); else snprintf(b, n, "Off"); break;
         case S_LIGHTS: if (S.lights_on) snprintf(b, n, "%d%%", S.bright); else snprintf(b, n, "Off"); break;
         case S_AC:     if (S.ac_mode) snprintf(b, n, "%s %d" DEG, AC_MODES[S.ac_mode], S.sp_x2 / 2); else snprintf(b, n, "Off"); break;
         case S_ALARMS: { int on = 0; for (int i = 0; i < s_nalarms; i++) on += s_alarms[i].on;
@@ -544,7 +588,7 @@ static node_t sub_node(item_t id)
     case S_RAIN: return N_RAIN; case S_LIGHTS: return N_LIGHTS; case S_AC: return N_AC; case S_ALARMS: return N_ALARMS;
     case S_ALARM_ITEM: return N_ALARM; case S_DAYS: return N_DAYS;
     case S_HOMESCR: return N_HOMESCR; case S_NIGHTG: return N_NIGHTG; case S_KEYS: return N_KEYS; case S_KEY: return N_KEY;
-    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE; case S_SPEAKER: return N_SPEAKER;
+    case S_TIMEG: return N_TIMEG; case S_DEVICE: return N_DEVICE; case S_SOFTWARE: return N_SOFTWARE; case S_SPEAKER: return N_SPEAKER; case S_RADIO: return N_RADIO; case S_STATIONS: return N_STATIONS;
     default: return N_SETTINGS;
     }
 }
@@ -622,14 +666,16 @@ void build_list(layer_t *l)
     node_t nd = s_stack[s_depth - 1].node;
     int n = node_rows(nd, s_rows), sel = s_stack[s_depth - 1].sel;
     if (sel >= n) sel = s_stack[s_depth - 1].sel = n - 1;
+    /* a long list shows a window of LIST_FIT rows around the selection */
+    int top = list_top(n, sel, &s_stack[s_depth - 1].top), shown = n < LIST_SCROLL ? n : LIST_FIT;
     const char *labels[16], *icons[16]; char vals[16][24]; bool chev[16];
-    for (int i = 0; i < n; i++) {
-        const row_def_t *r = &s_rows[i];
+    for (int i = 0; i < shown; i++) {
+        const row_def_t *r = &s_rows[top + i];
         labels[i] = r->label; icons[i] = r->icon; row_value(r, vals[i], 24);
         chev[i] = r->kind == K_SUB || r->kind == K_VALUE || r->kind == K_CHOICE;
     }
     const row_def_t *r = &s_rows[sel];
-    char big[24]; snprintf(big, sizeof big, "%s", vals[sel][0] ? vals[sel] : r->label);
+    char big[24]; snprintf(big, sizeof big, "%s", vals[sel - top][0] ? vals[sel - top] : r->label);
     const char *hint = r->kind == K_TOGGLE ? "press to switch" : r->kind == K_SUB ? "press to open" : r->kind == K_BACK ? "press to go back"
                      : r->kind == K_ACTION ? "press" : r->kind == K_INFO ? "" : "press to change";
     char small[64]; snprintf(small, sizeof small, "%s%s%s", r->kind == K_BACK ? "" : r->label, (hint[0] && r->kind != K_BACK) ? "  " DOT "  " : "", hint);
@@ -652,6 +698,10 @@ void build_list(layer_t *l)
     if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Tone, low cut, loud moments and a test sound");
     if (r->id == C_CLOCKDU) snprintf(small, sizeof small, "Two-level: black-and-white digits, no flash, no fade");
     if (r->id == C_STATION) { const char *t = radio_title(); if (radio_state() == RADIO_PLAYING && t[0]) snprintf(small, sizeof small, "%.60s", t); else snprintf(small, sizeof small, "%s " DOT " stations are set in the web app", radio_state_name()); }
+    if (r->id == A_SOMA) { const soma_channel_t *c = radio_soma(r->arg); snprintf(big, sizeof big, "%.22s", c->title); snprintf(small, sizeof small, "%.62s", c->desc); }
+    if (r->id == A_STATION) { const radio_preset_t *p = radio_preset(r->arg); snprintf(small, sizeof small, "%.62s", p ? p->url : ""); }
+    if (r->id == T_RADIO) { const char *t = radio_title(); snprintf(small, sizeof small, "%.24s " DOT " %s", radio_name(), radio_state() == RADIO_PLAYING && t[0] ? t : radio_state_name()); }
+    if (r->id == S_STATIONS) snprintf(small, sizeof small, "Your own streams, set in the web app");
     if (r->id == V_BIRD_SOFT) snprintf(small, sizeof small, "Takes the edge off whistles and chirps");
     if (r->id == C_SPK_SOFT) snprintf(small, sizeof small, "Rolls off everything above this: sharp calls, hiss");
     if (r->id == C_SPK_LIMIT) snprintf(small, sizeof small, "Holds the loudest moments down");
@@ -660,7 +710,17 @@ void build_list(layer_t *l)
     if (r->id == C_REFRESHMODE) snprintf(small, sizeof small, "%s", S.refresh_mode == 2 ? "Whole screen, every change " DOT " flashes"
                                                                : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop");
     if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) snprintf(small, sizeof small, "Key %d, %s " DOT " press to change", s_ki + 1, r->id == C_KEY_HOLD ? "held" : "pressed");
-    build_split(l, labels, icons, vals, chev, NULL, n, sel, r->icon, big, small);
+    /* the small line under the preview is one line: cut it at a word, with an ellipsis, to the preview's width */
+    {   int maxw = W - LIST_W - 60;
+        while (small[0] && draw_font_w(F_LBL, small) > maxw) {
+            char *sp = strrchr(small, ' ');
+            if (!sp) { small[strlen(small) - 1] = 0; continue; }
+            *sp = 0; size_t k = strlen(small);
+            while (k && (small[k - 1] == ',' || small[k - 1] == '.' || small[k - 1] == ' ')) small[--k] = 0;
+            if (draw_font_w(F_LBL, small) + draw_font_w(F_LBL, "...") <= maxw) { snprintf(small + k, sizeof small - k, "..."); break; }
+        }
+    }
+    build_split(l, labels, icons, vals, chev, NULL, shown, sel - top, r->icon, big, small);
 }
 
 void build_choice(layer_t *l)
@@ -702,7 +762,7 @@ static void push_node(node_t n)
     if (s_mode != M_LIST) s_depth = 0;
     if (s_depth == 0 && n != N_ROOT) { s_stack[0].node = N_ROOT; s_stack[0].sel = 0; s_depth = 1; }
     if (s_depth >= 6) return;
-    s_stack[s_depth].node = n; s_stack[s_depth].sel = 0; s_depth++;
+    s_stack[s_depth].node = n; s_stack[s_depth].sel = 0; s_stack[s_depth].top = 0; s_depth++;
     s_mode = M_LIST;
     printf("local: %s\n", node_title(n));
     mark_screen();
@@ -766,7 +826,11 @@ bool local_turn(int d)
     case M_LIST: {
         int *sel = &s_stack[s_depth - 1].sel, n = node_rows(s_stack[s_depth - 1].node, s_rows), old = *sel;
         *sel = clampi(*sel + d, 0, n - 1);          /* one detent, one row: no speed-up in lists */
-        if (*sel != old) mark_rows(old, *sel);
+        if (*sel != old) {
+            int before = s_stack[s_depth - 1].top, top = list_top(n, *sel, &s_stack[s_depth - 1].top);
+            if (top != before) mark_list();          /* the window moved: every row changed */
+            else mark_rows(old - top, *sel - top);
+        }
         return true; }
     case M_CHOICE: {
         const char *const *o; int n = choice_opts(s_edit, &o) + 1, old = s_csel;
@@ -818,11 +882,17 @@ bool local_press(void)
             } else if (r.id == A_OTACHECK) {
                 ota_releases_fetch(); s_rel_armed = -1; mark_screen();
             } else if (r.id == A_RELEASE) {
-                if (s_rel_armed != r.arg) { s_rel_armed = r.arg; int sl = s_stack[s_depth - 1].sel; mark_rows(sl, sl); }
+                if (s_rel_armed != r.arg) { s_rel_armed = r.arg; int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
                 else { s_rel_armed = -1; if (!ota_install(r.arg)) toast(ICON_GEAR, "Update failed", ota_error()); }
             } else if (r.id == A_PREVIEW) {
                 chorus_preview(s_preview_len_ms ? 0 : 90);
-                rebuild(); { int sl = s_stack[s_depth - 1].sel; mark_rows(sl, sl); }
+                rebuild(); { int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
+            } else if (r.id == A_SOMA || r.id == A_STATION) {
+                if (r.id == A_SOMA) { S.station = -1; snprintf(S.soma, sizeof S.soma, "%s", radio_soma(r.arg)->id); }
+                else S.station = r.arg;
+                S.rain_kind = RS_RADIO; S.rain_on = true;
+                publish("set/rain", "radio %s", r.label);
+                mark_list();                                    /* "Playing" moves to this row */
             } else if (r.id == A_DELETE_ALARM) {
                 publish("set/alarm", "%d delete", r.arg + 1);
                 for (int i = r.arg; i < s_nalarms - 1; i++) s_alarms[i] = s_alarms[i + 1];

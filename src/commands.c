@@ -107,6 +107,7 @@ static void exec_command(const char *name, const char *value)
             if (local_set(key, bar + 1)) local_flush(); else printf("set: rejected %s\n", value);
         }
     }
+    else if (!strcmp(name, "somafm"))    radio_soma_refresh();
     /* A radio preset: radio=<0-6>|<name>|<url> ("" clears the slot). */
     else if (!strcmp(name, "radio")) {
         const char *b1 = strchr(value, '|'), *b2 = b1 ? strchr(b1 + 1, '|') : NULL;

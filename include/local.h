@@ -46,7 +46,8 @@ typedef struct {
     /* the dawn chorus (birds.h): which species, its own volume, how built up it is */
     uint16_t birds; int bird_vol; float chorus; uint32_t audition; int audition_bird;
     int  bird_soft;                                                   /* 0 natural .. 100 soft (rainsynth.h) */
-    int  station;                                                     /* the radio preset playing when the kind is Radio (radio.h) */
+    int  station;                                                     /* the radio preset playing when the kind is Radio (radio.h); -1: the SomaFM channel in soma */
+    char soma[16];                                                    /* that channel's id (soma.h) */
     /* panel settings: key colours (palette index), knob light, auto night (0 off,
      * 1..3: from 21/22/23:00 to 07:00), 12-hour clock, snooze length */
     int  key_col, menu_col, night_col; bool knob_light; int auto_night; bool clock12; int snooze_min;

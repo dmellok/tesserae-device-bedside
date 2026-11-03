@@ -45,6 +45,15 @@ int           radio_buffer_ms(void);                  /* decoded sound in hand *
 uint32_t      radio_underruns(void);
 const char   *radio_error(void);                      /* why it failed, "" if it hasn't */
 
+/* SomaFM's channels (soma.h): the snapshot until the live list has been fetched */
+#include "soma.h"
+int   radio_soma_count(void);
+const soma_channel_t *radio_soma(int i);
+int   radio_soma_find(const char *id);                /* -1 if unknown */
+bool  radio_soma_refresh(void);                       /* fetch the live list (core 0, blocks a few seconds); true on success */
+bool  radio_soma_live(void);                          /* the live list is in (not the snapshot) */
+size_t radio_soma_json(char *b, size_t cap);          /* the list for the web app */
+
 /* presets */
 int   radio_preset_count(void);
 const radio_preset_t *radio_preset(int i);

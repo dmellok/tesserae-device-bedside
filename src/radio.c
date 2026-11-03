@@ -24,6 +24,8 @@
 #include "config.h"
 #include "icy.h"
 #include "pcm_resample.h"
+#include "net_rest.h"
+#include "psram_heap.h"
 
 #define MINIMP3_IMPLEMENTATION
 #define MINIMP3_ONLY_MP3
@@ -45,6 +47,9 @@ static uint8_t          *s_comp;                     /* COMP_BYTES */
 static uint8_t          *s_win;                      /* WINDOW_BYTES */
 static mp3dec_t         *s_dec;
 static int16_t          *s_frame;                    /* MINIMP3_MAX_SAMPLES_PER_FRAME */
+#define SOMA_MAX 64
+static soma_channel_t   *s_soma;                     /* the live SomaFM list, SOMA_MAX entries */
+static int               s_soma_n;                   /* 0: use the snapshot */
 static volatile uint32_t s_pcm_w, s_pcm_r;           /* samples, ever */
 static volatile uint32_t s_comp_w, s_comp_r;         /* bytes, ever */
 static uint32_t          s_win_n;
@@ -351,8 +356,67 @@ void radio_init(uint8_t *pcm, uint8_t *work)
     s_comp = work; s_win = work + COMP_BYTES;
     s_dec = (mp3dec_t *)(work + COMP_BYTES + WINDOW_BYTES);
     s_frame = (int16_t *)((uint8_t *)s_dec + ((sizeof *s_dec + 15) & ~15u));
+    s_soma = (soma_channel_t *)(work + COMP_BYTES + 20u * 1024u);   /* after the decoder and its frame (~12 KB); 8 KB of 32 */
     mp3dec_init(s_dec);
     pcmrs_init(&s_rs);
+}
+
+/* ---- SomaFM's channels ---- */
+int radio_soma_count(void) { return s_soma_n ? s_soma_n : SOMA_SNAPSHOT_N; }
+const soma_channel_t *radio_soma(int i)
+{
+    if (i < 0 || i >= radio_soma_count()) return NULL;
+    return s_soma_n ? &s_soma[i] : &SOMA_SNAPSHOT[i];
+}
+int radio_soma_find(const char *id)
+{
+    if (!id || !id[0]) return -1;
+    for (int i = 0; i < radio_soma_count(); i++) if (!strcmp(radio_soma(i)->id, id)) return i;
+    return -1;
+}
+bool radio_soma_live(void) { return s_soma_n > 0; }
+
+bool radio_soma_refresh(void)
+{
+    if (!s_soma) return false;
+    const size_t cap = 96u * 1024u;
+    uint8_t *buf = psram_heap_malloc(cap + 1);
+    if (!buf) { printf("radio: no memory for the SomaFM list\n"); return false; }
+    char url[96] = "https://api.somafm.com/channels.json";
+    size_t got = 0; uint32_t total = 0;
+    bool ok = rest_download_range(url, sizeof url, 0, (uint32_t)cap, buf, &got, &total, 20000);
+    soma_channel_t *tmp = ok ? psram_heap_malloc(SOMA_MAX * sizeof *tmp) : NULL;   /* parse beside the list in use, then swap */
+    if (ok && tmp) {
+        buf[got] = 0;
+        int n = soma_parse((const char *)buf, tmp, SOMA_MAX);
+        if (n >= 10) { memcpy(s_soma, tmp, (size_t)n * sizeof tmp[0]); s_soma_n = n; printf("radio: SomaFM list: %d channels\n", n); }
+        else { printf("radio: SomaFM list unreadable (%u bytes)\n", (unsigned)got); ok = false; }
+    } else if (ok) { printf("radio: no memory to parse the SomaFM list\n"); ok = false; }
+    else printf("radio: could not fetch the SomaFM list\n");
+    if (tmp) psram_heap_free(tmp);
+    psram_heap_free(buf);
+    return ok;
+}
+
+size_t radio_soma_json(char *b, size_t cap)
+{
+    size_t n = 0;
+    int k = snprintf(b, cap, "{\"live\":%d,\"n\":%d,\"channels\":[", s_soma_n > 0, radio_soma_count());
+    if (k > 0) n += (size_t)k;
+    for (int i = 0; i < radio_soma_count() && n + 200 < cap; i++) {
+        const soma_channel_t *c = radio_soma(i);
+        char t[40], d[100]; size_t m;
+        /* titles and descriptions are plain text from SomaFM; escape the two characters JSON minds */
+        for (m = 0; c->title[m] && m < sizeof t - 2; m++) t[m] = (c->title[m] == '"' || c->title[m] == '\\') ? '\'' : c->title[m];
+        t[m] = 0;
+        for (m = 0; c->desc[m] && m < sizeof d - 2; m++) d[m] = (c->desc[m] == '"' || c->desc[m] == '\\') ? '\'' : c->desc[m];
+        d[m] = 0;
+        k = snprintf(b + n, cap - n, "%s{\"id\":\"%s\",\"title\":\"%s\",\"desc\":\"%s\"}", i ? "," : "", c->id, t, d);
+        if (k > 0) n += (size_t)k;
+    }
+    k = snprintf(b + n, cap - n, "]}");
+    if (k > 0) n += (size_t)k;
+    return n;
 }
 
 void radio_play(const char *url, const char *name)
@@ -385,7 +449,7 @@ const char *radio_state_name(void)
     static const char *const N[] = { "off", "looking up", "connecting", "waiting", "buffering", "playing", "reconnecting", "failed" };
     return N[s_state];
 }
-const char *radio_station(void) { return s_station[0] ? s_station : s_name; }
+const char *radio_station(void) { return s_name[0] ? s_name : s_station; }   /* our short name first; the stream's icy-name is often a slogan */
 const char *radio_title(void)   { return s_icy.title; }
 int  radio_kbps(void)           { return s_kbps; }
 int  radio_buffer_ms(void)      { return (int)((s_pcm_w - s_pcm_r) * 1000u / OUT_RATE); }

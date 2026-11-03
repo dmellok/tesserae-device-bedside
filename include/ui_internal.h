@@ -157,7 +157,7 @@ typedef struct { const char *name; int32_t std_s; uint8_t dst; } tzone_t;
 typedef struct { const char *id, *label; } action_t;
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
-               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_COUNT } node_t;
+               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_RADIO, N_STATIONS, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -180,7 +180,15 @@ typedef enum {
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
     C_CLOCKDU, C_STATION,
+    /* the Radio section: on/off, my stations, every SomaFM channel */
+    T_RADIO, S_RADIO, S_STATIONS, A_SOMA, A_STATION,
 } item_t;
+
+/* Lists longer than this scroll in a window of LIST_FIT rows at full height
+ * instead of shrinking their rows to fit. */
+#define LIST_FIT     9
+#define LIST_SCROLL  17
+#define ROWS_MAX     72
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
 typedef struct { int v, min, max, step; const char *lo, *hi; bool wrap; } vmeta_t;
 typedef struct { const char *icon; char val[16]; char tail[8]; } ov_val_t;
@@ -304,6 +312,7 @@ void dash_pick(int k);
 void mark(int x, int y, int w, int h, uint8_t mode);
 void mark_changed(const layer_t *prev, const layer_t *now, int fx, int fy, int fw, int fh, uint8_t mode);
 void mark_rows(int a, int b);
+void mark_list(void);
 void mark_screen(void);
 void mark_value(void);
 void publish(const char *topic, const char *fmt, ...);

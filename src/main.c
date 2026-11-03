@@ -312,18 +312,24 @@ static void audio_update(void)
     /* The radio follows the sound: the chosen station while the sound is on
      * with kind Radio; a different station switches; off stops it, two seconds
      * after the sound engine has faded the stream out. */
-    {   static int last_station = -1; static bool last_on; static uint32_t off_since;
+    {   static uint32_t off_since, soma_due = 45000;
         uint32_t tnow = to_ms_since_boot(get_absolute_time());
         bool want = ls->rain_on && ls->rain_kind == RS_RADIO;
-        const radio_preset_t *pr = radio_preset(ls->station);
-        if (want && pr && pr->url[0]) {
-            if (!last_on || last_station != ls->station) radio_play(pr->url, pr->name);
-            off_since = 0;
-        } else if (radio_state() != RADIO_OFF) {
+        char url[RADIO_URL_MAX] = ""; const char *name = "";
+        if (ls->station < 0) {                                    /* a SomaFM channel */
+            int i = radio_soma_find(ls->soma);
+            if (i >= 0) { soma_url(ls->soma, url, sizeof url); name = radio_soma(i)->title; }
+        } else {
+            const radio_preset_t *pr = radio_preset(ls->station);
+            if (pr && pr->url[0]) { snprintf(url, sizeof url, "%s", pr->url); name = pr->name; }
+        }
+        if (want && url[0]) { radio_play(url, name); off_since = 0; }   /* the same URL again is a no-op */
+        else if (radio_state() != RADIO_OFF) {
             if (!off_since) off_since = tnow | 1u;
             else if (tnow - off_since > 2000) radio_stop();
         }
-        last_on = want && pr && pr->url[0]; last_station = ls->station;
+        /* SomaFM's live channel list: 45 s after boot once online, then daily (sooner after a miss) */
+        if (net_connected() && (int32_t)(tnow - soma_due) >= 0) soma_due = tnow + (radio_soma_refresh() ? 24u * 3600u * 1000u : 15u * 60u * 1000u);
     }
 
     /* The speaker: on while there's something to hear (a bird audition or a
