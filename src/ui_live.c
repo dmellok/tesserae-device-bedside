@@ -188,8 +188,11 @@ void build_live(layer_t *l)
             if (r % 60) snprintf(c, sizeof c, "in %d h %d min", r / 60, r % 60); else snprintf(c, sizeof c, "in %d h", r / 60);
         } else snprintf(c, sizeof c, "in %d min", mins);
     } else snprintf(c, sizeof c, "Set one from Menu, Alarms");
-    op_text(l, LV_RIGHT_X + 330, LV_HEAD_Y + 142, fit(c, LV_RIGHT_W - 370, F_M, F_LBL, F_LBL), G_WHITE, c);
-    int cm = ((ah * 60 + am - early) % 1440 + 1440) % 1440;
+    {   /* beside the value, however wide it is: "No alarm" in F_XL is 398 px */
+        int hx = LV_RIGHT_X + 40 + draw_font_w(F_XL, b) + 30, hw = LV_RIGHT_X + LV_RIGHT_W - 40 - hx;
+        op_text(l, hx, LV_HEAD_Y + 142, fit(c, hw, F_M, F_LBL, F_LBL), G_WHITE, c);
+    }
+    int win = early > 0 ? early : 10, cm = ((ah * 60 + am - win) % 1440 + 1440) % 1440;   /* alarm_window_s(): 10 min when not set */
     if (alarm) snprintf(b, sizeof b, "%s %02d:%02d", S.live_demo || S.birds ? "Dawn chorus" : "Wake window", cm / 60, cm % 60);
     else snprintf(b, sizeof b, "No wake window");
     op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 226, F_M, G_WHITE, b);
@@ -277,7 +280,7 @@ void build_live(layer_t *l)
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 254, F_LBL, G_BLACK, live_val(LV_BINS_WHEN));
     op_fill(l, 1290, LV_ROW2 + 36, 2, LV_REM_H - 72, 0xA);
     op_text(l, 1340, LV_ROW2 + 100, F_M, G_BLACK, "Next event");
-    const char *event = live_val(LV_EVENT);
+    const char *event = live_val(LV_EVENT); if (!event[0]) event = "--";
     int eh, em;
     if (sscanf(event, "%d:%d", &eh, &em) == 2 && strlen(event) >= 5) {
         const char *rest = event + 5; while (*rest == ' ' || *rest == '-') rest++;

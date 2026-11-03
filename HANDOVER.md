@@ -852,3 +852,19 @@ list fetched from SomaFM's API.
 - Verified with the populated bento: the minute updated the clock and demo
   sound-time in DU (two areas, 140 x 266 and 451 x 50) and every tile stayed
   clean. All host tests and the firmware build passed.
+
+## 2026-11-03, night: review of the bento, release 0.5.0
+
+- Kimi's Live bento and panel-swap defaults reviewed before the tag: both
+  firmware environments and the host tests build clean, and `pio run`
+  regenerates the same web bundle (`src/www.S` sha1s), so the pages came from
+  `app.src.html`. Two fixes, found by measuring the fonts on the host
+  (`draw_font_w` over `src/fonts/*.c`): "No alarm" in F_XL is 398 px wide and
+  its hint started 290 px in, so they overlapped; the hint now follows the
+  value. The wake window used the raw `early`, so an alarm left at 0 put the
+  chorus at the alarm time; it uses the 10 min default like
+  `alarm_window_s()`. An unknown next event reads "--" like the other cards.
+- **v0.5.0 tagged**: `release.yml` builds it, notes written by hand
+  (`gh release edit v0.5.0 --notes-file`). It carries the radio, the bento,
+  Demo data, the Live clock in DU and the second panel's defaults (VCOM 1450,
+  SPI 3.75 MHz). Build the first panel with `-DEPD_VCOM_MV=1480`.
