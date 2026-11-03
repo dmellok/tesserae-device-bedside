@@ -76,7 +76,7 @@
 #define N_PAL 9
 #define N_WFTEMP 9
 #define N_CLEAN 4
-#define N_KEYACT 15
+#define N_KEYACT 16
 #define N_KNOBACT 5
 #define N_TZ 9
 
@@ -179,10 +179,12 @@ typedef enum {
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
     /* the speaker tuning page and the birds' softness */
-    V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
+    V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, C_SPK_PRESET, V_SPK_EQ, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
     C_CLOCKDU, T_DEMO, C_STATION,
     /* the Radio section: on/off, my stations, every SomaFM channel */
     T_RADIO, S_RADIO, S_STATIONS, A_SOMA, A_STATION,
+    /* the Live page's layout and colours */
+    C_LIVE_LAYOUT, C_LIVE_DARK,
 } item_t;
 
 /* Lists longer than this scroll in a window of LIST_FIT rows at full height
@@ -251,6 +253,8 @@ extern const char *const LOWCUTS[5];
 extern const char *const PEAKS[3];
 extern const char *const TESTS[5];
 extern const char *const CLOCKDU[3];
+extern const char *const LIVE_LAYOUTS[4];
+extern const char *const LIVE_DARKS[3];
 extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;
@@ -322,6 +326,7 @@ void sync_alarm_summary(void);
 
 /* ui_draw.c */
 void layer_copy(layer_t *d, const layer_t *s);
+void layer_invert(layer_t *l);
 void layer_reset(layer_t *l, int x, int y, int w, int h, uint8_t bg);
 void op_bbox(const op_t *o, int *x, int *y, int *w, int *h);
 void op_circle(layer_t *l, int cx, int cy, int r, uint8_t g);
@@ -336,6 +341,22 @@ void op_text_r(layer_t *l, int xr, int y, const bfont_t *f, uint8_t g, const cha
 
 /* ui_live.c */
 bool local_live_tick_inner(void);
+bool live_dark_now(void);
+void live_layout_changed(void);
+const char *live_val(int slot);
+bool live_is_known(int slot);
+void fmt_temp(int slot, char *b, size_t n);
+void fmt_word(const char *v, char *b, size_t n);
+const bfont_t *lv_fit(const char *t, int w, const bfont_t *a, const bfont_t *b, const bfont_t *c);
+void card_title(layer_t *l, int x, int y, const char *icon, const char *label, bool dark);
+bool live_alarm(int *h, int *m, int *early, int32_t *delta);
+int live_sunrise_today(int alarm_min);
+void live_sound_line(char *b, size_t n);
+void live_home_line(char *b, size_t n, bool *attention);
+/* ui_pages.c: the other Live layouts */
+void build_live_clock(layer_t *l);
+void build_live_weather(layer_t *l);
+void build_live_tonight(layer_t *l);
 bool local_ymd(int *y, int *m, int *d, int *wd);
 bool numeric(const char *t);
 int32_t tz_offset_at(int64_t utc);

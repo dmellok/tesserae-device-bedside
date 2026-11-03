@@ -9,9 +9,10 @@
  *                  on the dashboard: volume
  *   knob press     choose (the wheel's centre button)
  *   knob hold      back, the same as MENU
- *   key 1  <<      previous dashboard        key 3  >>   next dashboard
- *   key 2  >||     rain play / pause; hold: bedroom lights on / off
- *   key 4  MENU    (orange) back one level; hold: straight home
+ *   keys 1-3       on the dashboard: their bindings (rain, lights, A/C; holds change
+ *                  dashboard and night mode); in a list or a choice: up, down, select;
+ *                  on a slider: less, more, done. The top bar labels them for the screen.
+ *   key 4  MENU    (orange) menu, then back one level; hold: straight home
  * Every list ends with a Back row. When the alarm rings the centre stops it
  * and anything else snoozes.                                                 */
 
@@ -26,6 +27,7 @@ bool crisp(void) { return S.quick_menus && s_mode != M_HOME; }
 alarm_t s_alarms[MAX_ALARMS] = { { 6, 30, true, {1,1,1,1,1,0,0}, 15 } };
 int s_nalarms = 1, s_ai;       /* count; the alarm being edited */
 static int s_ki;                      /* the key being set (0..2) */
+static int s_eqb;                     /* the equaliser band being set (0..SPK_EQ_BANDS-1) */
 static int s_rel_armed = -1;           /* the release row pressed once (Software) */
 const char *const DAY_NAMES[7] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 
@@ -153,6 +155,8 @@ static int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 5; i++) r[n++] = (row_def_t){ T_SHOW, K_TOGGLE, SHOW_L[i], SHOW_I[i], i };
         r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", ICON_MOON, 0 };
         r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", ICON_SUN, 0 };
+        r[n++] = (row_def_t){ C_LIVE_LAYOUT, K_CHOICE, "Live layout", ICON_HOUSE, 0 };
+        r[n++] = (row_def_t){ C_LIVE_DARK, K_CHOICE, "Live colours", ICON_MOON, 0 };
         r[n++] = (row_def_t){ T_DEMO, K_TOGGLE, "Demo data", ICON_CLOUD_SUN, 0 };
         r[n++] = (row_def_t){ I_VIEWPORT, K_INFO, "Tesserae gets", ICON_WIFI_HIGH, 0 };
         break; }
@@ -211,9 +215,9 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", ICON_TRASH, 0 };
         break;
     case N_SPEAKER:
+        r[n++] = (row_def_t){ C_SPK_PRESET, K_CHOICE, "Preset", ICON_SPEAKER_HIGH, 0 };
+        for (int i = 0; i < SPK_EQ_BANDS; i++) r[n++] = (row_def_t){ V_SPK_EQ, K_VALUE, SPK_EQ_NAMES[i], ICON_SPEAKER_HIGH, i };
         r[n++] = (row_def_t){ V_SPK_GAIN, K_VALUE, "Level", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ V_SPK_BASS, K_VALUE, "Bass", ICON_SPEAKER_HIGH, 0 };
-        r[n++] = (row_def_t){ V_SPK_TREBLE, K_VALUE, "Treble", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ C_SPK_SOFT, K_CHOICE, "Soften highs", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ C_SPK_HPF, K_CHOICE, "Low cut", ICON_SPEAKER_HIGH, 0 };
         r[n++] = (row_def_t){ C_SPK_LIMIT, K_CHOICE, "Loud moments", ICON_SPEAKER_HIGH, 0 };
@@ -347,8 +351,7 @@ static vmeta_t value_meta(item_t id)
     case V_BIRD_VOL:   return (vmeta_t){ S.bird_vol, 1, 10, 1, "Soft", "Loud", false };
     case V_BIRD_SOFT:  return (vmeta_t){ S.bird_soft, 0, 100, 5, "Natural", "Soft", false };
     case V_SPK_GAIN:   return (vmeta_t){ S.spk_gain, -12, 6, 1, "-12 dB", "+6 dB", false };
-    case V_SPK_BASS:   return (vmeta_t){ S.spk_bass, -8, 8, 1, "Less", "More", false };
-    case V_SPK_TREBLE: return (vmeta_t){ S.spk_treble, -12, 6, 1, "Softer", "Brighter", false };
+    case V_SPK_EQ:     return (vmeta_t){ S.spk_eq[s_eqb], -SPK_EQ_MAX_DB, SPK_EQ_MAX_DB, 1, "Cut", "Boost", false };
     case V_TIME:       { int wd, sec; int64_t mn; int v = clock_now(&wd, &sec, &mn) ? sec / 60 : 0;
                          return (vmeta_t){ v, 0, 1439, 1, "00:00", "23:59", true }; }
     case V_DATE:       return (vmeta_t){ s_man_days, -3650, 3650, 1, "", "", false };
@@ -366,8 +369,7 @@ static void value_text(item_t id, char *b, size_t n)
     case V_BIRD_VOL:   snprintf(b, n, "%d of 10", S.bird_vol); break;
     case V_BIRD_SOFT:  snprintf(b, n, S.bird_soft ? "%d%%" : "Natural", S.bird_soft); break;
     case V_SPK_GAIN:   snprintf(b, n, "%+d dB", S.spk_gain); break;
-    case V_SPK_BASS:   snprintf(b, n, "%+d dB", S.spk_bass); break;
-    case V_SPK_TREBLE: snprintf(b, n, "%+d dB", S.spk_treble); break;
+    case V_SPK_EQ:     snprintf(b, n, "%+d dB", S.spk_eq[s_eqb]); break;
     case V_TIME:       { int wd, sec; int64_t mn; if (clock_now(&wd, &sec, &mn)) fmt_hm(b, n, sec / 60); else snprintf(b, n, "--:--"); } break;
     case V_DATE:       { int y, m, d, wd; if (local_ymd(&y, &m, &d, &wd)) snprintf(b, n, "%.3s %d %.3s", DAY_NAMES[wd], d, MONTHS[m - 1]); else snprintf(b, n, "--"); } break;
     default:           b[0] = 0; break;
@@ -388,8 +390,7 @@ static void value_step(item_t id, int d, int accel)
     case V_BIRD_VOL:   S.bird_vol = v; S.audition_bird = BIRD_MAGPIE; S.audition++; break;   /* a call at the new level */
     case V_BIRD_SOFT:  S.bird_soft = v; S.audition_bird = BIRD_WHISTLER; S.audition++; break;   /* a whistle to judge it by */
     case V_SPK_GAIN:   S.spk_gain = v; break;
-    case V_SPK_BASS:   S.spk_bass = v; break;
-    case V_SPK_TREBLE: S.spk_treble = v; break;
+    case V_SPK_EQ:     S.spk_eq[s_eqb] = v; break;
     case V_KEYS:       { uint8_t lv = (uint8_t)(v * 255 / 100); inputs_set_backlight(lv); config_set_lights(lv, S.night); config_save(); } break;
     case V_TIME:       { int delta = v - m.v; if (delta > 720) delta -= 1440; if (delta < -720) delta += 1440;
                          s_man_base += (int64_t)delta * 60; rebuild(); } break;
@@ -426,6 +427,12 @@ static int choice_opts(item_t id, const char *const **o)
     case C_REFRESHMODE: *o = REFRESHES; return 3;
     case C_WFTEMP:    *o = WFTEMPS; return N_WFTEMP;
     case C_CLEANMIN:  *o = CLEANS; return N_CLEAN;
+    case C_SPK_PRESET: {                                /* the presets, then "Custom" for anything else */
+        static const char *names[SPK_N_PRESETS + 1];
+        if (!names[0]) { for (int i = 0; i < SPK_N_PRESETS; i++) names[i] = SPK_PRESETS[i].name; names[SPK_N_PRESETS] = "Custom"; }
+        *o = names; return SPK_N_PRESETS + 1; }
+    case C_LIVE_LAYOUT: *o = LIVE_LAYOUTS; return 4;
+    case C_LIVE_DARK: *o = LIVE_DARKS; return 3;
     case C_SPK_SOFT:  *o = SOFTENS; return 6;
     case C_SPK_HPF:   *o = LOWCUTS; return 5;
     case C_SPK_LIMIT: *o = PEAKS; return 3;
@@ -469,6 +476,9 @@ static int choice_get(item_t id)
     case C_REFRESHMODE: return S.refresh_mode;
     case C_WFTEMP: { for (int i = 0; i < N_WFTEMP; i++) if (WFTEMP_V[i] == S.wf_temp) return i; return 0; }
     case C_CLEANMIN: { for (int i = 0; i < N_CLEAN; i++) if (CLEAN_V[i] == S.clean_min) return i; return 1; }
+    case C_SPK_PRESET: { int p = spk_preset_match(S.spk_eq); return p < 0 ? SPK_N_PRESETS : p; }
+    case C_LIVE_LAYOUT: return S.live_layout;
+    case C_LIVE_DARK: return S.live_dark;
     case C_SPK_SOFT:  return S.spk_soft;
     case C_SPK_HPF:   return S.spk_hpf;
     case C_SPK_LIMIT: return S.spk_limit;
@@ -508,6 +518,9 @@ static void choice_set(item_t id, int k)
     case C_REFRESHMODE: S.refresh_mode = k; s_req = LREQ_REFRESH; break;   /* one clean refresh now */
     case C_WFTEMP:      S.wf_temp = WFTEMP_V[k]; s_req = LREQ_REFRESH; break;
     case C_CLEANMIN:    S.clean_min = CLEAN_V[k]; break;
+    case C_SPK_PRESET:  if (k < SPK_N_PRESETS) for (int i = 0; i < SPK_EQ_BANDS; i++) S.spk_eq[i] = SPK_PRESETS[k].db[i]; break;
+    case C_LIVE_LAYOUT: S.live_layout = k; break;
+    case C_LIVE_DARK:   S.live_dark = k; break;
     case C_SPK_SOFT:    S.spk_soft = k; break;
     case C_SPK_HPF:     S.spk_hpf = k; break;
     case C_SPK_LIMIT:   S.spk_limit = k; break;
@@ -538,7 +551,7 @@ static void row_value(const row_def_t *r, char *b, size_t n)
     b[0] = 0;
     switch (r->kind) {
     case K_TOGGLE: snprintf(b, n, "%s", toggle_get(r) ? "On" : "Off"); break;
-    case K_VALUE:  value_text(r->id, b, n); break;
+    case K_VALUE:  if (r->id == V_SPK_EQ) snprintf(b, n, "%+d dB", S.spk_eq[r->arg]); else value_text(r->id, b, n); break;
     case K_CHOICE: { if (r->id == C_RESET) break;
                      if (r->id == C_DASH && tesserae_pick_count() && S.dash_page) { snprintf(b, n, "%s", tesserae_pick_title(s_dash_sel - 1 >= 0 ? s_dash_sel - 1 : 0)); break; }
                      if (r->id == C_KEY_PRESS || r->id == C_KEY_HOLD) s_ki = r->arg;
@@ -596,13 +609,32 @@ static node_t sub_node(item_t id)
     }
 }
 
-/* ---- key labels (fixed: the keys mean the same everywhere) ---- */
+/* ---- the keys follow the page: what each does on the screen that is showing ---- */
+static void key_role(int i, const char **icon, const char **label)
+{
+    *icon = NULL; *label = "";
+    if (i < 0 || i > 3) return;
+    if (S.phase == PHASE_RINGING) { *icon = ICON_ALARM; *label = "Snooze"; return; }
+    if (s_mode == M_HOME) {
+        if (i == 3) { *icon = ICON_LIST; *label = "Menu"; return; }
+        const char *b = config_get()->bind[CONFIG_BIND_KEY1 + i];
+        *icon = action_icon(b); *label = local_label_for_action(b); return;
+    }
+    static const char *const NAV[4] = { "Up", "Down", "Select", "Back" }, *const VAL[4] = { "Less", "More", "Done", "Back" };
+    *label = s_mode == M_VALUE ? VAL[i] : NAV[i];
+    *icon = i == 2 ? ICON_CHECK : i == 3 ? ICON_ARROW_U_UP_LEFT : NULL;     /* up, down, less and more are drawn */
+}
 const char *local_key_label(int i)
 {
-    if (i < 0 || i > 3) return "";
-    if (S.phase == PHASE_RINGING) return "Snooze";
-    if (i == 3) return "Menu";
-    return local_label_for_action(config_get()->bind[CONFIG_BIND_KEY1 + i]);
+    const char *icon, *label; key_role(i, &icon, &label); return label;
+}
+/* 0 up, 1 down, 2 minus, 3 plus: the icon font has none of these. */
+static void key_glyph(layer_t *l, int cx, int cy, int kind, uint8_t g)
+{
+    if (kind >= 2) { op_fill(l, cx - 18, cy - 3, 36, 6, g); if (kind == 3) op_fill(l, cx - 3, cy - 18, 6, 36, g); return; }
+    int d = kind == 0 ? -1 : 1;
+    op_line(l, cx - 20, cy - d * 10, cx, cy + d * 10, 6, g);
+    op_line(l, cx, cy + d * 10, cx + 20, cy - d * 10, 6, g);
 }
 
 /* ---- building ---- */
@@ -621,12 +653,16 @@ void build_top(layer_t *l, bool inv)
     else if (s_mode == M_LIST) title = node_title(s_stack[s_depth - 1].node);
     else title = s_edit_label;
     op_text(l, MARGIN, 50, F_M, fg, title);
-    /* the four keys: icons under the keys, MENU framed on the orange one */
+    /* the four keys: what each does on this screen, an icon and a word under the key; the orange MENU key framed */
     for (int i = 0; i < 4; i++) {
         int cx = KEY_CX[i];
-        op_fill(l, cx - 2, 0, 4, 16, i == 3 ? fg : dim);
-        if (i < 3) { const char *ic = action_icon(config_get()->bind[CONFIG_BIND_KEY1 + i]); if (ic) op_text_c(l, cx, 44, F_IM, dim, ic); }
-        else { int tw = draw_font_w(F_LBL, "MENU"); op_frame(l, cx - tw / 2 - 18, 36, tw + 36, 60, 3, fg); op_text_c(l, cx, 45, F_LBL, fg, "MENU"); }
+        const char *ic, *lab; key_role(i, &ic, &lab);
+        uint8_t g = i == 3 ? fg : dim;
+        op_fill(l, cx - 2, 0, 4, 16, g);
+        if (i == 3) op_frame(l, cx - 82, 20, 164, 112, 3, fg);
+        if (ic) op_text_c(l, cx, 26, F_IM, g, ic);
+        else if (lab[0] && s_mode != M_HOME) key_glyph(l, cx, 49, s_mode == M_VALUE ? 2 + i : i, g);
+        if (lab[0]) op_text_c(l, cx, 82, draw_font_w(F_LBL, lab) <= 150 ? F_LBL : F_S, g, lab);
     }
 }
 
@@ -698,7 +734,11 @@ void build_list(layer_t *l)
     if (r->id == T_QUICKMENU) snprintf(small, sizeof small, "Steps in black and white, full quality when you stop");
     if (r->id == T_SETTLEFULL) snprintf(small, sizeof small, "When you stop: the whole screen, cleared first " DOT " flashes");
     if (r->id == C_CLEANMIN) snprintf(small, sizeof small, "Partial updates wear the picture; this resets it while idle");
-    if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Tone, low cut, loud moments and a test sound");
+    if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Presets, a five-band equaliser, low cut, loud moments");
+    if (r->id == C_SPK_PRESET) snprintf(small, sizeof small, "A starting point; the bands below fine-tune it");
+    if (r->id == V_SPK_EQ) snprintf(small, sizeof small, "Boost or cut around %s", SPK_EQ_NAMES[r->arg]);
+    if (r->id == C_LIVE_LAYOUT) snprintf(small, sizeof small, "Bento, a big clock, the weather or tonight's plan");
+    if (r->id == C_LIVE_DARK) snprintf(small, sizeof small, "White on black, for the night");
     if (r->id == C_CLOCKDU) snprintf(small, sizeof small, "Two-level: black-and-white digits, no flash, no fade");
     if (r->id == C_STATION) { const char *t = radio_title(); if (radio_state() == RADIO_PLAYING && t[0]) snprintf(small, sizeof small, "%.60s", t); else snprintf(small, sizeof small, "%s " DOT " stations are set in the web app", radio_state_name()); }
     if (r->id == A_SOMA) { const soma_channel_t *c = radio_soma(r->arg); snprintf(big, sizeof big, "%.22s", c->title); snprintf(small, sizeof small, "%.62s", c->desc); }
@@ -744,7 +784,7 @@ void build_value(layer_t *l)
     char t[24]; value_text(s_edit, t, sizeof t);
     int y = TB_H + 60;
     const char *icon = (s_edit == V_BIRD_VOL || s_edit == V_BIRD_SOFT) ? ICON_BIRD :
-                       (s_edit == V_SPK_GAIN || s_edit == V_SPK_BASS || s_edit == V_SPK_TREBLE) ? ICON_SPEAKER_HIGH : s_edit == V_ALARM_TIME ? ICON_ALARM : s_edit == V_SETPOINT ? ICON_THERMOMETER : s_edit == V_RAIN_LVL ? ICON_CLOUD_RAIN : ICON_SUN;
+                       (s_edit == V_SPK_GAIN || s_edit == V_SPK_EQ) ? ICON_SPEAKER_HIGH : s_edit == V_ALARM_TIME ? ICON_ALARM : s_edit == V_SETPOINT ? ICON_THERMOMETER : s_edit == V_RAIN_LVL ? ICON_CLOUD_RAIN : ICON_SUN;
     op_text_c(l, W / 2, y, &icon170, G_BLACK, icon);
     y += icon170.line_h + 20;
     op_text_c(l, W / 2, y, numeric(t) ? F_NUM : F_XL, G_BLACK, t);
@@ -866,6 +906,7 @@ bool local_press(void)
         case K_TOGGLE: toggle_flip(&r); mark_rows(sel, sel); return true;
         case K_SUB:    if (r.id == S_ALARM_ITEM) s_ai = r.arg; if (r.id == S_KEY) s_ki = r.arg; push_node(sub_node(r.id)); return true;
         case K_VALUE:  if ((r.id == V_TIME || r.id == V_DATE) && S.auto_time) return true;
+                       if (r.id == V_SPK_EQ) s_eqb = r.arg;
                        s_edit = r.id; snprintf(s_edit_label, sizeof s_edit_label, "%s", r.label); s_mode = M_VALUE; mark_screen(); return true;
         case K_CHOICE: if (r.id == C_DASH) tesserae_picks_fetch();     /* fresh: dashboards can be bound any time */
                        s_edit = r.id; snprintf(s_edit_label, sizeof s_edit_label, "%s", r.label); s_csel = clampi(choice_get(r.id), 0, 99); s_mode = M_CHOICE; mark_screen(); return true;
@@ -941,18 +982,23 @@ bool local_key_has_hold(int i)
 {
     if (S.phase == PHASE_RINGING || i < 0 || i > 3) return false;
     if (i == 3) return true;
+    if (s_mode != M_HOME) return false;                   /* in the menus a key acts as soon as it goes down */
     const char *b = config_get()->bind[CONFIG_BIND_KEY1_HOLD + i];
     return b[0] && strcmp(b, "none") != 0;
 }
 
-/* True when the UI handled the key itself: the alarm ringing, or MENU. Keys
- * 1-3 otherwise run their press / hold bindings (main.c). */
+/* True when the UI handled the key itself: the alarm ringing, MENU, or keys
+ * 1-3 inside the menus (up / down / select, or less / more / done, as the top
+ * bar says). On the dashboard keys 1-3 run their press / hold bindings (main.c). */
 bool local_key(int i, bool hold)
 {
     if (i < 0 || i > 3) return false;
     if (S.phase == PHASE_RINGING) { snooze(); return true; }
     if (i == 3) { if (hold) { if (s_mode != M_HOME) go_home(); return true; } return local_back(); }
-    return false;
+    if (s_mode == M_HOME) return false;
+    if (hold) return true;
+    if (i == 2) return local_press();
+    return local_turn(i == 0 ? -1 : 1);
 }
 
 bool local_back_up(void)
@@ -982,6 +1028,8 @@ bool local_action(const char *id)
     if (!strcmp(id, "light.night"))   { S.lights_on = true; S.light_mode = 1; S.bright = 10; publish("set/lights", "night 10%%"); state_changed(); toast(ICON_LIGHTBULB, "Night light", "10%"); return true; }
     if (!strcmp(id, "dash.next"))     { dash_step(+1); return true; }
     if (!strcmp(id, "dash.prev"))     { dash_step(-1); return true; }
+    if (!strcmp(id, "live.next"))     { S.live_layout = (S.live_layout + 1) % 4; if (S.dash_page) dash_go(0);
+                                        if (s_mode != M_HOME) go_home(); else mark_screen(); return true; }
     if (!strncmp(id, "open.", 5)) {
         const char *n = id + 5;
         node_t nd = !strcmp(n, "ac") ? N_AC : !strcmp(n, "lights") ? N_LIGHTS : !strcmp(n, "sound") || !strcmp(n, "rain") ? N_RAIN :

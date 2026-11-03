@@ -343,7 +343,8 @@ static void audio_update(void)
     audio_speaker_tick();
     /* The speaker's tone stage follows the settings (spk_dsp.h). */
     static spk_tune_t tuned = { .gain_db = 99 };
-    spk_tune_t t = { ls->spk_gain, ls->spk_bass, ls->spk_treble, ls->spk_soft, ls->spk_hpf, ls->spk_limit };
+    spk_tune_t t = { .gain_db = ls->spk_gain, .soften = ls->spk_soft, .low_cut = ls->spk_hpf, .limit = ls->spk_limit };
+    for (int i = 0; i < SPK_EQ_BANDS; i++) t.eq_db[i] = ls->spk_eq[i];
     if (memcmp(&t, &tuned, sizeof t)) { tuned = t; audio_speaker_tune(&t); }
 
     /* The waveform temperature from the settings (0 = the firmware default). */

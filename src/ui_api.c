@@ -56,14 +56,20 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 1) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "clock_du"))   { if (v < 0 || v > 2) return false; S.clock_du = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "live_demo"))  { S.live_demo = v != 0; if (s_mode == M_HOME && S.dash_page == 0) mark_screen(); return true; }
+    else if (!strcmp(key, "live_layout")) { if (v < 0 || v > 3) return false; S.live_layout = v; live_layout_changed(); return true; }
+    else if (!strcmp(key, "live_dark"))  { if (v < 0 || v > 2) return false; S.live_dark = v; live_layout_changed(); return true; }
     else if (!strcmp(key, "tz"))         { if (v < 0 || v >= N_TZ) return false; S.tz = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
     else if (!strcmp(key, "speaker"))      { S.speaker = v != 0; publish("config/speaker", S.speaker ? "on" : "off"); return true; }
     /* speaker tuning (spk_dsp.h) and the birds' softness: nothing to repaint */
     else if (!strcmp(key, "bird_soft"))    { if (v < 0 || v > 100) return false; S.bird_soft = v; return true; }
     else if (!strcmp(key, "spk_gain"))     { if (v < -12 || v > 6) return false; S.spk_gain = v; return true; }
-    else if (!strcmp(key, "spk_bass"))     { if (v < -8 || v > 8) return false; S.spk_bass = v; return true; }
-    else if (!strcmp(key, "spk_treble"))   { if (v < -12 || v > 6) return false; S.spk_treble = v; return true; }
+    else if (!strncmp(key, "spk_eq", 6) && key[6] >= '1' && key[6] <= '0' + SPK_EQ_BANDS && !key[7])
+                                           { if (v < -SPK_EQ_MAX_DB || v > SPK_EQ_MAX_DB) return false; S.spk_eq[key[6] - '1'] = v; return true; }
+    else if (!strcmp(key, "spk_preset"))   { if (v < 0) return true;                                  /* -1: "Custom", nothing to apply */
+                                             if (v >= SPK_N_PRESETS) return false;
+                                             for (int i = 0; i < SPK_EQ_BANDS; i++) S.spk_eq[i] = SPK_PRESETS[v].db[i];
+                                             return true; }
     else if (!strcmp(key, "spk_soft"))     { if (v < 0 || v > 5) return false; S.spk_soft = v; return true; }
     else if (!strcmp(key, "spk_hpf"))      { if (v < 0 || v > 4) return false; S.spk_hpf = v; return true; }
     else if (!strcmp(key, "spk_limit"))    { if (v < 0 || v > 2) return false; S.spk_limit = v; return true; }
@@ -187,11 +193,14 @@ static void ext_pack(ext_blob_t *b)
     b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0)     /* bits 0-1 set = off (older blobs read as on); bit 2 set = on */
                         | ((S.clock_du + 1) & 3) << 3 | (S.live_demo ? 0x20 : 0));                       /* bits 3-4: clock updates + 1; bit 5: Live demo */
     b->pad = (uint8_t)S.clean_min;
-    b->spk_gain = (int8_t)S.spk_gain; b->spk_bass = (int8_t)S.spk_bass; b->spk_treble = (int8_t)S.spk_treble;
+    b->spk_gain = (int8_t)S.spk_gain;                           /* bass / treble: the equaliser replaced them (rsv1[17..]) */
     b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
     b->bird_soft_p1 = (uint8_t)(S.bird_soft + 1);
     b->rsv1[0] = (char)(S.station + 2);                         /* the radio preset + 2 (0 = not set, 1 = a SomaFM channel, named next) */
     snprintf(b->rsv1 + 1, 16, "%s", S.soma);
+    b->rsv1[17] = 1;                                            /* the equaliser is stored (older blobs: from bass / treble) */
+    for (int i = 0; i < SPK_EQ_BANDS; i++) b->rsv1[18 + i] = (char)(int8_t)S.spk_eq[i];
+    b->rsv1[23] = (char)(S.live_layout + 1); b->rsv1[24] = (char)(S.live_dark + 1);   /* + 1: 0 = not set */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -203,7 +212,14 @@ void ext_load(void)
         if ((b.rsv0 >> 3) & 3) S.clock_du = ((b.rsv0 >> 3) & 3) - 1;
         S.live_demo = (b.rsv0 & 0x20) != 0;
         S.clean_min = (b.pad >= 1 && b.pad <= 240) ? b.pad : 10;
-        S.spk_gain = clampi(b.spk_gain, -12, 6); S.spk_bass = clampi(b.spk_bass, -8, 8); S.spk_treble = clampi(b.spk_treble, -12, 6);
+        S.spk_gain = clampi(b.spk_gain, -12, 6);
+        if (b.rsv1[17]) for (int i = 0; i < SPK_EQ_BANDS; i++) S.spk_eq[i] = clampi((int8_t)b.rsv1[18 + i], -SPK_EQ_MAX_DB, SPK_EQ_MAX_DB);
+        else {                                                  /* the old shelves, roughly: bass on the two low bands, treble on the two high */
+            int bass = clampi(b.spk_bass, -8, 8), treble = clampi(b.spk_treble, -12, 6);
+            S.spk_eq[0] = bass; S.spk_eq[1] = bass / 2; S.spk_eq[2] = 0; S.spk_eq[3] = treble / 2; S.spk_eq[4] = treble;
+        }
+        if (b.rsv1[23]) S.live_layout = clampi((uint8_t)b.rsv1[23] - 1, 0, 3);
+        if (b.rsv1[24]) S.live_dark = clampi((uint8_t)b.rsv1[24] - 1, 0, 2);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
         if (b.rsv1[0]) {
@@ -309,8 +325,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"turn_hints\":%d,\"clock_du\":%d,\"live_demo\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.turn_hints, S.clock_du, S.live_demo, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);
@@ -319,8 +335,9 @@ size_t local_state_json(char *b, size_t cap)
     J("]},");
     J("\"shape\":{\"patter\":%d,\"wash\":%d,\"tone\":%d,\"wind\":%d,\"surface\":%d,\"thunder\":%d,\"thunder_near\":%d},",
       S.patter, S.wash, S.tone, S.wind, S.surface, S.thunder, S.thunder_near);
-    J("\"spk\":{\"gain\":%d,\"bass\":%d,\"treble\":%d,\"soft\":%d,\"hpf\":%d,\"limit\":%d,\"test\":%d,\"dropouts\":%lu},",
-      S.spk_gain, S.spk_bass, S.spk_treble, S.spk_soft, S.spk_hpf, S.spk_limit, S.test, (unsigned long)audio_speaker_dropouts());
+    J("\"spk\":{\"gain\":%d,\"eq\":[%d,%d,%d,%d,%d],\"preset\":%d,\"soft\":%d,\"hpf\":%d,\"limit\":%d,\"test\":%d,\"dropouts\":%lu},",
+      S.spk_gain, S.spk_eq[0], S.spk_eq[1], S.spk_eq[2], S.spk_eq[3], S.spk_eq[4], spk_preset_match(S.spk_eq),
+      S.spk_soft, S.spk_hpf, S.spk_limit, S.test, (unsigned long)audio_speaker_dropouts());
     J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"i2s_diag\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
       "\"rec\":\"%s\"},",
       S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), (unsigned long)audio_i2s_diag(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),

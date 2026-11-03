@@ -177,25 +177,36 @@ static void flat_speaker_stage_changes_nothing(void)
     CHECK_NEAR(stage_peak(&t, 60, 0.5), 0.5, 0.002);
 }
 
-static void treble_cut_and_soften_take_the_edge_off(void)
+static void equaliser_bands_shape_the_sound(void)
 {
-    spk_tune_t t = { .treble_db = -12 };
-    CHECK(stage_peak(&t, 6000, 0.5) < 0.5 * 0.4);           /* well down an octave above the 3 kHz shelf */
-    CHECK(stage_peak(&t, 9000, 0.5) < 0.5 * 0.3);
-    CHECK(stage_peak(&t, 200, 0.5) > 0.5 * 0.95);           /* the lows untouched */
+    spk_tune_t t = { .eq_db = { 0, 0, 0, 0, -12 } };          /* the 7 kHz band cut: sharp calls and hiss */
+    CHECK(stage_peak(&t, 7000, 0.5) < 0.5 * 0.3);
+    CHECK(stage_peak(&t, 800, 0.5) > 0.5 * 0.9);            /* three octaves down: hardly touched */
     spk_tune_t u = { .soften = 5 };                         /* low-pass at 3 kHz, second order */
     CHECK(stage_peak(&u, 6000, 0.5) < 0.5 * 0.3);
     CHECK(stage_peak(&u, 500, 0.5) > 0.5 * 0.95);
+    spk_tune_t b = { .eq_db = { 0, 12, 0, 0, 0 } };           /* 250 Hz up 12 dB: x4 at the centre */
+    CHECK_NEAR(stage_peak(&b, 250, 0.2), 0.2 * 3.98, 0.2 * 0.25);
+    CHECK(stage_peak(&b, 2500, 0.2) < 0.2 * 1.2);           /* three octaves up: hardly any */
+    spk_tune_t l = { .low_cut = 4 };                        /* 160 Hz */
+    CHECK(stage_peak(&l, 40, 0.5) < 0.5 * 0.1);             /* two octaves below: 24 dB down */
+    CHECK(stage_peak(&l, 1000, 0.5) > 0.5 * 0.95);
 }
 
-static void low_cut_and_bass_shape_the_bottom(void)
+static void presets_are_recognised(void)
 {
-    spk_tune_t t = { .low_cut = 4 };                        /* 160 Hz */
-    CHECK(stage_peak(&t, 40, 0.5) < 0.5 * 0.1);             /* two octaves below: 24 dB down */
-    CHECK(stage_peak(&t, 1000, 0.5) > 0.5 * 0.95);
-    spk_tune_t b = { .bass_db = 6 };
-    CHECK_NEAR(stage_peak(&b, 50, 0.3), 0.3 * 2.0, 0.3 * 0.15);   /* +6 dB on the shelf */
-    CHECK_NEAR(stage_peak(&b, 2000, 0.3), 0.3, 0.3 * 0.05);
+    for (int p = 0; p < SPK_N_PRESETS; p++) {
+        int eq[SPK_EQ_BANDS];
+        for (int i = 0; i < SPK_EQ_BANDS; i++) eq[i] = SPK_PRESETS[p].db[i];
+        CHECK(spk_preset_match(eq) == p);
+    }
+    int custom[SPK_EQ_BANDS] = { 1, 0, 0, 0, 0 };
+    CHECK(spk_preset_match(custom) == -1);
+    CHECK(spk_preset_match(SPK_PRESETS[0].db[0] == 0 ? (int[SPK_EQ_BANDS]){ 0 } : custom) == 0);   /* Flat is the first */
+    spk_tune_t warm = { 0 };
+    for (int i = 0; i < SPK_EQ_BANDS; i++) warm.eq_db[i] = SPK_PRESETS[1].db[i];
+    CHECK(!spk_tune_flat(&warm));
+    CHECK(stage_peak(&warm, 80, 0.3) > stage_peak(&warm, 7000, 0.3) * 1.8);   /* Warm: the bottom over the top */
 }
 
 static void level_and_limiter_hold_the_peaks(void)
@@ -288,8 +299,8 @@ int main(void)
     RUN(every_sound_stays_in_range);
     RUN(off_and_zero_volume_are_silent);
     RUN(flat_speaker_stage_changes_nothing);
-    RUN(treble_cut_and_soften_take_the_edge_off);
-    RUN(low_cut_and_bass_shape_the_bottom);
+    RUN(equaliser_bands_shape_the_sound);
+    RUN(presets_are_recognised);
     RUN(level_and_limiter_hold_the_peaks);
     RUN(softness_takes_the_edge_off_the_birds);
     RUN(the_test_sound_plays_with_the_sleep_sound_off);

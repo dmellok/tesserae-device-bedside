@@ -2,7 +2,9 @@
 
 The panel's first dashboard, **Live**, is drawn on the device as an asymmetric bento: a large clock tile, a dark Tonight tile, a tall Outside tile with the rain forecast, and Bedroom, Home and Reminders tiles. Bedroom includes humidity and A/C; Home combines security and washing; Reminders combines bins and the next event. The alarm, sleep timer and sunrise come from the panel itself. The other values read Home Assistant over the same MQTT connection the panel already uses for discovery. No Home Assistant token is needed.
 
-To evaluate the layout with populated tiles, turn on **Settings → Home screen → Demo data** on the panel or **Home screen → Demo data** in the web app. The option persists and substitutes realistic sample values without changing the MQTT configuration; turn it off to return to live values.
+The page has four layouts (**Settings → Home screen → Live layout**, or the web app's Home screen card): the **Bento** above; a **Big clock** with the alarm, the sound and the weather in a line each; **Weather**, with the outside and the bedroom beside a tall hourly rain chart; and **Tonight**, the night as a line from now through the sound stopping, the chorus and sunrise to the alarm. **Live colours** inverts any of them to white on black, always or only at night. A key can be bound to *Next Live layout* to step through them.
+
+To evaluate the layouts with populated tiles, turn on **Settings → Home screen → Demo data** on the panel or **Home screen → Demo data** in the web app. The option persists and substitutes realistic sample values without changing the MQTT configuration; turn it off to return to live values.
 
 Each tile has a **source**, set in the web app under Device › Live dashboard. A source can be:
 

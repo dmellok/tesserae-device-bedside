@@ -168,6 +168,7 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 .dl button small{font-size:12px;color:var(--sub)}
 .dl button svg.i{width:20px;height:20px;color:var(--on);visibility:hidden}
 .dl button.on{font-weight:600} .dl button.on svg.i{visibility:visible}
+.dl.soma{max-height:460px;overflow:auto} .dl.soma button span{white-space:normal} .dl.soma button small{display:block;font-weight:400;margin-top:2px}
 .dacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
 .dacts .chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer} .dacts svg.i{width:16px;height:16px}
 /* files */
@@ -264,15 +265,7 @@ nav .brand,nav .side-foot{display:none}
       <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise,3:Wind,4:Recording,5:Radio"></div>
       <div id="rec-box" hidden><label class="fld"><span>Recording</span><select id="rec"></select></label>
         <div class="hint" style="text-align:left;margin-top:6px" id="rec-hint"></div></div>
-      <div id="radio-box" hidden>
-        <label class="fld"><span>Station</span><select id="station"></select></label>
-        <div class="hint" style="text-align:left;margin-top:6px" id="radio-np"></div>
-        <details class="more" id="radio-presets"><summary><span data-i="list"></span>Stations</summary>
-          <div class="hint" style="text-align:left;margin:4px 0 8px">Seven presets. Any Icecast / SHOUTcast MP3 stream works (SomaFM's direct <code>ice1.somafm.com/…-128-mp3</code> links, Radio Paradise, FIP); HLS and AAC-only stations don't.</div>
-          <div id="radio-rows"></div>
-          <button class="btn w" id="radio-save" style="margin-top:10px" type="button">Save stations</button>
-        </details>
-      </div>
+      <div id="radio-hint" class="hint" style="text-align:left;margin-top:6px" hidden>The station, what's playing and your presets are under Radio.</div>
       <div class="lbl">Intensity</div><div class="seg" data-seg="rain_lvl" data-opts="1:1,2:2,3:3,4:4,5:5"></div>
       <div class="lbl">Sleep timer</div><div class="seg" data-seg="sleep" data-opts="0:Off,15:15m,30:30m,60:60m"></div>
       <details class="more" id="shape"><summary><span data-i="sliders-horizontal"></span>Shape the rain</summary>
@@ -298,10 +291,16 @@ nav .brand,nav .side-foot{display:none}
   <div class="card" id="c-spk">
     <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Speaker<small id="spk-sub">How the panel's own speaker sounds</small></div></div>
     <div class="body">
-      <div class="sl"><span class="k">Level</span><input type="range" id="spk_gain" min="-12" max="6" step="1" data-set="spk_gain" data-unit=" dB"><output id="spk_gain-o"></output></div>
-      <div class="sl"><span class="k">Bass</span><input type="range" id="spk_bass" min="-8" max="8" step="1" data-set="spk_bass" data-unit=" dB"><output id="spk_bass-o"></output></div>
-      <div class="sl"><span class="k">Treble</span><input type="range" id="spk_treble" min="-12" max="6" step="1" data-set="spk_treble" data-unit=" dB"><output id="spk_treble-o"></output></div>
-      <div class="ends"><span>Softer</span><span>Brighter</span></div>
+      <div class="lbl">Preset</div><div class="seg" data-seg="spk_preset" data-opts="0:Flat,1:Warm,2:Bright,3:Voice,4:Night,5:Bass,-1:Custom"></div>
+      <div class="lbl">Equaliser</div>
+      <div class="sl"><span class="k">80 Hz</span><input type="range" id="spk_eq1" min="-12" max="12" step="1" data-set="spk_eq1" data-unit=" dB"><output id="spk_eq1-o"></output></div>
+      <div class="sl"><span class="k">250 Hz</span><input type="range" id="spk_eq2" min="-12" max="12" step="1" data-set="spk_eq2" data-unit=" dB"><output id="spk_eq2-o"></output></div>
+      <div class="sl"><span class="k">800 Hz</span><input type="range" id="spk_eq3" min="-12" max="12" step="1" data-set="spk_eq3" data-unit=" dB"><output id="spk_eq3-o"></output></div>
+      <div class="sl"><span class="k">2.5 kHz</span><input type="range" id="spk_eq4" min="-12" max="12" step="1" data-set="spk_eq4" data-unit=" dB"><output id="spk_eq4-o"></output></div>
+      <div class="sl"><span class="k">7 kHz</span><input type="range" id="spk_eq5" min="-12" max="12" step="1" data-set="spk_eq5" data-unit=" dB"><output id="spk_eq5-o"></output></div>
+      <div class="ends"><span>Cut</span><span>Boost</span></div>
+      <div class="lbl">Level</div>
+      <div class="sl"><span class="k">Trim</span><input type="range" id="spk_gain" min="-12" max="6" step="1" data-set="spk_gain" data-unit=" dB"><output id="spk_gain-o"></output></div>
       <div class="lbl">Soften sharp highs above</div><div class="seg" data-seg="spk_soft" data-opts="0:Off,1:8 kHz,2:6 kHz,3:5 kHz,4:4 kHz,5:3 kHz"></div>
       <div class="lbl">Low cut below</div><div class="seg" data-seg="spk_hpf" data-opts="0:Off,1:60 Hz,2:90 Hz,3:120 Hz,4:160 Hz"></div>
       <div class="lbl">Loud moments</div><div class="seg" data-seg="spk_limit" data-opts="0:As they are,1:Gentle,2:Firm"></div>
@@ -309,7 +308,7 @@ nav .brand,nav .side-foot{display:none}
       <div class="dacts" id="spk-tests">
         <button class="chip" data-test="1"><span data-i="play"></span>Pink noise</button><button class="chip" data-test="2">1 kHz</button><button class="chip" data-test="3">100 Hz</button><button class="chip" data-test="4">Sweep</button><button class="chip" data-test="0"><span data-i="x"></span>Stop</button>
       </div>
-      <div class="hint" style="text-align:left;margin-top:10px">Bird calls too sharp? Lower Treble or pick a Soften cutoff here; Softness in the Dawn chorus card (Alarms) tames the birds alone.</div>
+      <div class="hint" style="text-align:left;margin-top:10px">Bird calls too sharp? Cut the 7 kHz band or pick a Soften cutoff here; Softness in the Dawn chorus card (Alarms) tames the birds alone. Moving a band makes the preset Custom.</div>
     </div>
   </div>
 
@@ -362,6 +361,36 @@ nav .brand,nav .side-foot{display:none}
     </div>
   </div>
  </div>
+</section>
+
+<!-- RADIO -->
+<section class="tab" id="t-radio">
+  <!--part:radio-->
+  <div class="card" id="c-radio">
+    <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Radio<small id="radio-sub"></small></div>
+      <label class="sw"><input type="checkbox" id="radio_on"><span></span></label></div>
+    <div class="body">
+      <label class="fld" style="margin-top:4px"><span>Station</span><select id="station"></select></label>
+      <div class="hint" style="text-align:left;margin-top:6px" id="radio-np"></div>
+      <div class="hint" style="text-align:left;margin-top:10px">Plays as the sleep sound, so the volume, sleep timer, speaker tuning and dawn chorus apply as they do for rain.</div>
+    </div>
+  </div>
+
+  <!--part:somafm-->
+  <div class="card" id="c-soma">
+    <div class="ttl"><div class="ic" data-i="list"></div><div class="t">SomaFM<small id="soma-sub">Every channel, from somafm.com</small></div></div>
+    <div class="dl soma" id="soma-list" style="margin-top:10px"></div>
+  </div>
+
+  <!--part:stations-->
+  <div class="card" id="c-stations">
+    <div class="ttl"><div class="ic" data-i="sliders-horizontal"></div><div class="t">My stations<small>Seven presets of your own</small></div></div>
+    <div class="body">
+      <div class="hint" style="text-align:left;margin:4px 0 8px">Any Icecast / SHOUTcast MP3 stream works (SomaFM's direct <code>ice1.somafm.com/…-128-mp3</code> links, Radio Paradise, FIP); HLS and AAC-only stations don't.</div>
+      <div id="radio-rows"></div>
+      <button class="btn w" id="radio-save" style="margin-top:10px" type="button">Save stations</button>
+    </div>
+  </div>
 </section>
 
 <!-- ALARMS -->
@@ -460,20 +489,27 @@ nav .brand,nav .side-foot{display:none}
     <div class="hint" style="text-align:left;margin-top:10px">With the MQTT integration in Home Assistant, the panel appears as one device with every control here: sleep sounds, rain and thunder, the dawn chorus, alarms, lights and A/C, night mode, the dashboard, and an Events entity for automations.</div>
   </div>
 
-  <h2>Controls</h2>
-  <!--part:controls-->
+  <h2>Buttons</h2>
+  <!--part:keys-->
   <div class="card">
-    <div class="lbl">Key lights</div>
-    <div class="sl"><span data-i="keyboard" style="color:var(--sub)"></span><input type="range" id="keylights" min="0" max="100" step="5" data-set="keylights"><output id="keylights-o"></output></div>
-    <div class="lbl">Keys</div>
+    <div class="lbl">The four keys, on the dashboard</div>
     <div class="kmap" id="kmap"></div>
     <div class="grid2" id="kbinds"></div>
-    <div class="hint" style="text-align:left">A key with a hold action waits half a second to tell a press from a hold. MENU is fixed: press for the menu or back, hold for home.</div>
-    <div class="row" style="margin-top:14px"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
+    <div class="hint" style="text-align:left">In the menus the keys follow the page and the panel labels them under each key: up, down and select in a list; less, more and done on a slider. MENU is fixed: press for the menu or back, hold for home. A key with a hold action waits half a second to tell a press from a hold.</div>
+    <div class="lbl">Key lights</div>
+    <div class="sl"><span data-i="keyboard" style="color:var(--sub)"></span><input type="range" id="keylights" min="0" max="100" step="5" data-set="keylights"><output id="keylights-o"></output></div>
+  </div>
+  <!--part:knob-->
+  <div class="card">
+    <div class="lbl">Knob and menus</div>
+    <div class="row"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
     <div class="row" style="margin-top:14px"><div style="flex:1">Quick menu moves<small style="display:block;color:var(--sub);font-size:12px">Knob steps paint in black and white (about a quarter second); full quality once the knob rests</small></div><label class="sw"><input type="checkbox" id="quick_menus" data-set="quick_menus"><span></span></label></div>
     <div class="lbl">Hardware</div>
     <dl id="hw"></dl>
-    <div class="lbl">BOOT button</div>
+  </div>
+  <!--part:bootbtn-->
+  <div class="card">
+    <div class="lbl">BOOT button, on the board</div>
     <label class="fld"><span>Short press</span><select data-bind="boot_short"></select></label>
     <label class="fld"><span>Long press</span><select data-bind="boot_long"></select></label>
   </div>
@@ -485,8 +521,10 @@ nav .brand,nav .side-foot{display:none}
       <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
       <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option></select></label>
       <label class="fld"><span>Clock updates</span><select data-pset="clock_du"><option value="0">Full quality</option><option value="1">Two-level at night</option><option value="2">Two-level always</option></select></label>
+      <label class="fld"><span>Live layout</span><select data-pset="live_layout"><option value="0">Bento</option><option value="1">Big clock</option><option value="2">Weather</option><option value="3">Tonight</option></select></label>
+      <label class="fld"><span>Live colours</span><select data-pset="live_dark"><option value="0">Light</option><option value="1">Dark</option><option value="2">Dark at night</option></select></label>
     </div>
-    <div class="row" style="margin-top:14px"><div style="flex:1">Demo data<small style="display:block;color:var(--sub);font-size:12px">Fill the Live bento with sample weather, room, home and calendar values</small></div><label class="sw"><input type="checkbox" id="live_demo" data-set="live_demo"><span></span></label></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Demo data<small style="display:block;color:var(--sub);font-size:12px">Fill the Live page with sample weather, room, home and calendar values</small></div><label class="sw"><input type="checkbox" id="live_demo" data-set="live_demo"><span></span></label></div>
     <div class="lbl">Shows</div>
     <div id="shows"></div>
     <div class="hint" style="text-align:left;margin-top:12px" id="vp"></div>
@@ -600,6 +638,7 @@ nav .brand,nav .side-foot{display:none}
 
 <nav><div class="brand"><i data-i="moon"></i>Bedside</div><div>
   <button data-tab="room" class="on"><span data-i="house"></span>Room</button>
+  <button data-tab="radio"><span data-i="speaker-high"></span>Radio</button>
   <button data-tab="alarms"><span data-i="alarm"></span>Alarms</button>
   <button data-tab="console"><span data-i="terminal"></span>Console</button>
   <button data-tab="device"><span data-i="gear"></span>Device</button>
@@ -624,14 +663,15 @@ async function cmd(q){
   catch(e){toast('Not sent: panel offline')}
 }
 const set=(k,v)=>{touch(k);cmd('set='+enc(k+'|'+v))};
+const SPK_PRESETS=['Flat','Warm','Bright','Voice','Night','Bass'];
 
 /* ---- tabs ---- */
-const TITLES={room:'Room',alarms:'Alarms',console:'Console',device:'Device'};
+const TITLES={room:'Room',radio:'Radio',alarms:'Alarms',console:'Console',device:'Device'};
 function tab(t){
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
   $('#title').textContent=TITLES[t]; try{localStorage.tab=t;history.replaceState(null,'','#'+t)}catch(e){}
-  scrollTo(0,0); if(t==='console')logPoll(true); if(t==='device')loadFiles();
+  scrollTo(0,0); if(t==='console')logPoll(true); if(t==='device')loadFiles(); if(t==='radio')loadSoma();
 }
 $$('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
 try{const h=location.hash.slice(1),t=TITLES[h]?h:localStorage.tab;if(TITLES[t])tab(t)}catch(e){}
@@ -683,10 +723,10 @@ function renderRoom(){
   if(spLocal===null&&!held('setpoint'))$('#sp').innerHTML=spTxt(u.ac.sp);
   $('#ac-sub').textContent=(u.ac.mode?`${MODES[u.ac.mode]} to ${u.ac.sp}°`:'Off')+` · room ${u.ac.room}°`;
   chk('night',u.night); rng('keylights',u.keylights); if(u.chorus){rng('bird_vol',u.chorus.vol);rng('bird_soft',u.chorus.soft??35)}
-  const sp=u.spk||{}; rng('spk_gain',sp.gain??0); rng('spk_bass',sp.bass??0); rng('spk_treble',sp.treble??0);
+  const sp=u.spk||{}; rng('spk_gain',sp.gain??0); (sp.eq||[0,0,0,0,0]).forEach((v,i)=>rng('spk_eq'+(i+1),v)); segVal('spk_preset',sp.preset??0);
   segVal('spk_soft',sp.soft??0); segVal('spk_hpf',sp.hpf??0); segVal('spk_limit',sp.limit??0);
   if(!held('test'))$$('#spk-tests .chip').forEach(b=>b.classList.toggle('on',+b.dataset.test===(sp.test||0)&&sp.test>0));
-  $('#spk-sub').textContent=sp.test?'Test sound playing':(sp.gain||sp.bass||sp.treble||sp.soft||sp.hpf||sp.limit)?'Tuned':'How the panel\'s own speaker sounds';
+  $('#spk-sub').textContent=sp.test?'Test sound playing':sp.preset>0?SPK_PRESETS[sp.preset]+' preset':sp.preset<0?'Custom equaliser':(sp.gain||sp.soft||sp.hpf||sp.limit)?'Tuned':'How the panel\'s own speaker sounds';
   const sh=u.shape||{}; ['patter','wash','tone','wind','thunder','thunder_near'].forEach(k=>rng(k,sh[k]??0)); segVal('surface',sh.surface??0);
 
   paintCards();
@@ -890,7 +930,11 @@ function renderHW(){
 let radioRowsSig='', soma=null, somaT=0;
 async function loadSoma(){ if(soma&&Date.now()-somaT<1800000)return; try{soma=(await(await fetch('/api/soma',{cache:'no-store'})).json()).channels;somaT=Date.now()}catch(e){} }
 function renderRadio(){
-  const r=ui.radio, box=$('#radio-box'); box.hidden=ui.rain.kind!==5; if(box.hidden||!r)return;
+  const r=ui.radio; if(!r)return;
+  const on=ui.rain.on&&ui.rain.kind===5;
+  if(!held('radio_on'))$('#radio_on').checked=on;
+  $('#radio-hint').hidden=ui.rain.kind!==5;
+  $('#c-radio').classList.toggle('off',!on);
   if(!soma)loadSoma();
   const sel=$('#station'), opts=r.presets.map((p,i)=>({i,p})).filter(x=>x.p.url);
   const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -900,11 +944,16 @@ function renderRadio(){
   if(!held('station')&&sel!==document.activeElement)sel.value=r.sel>=0?'p:'+r.sel:'s:'+r.soma;
   const np=r.state==='playing'?(r.title?`${r.station} · ${r.title}`:r.station):r.state==='off'?'Off: turn the sound on to listen':r.state==='failed'?`Failed: ${r.err}`:`${r.state[0].toUpperCase()+r.state.slice(1)}${r.err?' · '+r.err:''}…`;
   $('#radio-np').textContent=np+(r.state==='playing'?` · ${r.kbps} kbps, ${(r.buf_ms/1000).toFixed(1)} s ahead`:'');
+  $('#radio-sub').textContent=on?(r.title?`${r.station} · ${r.title}`:(r.station||'Starting…')):ui.rain.kind===5?'Off':`Off · the sleep sound is ${KINDS[ui.rain.kind]}`;
+  if(soma){const cur=r.sel<0?r.soma:'';
+    const html=soma.map(c=>`<button data-soma="${c.id}" class="${on&&cur===c.id?'on':''}">${svg('check')}<span>${esc(c.title)}<small>${esc(c.desc||'')}</small></span></button>`).join('');
+    if($('#soma-list').innerHTML!==html){$('#soma-list').innerHTML=html;$$('[data-soma]').forEach(b=>b.onclick=()=>{touch('station',4000);touch('radio_on',4000);$('#radio_on').checked=true;set('soma',b.dataset.soma)})}}
   const sig=JSON.stringify(r.presets);
   if(sig!==radioRowsSig&&!$('#radio-rows').contains(document.activeElement)){radioRowsSig=sig;
     $('#radio-rows').innerHTML=r.presets.map((p,i)=>`<div class="grid2" style="margin-top:8px"><label class="fld" style="margin:0"><span>Name ${i+1}</span><input data-rn="${i}" value="${p.name.replace(/"/g,'&quot;')}" autocomplete="off"></label><label class="fld" style="margin:0"><span>Stream URL</span><input data-ru="${i}" value="${p.url.replace(/"/g,'&quot;')}" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url"></label></div>`).join('')}
 }
 $('#station').onchange=()=>{const v=$('#station').value;touch('station',4000);if(v.startsWith('s:'))set('soma',v.slice(2));else set('station',v.slice(2))};
+$('#radio_on').onchange=e=>{touch('radio_on',4000);if(e.target.checked){if(ui&&ui.rain.kind!==5)cmd('set='+enc('rain_kind|5'));set('rain_on',1)}else set('rain_on',0)};
 $('#radio-save').onclick=async()=>{const r=ui.radio;let n=0;
   for(let i=0;i<r.presets.length;i++){const name=$(`[data-rn="${i}"]`).value.trim(),url=$(`[data-ru="${i}"]`).value.trim();
     if(name!==r.presets[i].name||url!==r.presets[i].url){await cmd('radio='+enc(`${i}|${name}|${url}`));n++}}

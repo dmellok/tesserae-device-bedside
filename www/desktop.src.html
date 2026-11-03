@@ -63,7 +63,7 @@ h2{margin:6px 4px -8px}
 .btn,.chip,.seg button,.rb,.days button,.key,.dl button,.sw input,.bird .rb,summary{cursor:pointer}
 .off-banner{grid-column:1/-1}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
-@media (max-width:1100px){#t-room.on,#t-sound.on,#t-alarms.on,#t-speaker.on{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
+@media (max-width:1100px){#t-room.on,#t-sound.on,#t-radio.on,#t-alarms.on,#t-speaker.on,#t-buttons.on{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -72,11 +72,13 @@ h2{margin:6px 4px -8px}
   <nav><div>
     <button data-tab="room" class="on"><span data-i="house"></span>Overview<kbd>1</kbd></button>
     <button data-tab="sound"><span data-i="cloud-rain"></span>Sound<kbd>2</kbd></button>
-    <button data-tab="speaker"><span data-i="speaker-high"></span>Speaker<kbd>3</kbd></button>
-    <button data-tab="alarms"><span data-i="alarm"></span>Alarms<kbd>4</kbd></button>
-    <button data-tab="display"><span data-i="monitor"></span>Display<kbd>5</kbd></button>
-    <button data-tab="device"><span data-i="gear"></span>Device<kbd>6</kbd></button>
-    <button data-tab="console"><span data-i="terminal"></span>Console<kbd>7</kbd></button>
+    <button data-tab="radio"><span data-i="speaker-high"></span>Radio<kbd>3</kbd></button>
+    <button data-tab="speaker"><span data-i="sliders-horizontal"></span>Speaker<kbd>4</kbd></button>
+    <button data-tab="alarms"><span data-i="alarm"></span>Alarms<kbd>5</kbd></button>
+    <button data-tab="display"><span data-i="monitor"></span>Display<kbd>6</kbd></button>
+    <button data-tab="buttons"><span data-i="keyboard"></span>Buttons<kbd>7</kbd></button>
+    <button data-tab="device"><span data-i="gear"></span>Device<kbd>8</kbd></button>
+    <button data-tab="console"><span data-i="terminal"></span>Console<kbd>9</kbd></button>
   </div></nav>
   <div class="side-foot"><div id="side-foot"></div><a href="/?m=1">Phone layout</a></div>
 </aside>
@@ -117,13 +119,23 @@ h2{margin:6px 4px -8px}
   </div>
 </section>
 
+<section class="tab" id="t-radio">
+  <div class="col">
+    <!--@radio-->
+    <!--@stations-->
+  </div>
+  <div class="col">
+    <!--@somafm-->
+  </div>
+</section>
+
 <section class="tab" id="t-speaker">
   <div class="col">
     <!--@speaker-->
   </div>
   <div class="col">
     <div class="card">
-      <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Response<small>What the tone stage does to the sound, 40 Hz to 11 kHz</small></div></div>
+      <div class="ttl"><div class="ic" data-i="speaker-high"></div><div class="t">Response<small>What the equaliser and the tone stage do to the sound, 40 Hz to 11 kHz</small></div></div>
       <div class="body">
         <canvas class="eq" id="eq" width="900" height="300" aria-label="Frequency response of the speaker tuning"></canvas>
         <div class="hint" style="text-align:left;margin-top:10px" id="eq-hint"></div>
@@ -153,12 +165,23 @@ h2{margin:6px 4px -8px}
   <div class="col">
     <h2>Panel</h2>
     <!--@panel-->
-    <h2>Controls</h2>
-    <!--@controls-->
   </div>
   <div class="col">
     <h2>Live dashboard</h2>
     <!--@live-->
+  </div>
+</section>
+
+<section class="tab" id="t-buttons">
+  <div class="col">
+    <h2>Keys</h2>
+    <!--@keys-->
+  </div>
+  <div class="col">
+    <h2>Knob and menus</h2>
+    <!--@knob-->
+    <h2>BOOT button</h2>
+    <!--@bootbtn-->
   </div>
 </section>
 
@@ -197,13 +220,13 @@ h2{margin:6px 4px -8px}
 </script>
 <script>
 /* ---- the desktop shell's own behaviour: pages, the status strip, the response curve ---- */
-const PAGES={room:'Overview',sound:'Sound',speaker:'Speaker',alarms:'Alarms',display:'Display',device:'Device',console:'Console'};
+const PAGES={room:'Overview',sound:'Sound',radio:'Radio',speaker:'Speaker',alarms:'Alarms',display:'Display',buttons:'Buttons',device:'Device',console:'Console'};
 tab=function(t){
   if(!PAGES[t])t='room';
   $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   $$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
   $('#title').textContent=PAGES[t]; try{localStorage.dtab=t;history.replaceState(null,'','#'+t)}catch(e){}
-  $('main').scrollTo(0,0); if(t==='console')logPoll(true); if(t==='sound')loadFiles(); if(t==='speaker')drawEQ();
+  $('main').scrollTo(0,0); if(t==='console')logPoll(true); if(t==='sound')loadFiles(); if(t==='speaker')drawEQ(); if(t==='radio')loadSoma();
 };
 addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,select,textarea'))return;
@@ -235,6 +258,7 @@ function renderExtra(){
 function biq(kind,hz,db,sr){
   const A=Math.pow(10,db/40),w0=2*Math.PI*hz/sr,cw=Math.cos(w0),sw=Math.sin(w0);let b0,b1,b2,a0,a1,a2;
   if(kind==='hp'||kind==='lp'){const al=sw/(2*0.7071);if(kind==='hp'){b0=(1+cw)/2;b1=-(1+cw);b2=b0}else{b0=(1-cw)/2;b1=1-cw;b2=b0}a0=1+al;a1=-2*cw;a2=1-al}
+  else if(kind==='pk'){const al=sw/(2*0.9);b0=1+al*A;b1=-2*cw;b2=1-al*A;a0=1+al/A;a1=-2*cw;a2=1-al/A}
   else{const al=sw/2*Math.SQRT2,sa=2*Math.sqrt(A)*al;
     if(kind==='ls'){b0=A*((A+1)-(A-1)*cw+sa);b1=2*A*((A-1)-(A+1)*cw);b2=A*((A+1)-(A-1)*cw-sa);a0=(A+1)+(A-1)*cw+sa;a1=-2*((A-1)+(A+1)*cw);a2=(A+1)+(A-1)*cw-sa}
     else{b0=A*((A+1)+(A-1)*cw+sa);b1=-2*A*((A-1)+(A+1)*cw);b2=A*((A+1)+(A-1)*cw-sa);a0=(A+1)-(A-1)*cw+sa;a1=2*((A-1)-(A+1)*cw);a2=(A+1)-(A-1)*cw-sa}}
@@ -245,14 +269,14 @@ function mag(c,f,sr){
   const nr=b0+b1*Math.cos(w)+b2*Math.cos(2*w),ni=-(b1*Math.sin(w)+b2*Math.sin(2*w)),dr=1+a1*Math.cos(w)+a2*Math.cos(2*w),di=-(a1*Math.sin(w)+a2*Math.sin(2*w));
   return Math.sqrt((nr*nr+ni*ni)/(dr*dr+di*di));
 }
-const SOFT_HZ=[0,8000,6000,5000,4000,3000],CUT_HZ=[0,60,90,120,160];
+const SOFT_HZ=[0,8000,6000,5000,4000,3000],CUT_HZ=[0,60,90,120,160],EQ_HZ=[80,250,800,2500,7000];
 function drawEQ(){
   const cv=$('#eq'); if(!cv)return;
   const g=cv.getContext('2d'),W=cv.width,H=cv.height,sr=22050;
   const v=id=>+$('#'+id).value, segv=k=>{const b=$(`.seg[data-seg="${k}"] button.on`);return b?+b.dataset.v:0};
-  const gain=v('spk_gain'),bass=v('spk_bass'),treb=v('spk_treble'),soft=segv('spk_soft'),cut=segv('spk_hpf'),lim=segv('spk_limit');
+  const gain=v('spk_gain'),eq=EQ_HZ.map((_,i)=>v('spk_eq'+(i+1))),soft=segv('spk_soft'),cut=segv('spk_hpf'),lim=segv('spk_limit');
   const fs=[];
-  if(cut)fs.push(biq('hp',CUT_HZ[cut],0,sr)); if(bass)fs.push(biq('ls',200,bass,sr)); if(treb)fs.push(biq('hs',3000,treb,sr)); if(soft)fs.push(biq('lp',SOFT_HZ[soft],0,sr));
+  if(cut)fs.push(biq('hp',CUT_HZ[cut],0,sr)); eq.forEach((d,i)=>{if(d)fs.push(biq('pk',EQ_HZ[i],d,sr))}); if(soft)fs.push(biq('lp',SOFT_HZ[soft],0,sr));
   const cs=getComputedStyle(document.body),ink=cs.getPropertyValue('--ink').trim(),sub=cs.getPropertyValue('--sub').trim(),line=cs.getPropertyValue('--line').trim();
   const x=f=>Math.log(f/40)/Math.log(11000/40)*(W-80)+56, y=db=>H-34-(db+24)/36*(H-56);
   g.clearRect(0,0,W,H); g.lineWidth=1; g.font='13px system-ui,sans-serif'; g.fillStyle=sub;
@@ -265,7 +289,7 @@ function drawEQ(){
   g.stroke();
   $('#eq-hint').textContent=(fs.length||gain?'':'Flat: the speaker gets the sound exactly as made. ')+(lim?`Loud moments are held to ${lim===1?'-6':'-12'} dB.`:'');
 }
-['spk_gain','spk_bass','spk_treble'].forEach(id=>$('#'+id).addEventListener('input',drawEQ));
+['spk_gain','spk_eq1','spk_eq2','spk_eq3','spk_eq4','spk_eq5'].forEach(id=>$('#'+id).addEventListener('input',drawEQ));
 $$('.seg[data-seg^="spk_"]').forEach(s=>s.addEventListener('click',()=>setTimeout(drawEQ,0)));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawEQ);
 

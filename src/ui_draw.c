@@ -160,6 +160,17 @@ void local_overlay_row(int y, uint8_t row[IT8951_ROW_BYTES])
  * them while core 1 is still streaming the previous state. */
 static layer_t P_top, P_body, P_sb, P_ring;
 
+/* Every grey to its opposite (white on black): the dark Live page. */
+void layer_invert(layer_t *l)
+{
+    l->bg = (uint8_t)(15 - l->bg);
+    for (int i = 0; i < l->n; i++) {
+        op_t *o = &l->ops[i];
+        o->g = (uint8_t)(15 - o->g);
+        if (o->kind == OP_RING) o->h = (int16_t)(15 - o->h);
+    }
+}
+
 void layer_copy(layer_t *d, const layer_t *s)
 {
     d->n = s->n; d->x = s->x; d->y = s->y; d->w = s->w; d->h = s->h; d->bg = s->bg; d->on = s->on;

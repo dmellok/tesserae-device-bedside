@@ -58,6 +58,8 @@ typedef struct {
     int  night_keys, overlay, show, at_night, tz; bool auto_time;
     int  clock_du;                     /* the strip's clock: 0 full quality (GC16), 1 two-level at night, 2 two-level always (DU: no flash, no partial-refresh fade) */
     bool live_demo;                    /* show realistic sample values on the Live dashboard, not MQTT placeholders */
+    int  live_layout;                  /* the Live page: 0 bento, 1 clock, 2 weather, 3 tonight */
+    int  live_dark;                    /* Live colours: 0 light, 1 dark, 2 dark at night */
     /* screen updates: 0 fast (partial, a full refresh once input settles),
      * 1 clean (every change with GC16, just its area), 2 full (every change
      * repaints the whole screen with GC16) */
@@ -76,7 +78,7 @@ typedef struct {
     /* speaker tuning (spk_dsp.h): level trim and shelves in dB, soften and
      * low-cut as table indexes, how loud moments are held; and the test sound
      * (0 none, 1 pink, 2 1 kHz, 3 100 Hz, 4 sweep), which stops itself */
-    int  spk_gain, spk_bass, spk_treble, spk_soft, spk_hpf, spk_limit;
+    int  spk_gain, spk_eq[5], spk_soft, spk_hpf, spk_limit;    /* spk_eq: SPK_EQ_BANDS, dB per band */
     int  test; uint32_t test_until;
 } local_state_t;
 

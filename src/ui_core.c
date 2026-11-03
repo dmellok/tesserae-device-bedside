@@ -89,6 +89,8 @@ const char *const LOWCUTS[5] = { "Off", "60 Hz", "90 Hz", "120 Hz", "160 Hz" };
 const char *const PEAKS[3]   = { "As they are", "Gentle", "Firm" };
 const char *const TESTS[5]   = { "Stop", "Pink noise", "1 kHz tone", "100 Hz tone", "Sweep" };
 const char *const CLOCKDU[3] = { "Full quality", "Two-level at night", "Two-level always" };
+const char *const LIVE_LAYOUTS[4] = { "Bento", "Big clock", "Weather", "Tonight" };
+const char *const LIVE_DARKS[3]   = { "Light", "Dark", "Dark at night" };
 const int SNOOZE_V[4] = { 5, 9, 10, 15 };
 const char *const RESETS[2]    = { "Keep everything", "Reset everything" };
 local_req_t s_req;
@@ -108,9 +110,9 @@ const char *const REFRESHES[3] = { "Fast", "Clean", "Full" };
 int local_refresh_mode(void) { return S.refresh_mode; }
 /* What keys 1-3 can do, pressed or held (ids as in the action table). */
 const char *const KEYACT_ID[N_KEYACT] = { "rain.toggle", "lights.toggle", "ac.toggle", "dash.prev", "dash.next", "night", "light.night",
-    "alarm.toggle", "open.sound", "open.lights", "open.ac", "open.alarm", "menu", "refresh", "none" };
+    "alarm.toggle", "open.sound", "open.lights", "open.ac", "open.alarm", "menu", "refresh", "live.next", "none" };
 const char *const KEYACT_NAME[N_KEYACT] = { "Rain on/off", "Lights on/off", "AC on/off", "Previous dashboard", "Next dashboard", "Night mode", "Night light",
-    "Alarm on/off", "Open Rain", "Open Lights", "Open AC", "Open Alarms", "Open menu", "Refresh dashboard", "Nothing" };
+    "Alarm on/off", "Open Rain", "Open Lights", "Open AC", "Open Alarms", "Open menu", "Refresh dashboard", "Next Live layout", "Nothing" };
 const char *const KNOBACT_ID[N_KNOBACT]   = { "back", "none", "night", "rain.toggle", "dash.next" };
 const char *const KNOBACT_NAME[N_KNOBACT] = { "Back", "Nothing", "Night mode", "Rain on/off", "Next dashboard" };
 /* Time zones: standard offset and daylight-saving rule (0 none, 1 south-east
@@ -248,6 +250,7 @@ const action_t ACTIONS[] = {
     { "vol.up",        "Volume up" },
     { "vol.down",      "Volume down" },
     { "refresh",       "Refresh dashboard" },
+    { "live.next",     "Next Live layout" },
     { "fetch",         "Fetch frame now" },
     { "dashboard",     "Show dashboard" },
     { "card",          "Show test card" },
@@ -280,6 +283,7 @@ const char *action_icon(const char *spec)
     if (!strcmp(spec, "night")) return ICON_MOON;
     if (!strcmp(spec, "menu")) return ICON_LIST;
     if (!strcmp(spec, "refresh") || !strcmp(spec, "fetch")) return ICON_HOUSE;
+    if (!strcmp(spec, "live.next")) return ICON_SUN_HORIZON;
     return ICON_KEYBOARD;
 }
 
@@ -295,6 +299,7 @@ const char *local_label_for_action(const char *spec)
     if (!strcmp(spec, "light.night"))   return "Night light";
     if (!strcmp(spec, "dash.next"))     return "Next page";
     if (!strcmp(spec, "dash.prev"))     return "Prev page";
+    if (!strcmp(spec, "live.next"))     return "Layout";
     if (!strcmp(spec, "open.ac"))       return "AC";
     if (!strncmp(spec, "open.", 5))     { snprintf(b, sizeof b, "%c%s", spec[5] - 32, spec + 6); return b; }
     if (!strcmp(spec, "menu"))          return "Menu";
@@ -337,7 +342,7 @@ void rebuild(void)
     L_body.on = L_ring.on = false;
     bool ring = S.phase == PHASE_RINGING;
     build_top(&L_top, ring);
-    build_status(&L_sb, ring);
+    build_status(&L_sb, ring || (s_mode == M_HOME && S.dash_page == 0 && S.phase != PHASE_RINGING && live_dark_now()));
     if (ov_active()) { L_top.on = false; build_overlay(&L_sb); }     /* Mk II home: the dashboard and one overlay */
     if (ring) build_ring(&L_ring);
     else if (s_toast_until) build_toast(&L_ring);

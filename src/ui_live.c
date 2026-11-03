@@ -94,7 +94,7 @@ void build_status(layer_t *l, bool inv)
  * 4 x 2 bento of soft tiles; black only for what needs you. Values come from
  * live.c (Home Assistant) and the device's own state. */
 
-static const bfont_t *fit(const char *t, int w, const bfont_t *a, const bfont_t *b, const bfont_t *c)
+const bfont_t *lv_fit(const char *t, int w, const bfont_t *a, const bfont_t *b, const bfont_t *c)
 {
     if (draw_font_w(a, t) <= w) return a;
     if (draw_font_w(b, t) <= w) return b;
@@ -108,12 +108,12 @@ static const char *const DEMO_VALUES[LV_COUNT] = {
     [LV_BINS] = "Recycling", [LV_BINS_WHEN] = "Out tonight", [LV_EVENT] = "09:00 Dentist",
 };
 
-static const char *live_val(int slot)
+const char *live_val(int slot)
 {
     return S.live_demo ? DEMO_VALUES[slot] : live_value(slot);
 }
 
-static bool live_is_known(int slot)
+bool live_is_known(int slot)
 {
     return S.live_demo || live_known(slot);
 }
@@ -126,7 +126,7 @@ static bool is_num(const char *v)
 }
 
 /* "21.43" -> "21.4°", anything else as it came; "--" when unknown. */
-static void fmt_temp(int slot, char *b, size_t n)
+void fmt_temp(int slot, char *b, size_t n)
 {
     const char *v = live_val(slot);
     if (!v[0]) { snprintf(b, n, "--"); return; }
@@ -135,7 +135,7 @@ static void fmt_temp(int slot, char *b, size_t n)
 }
 
 /* "unlocked" -> "Unlocked"; underscores to spaces. */
-static void fmt_word(const char *v, char *b, size_t n)
+void fmt_word(const char *v, char *b, size_t n)
 {
     if (!v[0]) { snprintf(b, n, "--"); return; }
     size_t k = 0;
@@ -150,14 +150,73 @@ static bool word_in(const char *v, const char *const *list)
     return false;
 }
 
-static void card_title(layer_t *l, int x, int y, const char *icon, const char *label, bool dark)
+void card_title(layer_t *l, int x, int y, const char *icon, const char *label, bool dark)
 {
     uint8_t fg = dark ? G_WHITE : G_BLACK;
     op_text(l, x + 32, y + 28, F_IM, fg, icon);
     op_text(l, x + 32 + draw_font_w(F_IM, icon) + 18, y + 26, F_M, fg, label);
 }
 
+bool live_dark_now(void) { return S.live_dark == 1 || (S.live_dark == 2 && S.night); }
+void live_layout_changed(void) { if (s_mode == M_HOME && S.dash_page == 0) mark_screen(); }
+
+/* The next alarm: time, early window (10 min when not set) and seconds away; demo: 06:30. */
+bool live_alarm(int *h, int *m, int *early, int32_t *delta)
+{
+    int ai, on, mask, e = 15; *h = 6; *m = 30; *delta = 12 * 3600;
+    if (S.live_demo) { *early = 15; return true; }
+    if (!next_alarm(&ai, delta)) return false;
+    local_alarm_get(ai, h, m, &on, &mask, &e);
+    *early = e > 0 ? e : 10;
+    return true;
+}
+/* Sunrise, minutes after local midnight, for the morning the alarm at alarm_min is on; -1 unknown. Demo: 06:42. */
+int live_sunrise_today(int alarm_min)
+{
+    if (S.live_demo) return 6 * 60 + 42;
+    int wd, sec; int64_t mn; int y = 0, mo = 0, d = 0;
+    if (!clock_now(&wd, &sec, &mn) || sscanf(tesserae_local_time(), "%d-%d-%d", &y, &mo, &d) != 3) return -1;
+    return live_sunrise_min(y, mo, d + (sec / 60 > alarm_min ? 1 : 0), tesserae_tz_offset_s());
+}
+/* "Rain 3 · stops 23:40", "Drone Zone", "Paused"; demo: "Lush". */
+void live_sound_line(char *b, size_t n)
+{
+    int wd, sec; int64_t mn; int left = S.live_demo ? 5 * 3600 : sleep_left_s();
+    char stops[24] = "";
+    if (left > 0 && clock_now(&wd, &sec, &mn)) snprintf(stops, sizeof stops, " " DOT " stops %02d:%02d", (sec + left) / 60 % 1440 / 60, (sec + left) / 60 % 60);
+    if (S.live_demo) snprintf(b, n, "Lush%s", stops);
+    else if (!S.rain_on) snprintf(b, n, "Paused");
+    else if (S.rain_kind == RS_RADIO) snprintf(b, n, "%.30s%s", radio_station(), stops);
+    else snprintf(b, n, "%s %d%s", KINDS[S.rain_kind], S.rain_lvl, stops);
+}
+/* "All clear", "Front door open", "Washing done"; attention set when something needs you. */
+void live_home_line(char *b, size_t n, bool *attention)
+{
+    static const char *const SHUT[] = { "locked", "closed", "off", "shut", NULL };
+    static const char *const DONE[] = { "done", "finished", "complete", "completed", "end", NULL };
+    static const int SL[3] = { LV_FRONT, LV_BACK, LV_GARAGE };
+    static const char *const SN[3] = { "Front door", "Back door", "Garage" };
+    int known = 0; *attention = false;
+    for (int i = 0; i < 3; i++) if (live_is_known(SL[i])) { known++; if (!word_in(live_val(SL[i]), SHUT)) {
+        char c[40]; fmt_word(live_val(SL[i]), c, sizeof c); c[0] = (char)tolower((unsigned char)c[0]);
+        snprintf(b, n, "%s %.20s", SN[i], c); *attention = true; return; } }
+    if (word_in(live_val(LV_WASHER), DONE)) { snprintf(b, n, "Washing done"); *attention = true; return; }
+    if (known || live_is_known(LV_WASHER)) snprintf(b, n, "All clear"); else snprintf(b, n, "No reports yet");
+}
+
+static void build_live_bento(layer_t *l);
 void build_live(layer_t *l)
+{
+    switch (S.live_layout) {
+    case 1:  build_live_clock(l); break;
+    case 2:  build_live_weather(l); break;
+    case 3:  build_live_tonight(l); break;
+    default: build_live_bento(l); break;
+    }
+    if (live_dark_now()) layer_invert(l);
+}
+
+static void build_live_bento(layer_t *l)
 {
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_WHITE);
     char b[96], c[96];
@@ -174,10 +233,12 @@ void build_live(layer_t *l)
     int ah = 6, am = 30, aon = 0, amask = 0, early = 15;
     if (S.live_demo) delta = 12 * 3600;
     else if (alarm) local_alarm_get(ai, &ah, &am, &aon, &amask, &early);
-    op_rrect(l, LV_RIGHT_X, LV_HEAD_Y, LV_RIGHT_W, LV_HEAD_H, 36, G_BLACK);
-    card_title(l, LV_RIGHT_X, LV_HEAD_Y, ICON_ALARM, "Tonight", true);
+    bool dk = live_dark_now();                      /* inverted after building: a light card here reads dark grey on the glass */
+    uint8_t tn_bg = dk ? 0xD : G_BLACK, tn_fg = dk ? G_BLACK : G_WHITE;
+    op_rrect(l, LV_RIGHT_X, LV_HEAD_Y, LV_RIGHT_W, LV_HEAD_H, 36, tn_bg);
+    card_title(l, LV_RIGHT_X, LV_HEAD_Y, ICON_ALARM, "Tonight", !dk);
     if (alarm) snprintf(b, sizeof b, "%02d:%02d", ah, am); else snprintf(b, sizeof b, "No alarm");
-    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 96, F_XL, G_WHITE, b);
+    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 96, F_XL, tn_fg, b);
     if (alarm) {
         int mins = (delta + 59) / 60;
         static const char *const DAYF[7] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
@@ -190,12 +251,12 @@ void build_live(layer_t *l)
     } else snprintf(c, sizeof c, "Set one from Menu, Alarms");
     {   /* beside the value, however wide it is: "No alarm" in F_XL is 398 px */
         int hx = LV_RIGHT_X + 40 + draw_font_w(F_XL, b) + 30, hw = LV_RIGHT_X + LV_RIGHT_W - 40 - hx;
-        op_text(l, hx, LV_HEAD_Y + 142, fit(c, hw, F_M, F_LBL, F_LBL), G_WHITE, c);
+        op_text(l, hx, LV_HEAD_Y + 142, lv_fit(c, hw, F_M, F_LBL, F_LBL), tn_fg, c);
     }
     int win = early > 0 ? early : 10, cm = ((ah * 60 + am - win) % 1440 + 1440) % 1440;   /* alarm_window_s(): 10 min when not set */
     if (alarm) snprintf(b, sizeof b, "%s %02d:%02d", S.live_demo || S.birds ? "Dawn chorus" : "Wake window", cm / 60, cm % 60);
     else snprintf(b, sizeof b, "No wake window");
-    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 226, F_M, G_WHITE, b);
+    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 226, F_M, tn_fg, b);
     int left = S.live_demo ? 5 * 3600 : sleep_left_s();
     if (left > 0 && have_clock) snprintf(b, sizeof b, "%02d:%02d", (sec + left) / 60 % 1440 / 60, (sec + left) / 60 % 60);
     else snprintf(b, sizeof b, "--");
@@ -208,14 +269,14 @@ void build_live(layer_t *l)
     }
     if (sunrise >= 0) snprintf(c, sizeof c, "Sound %.5s " DOT " sunrise %02d:%02d", b, sunrise / 60, sunrise % 60);
     else snprintf(c, sizeof c, "Sound %.5s", b);
-    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 288, fit(c, LV_RIGHT_W - 80, F_LBL, F_LBL, F_S), G_WHITE, c);
+    op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 288, lv_fit(c, LV_RIGHT_W - 80, F_LBL, F_LBL, F_S), tn_fg, c);
 
     op_rrect(l, 36, LV_ROW1, LV_LEFT_W, LV_TILE_H, 36, 0xE);
     card_title(l, 36, LV_ROW1, ICON_CLOUD_SUN, "Outside", false);
     fmt_temp(LV_OUT_TEMP, b, sizeof b);
     op_text(l, 68, LV_ROW1 + 110, F_XL, G_BLACK, b);
     fmt_word(live_val(LV_OUT_COND), c, sizeof c);
-    op_text(l, 68, LV_ROW1 + 232, fit(c, LV_LEFT_W - 64, F_M, F_M, F_LBL), G_BLACK, c);
+    op_text(l, 68, LV_ROW1 + 232, lv_fit(c, LV_LEFT_W - 64, F_M, F_M, F_LBL), G_BLACK, c);
     char hi[16], lo[16]; fmt_temp(LV_OUT_HI, hi, sizeof hi); fmt_temp(LV_OUT_LO, lo, sizeof lo);
     snprintf(c, sizeof c, "High %s " DOT " Low %s", hi, lo);
     op_text(l, 68, LV_ROW1 + 294, F_M, G_BLACK, c);
@@ -260,14 +321,14 @@ void build_live(layer_t *l)
     if (dark) snprintf(b, sizeof b, "Attention");
     else if (known || live_is_known(LV_WASHER)) snprintf(b, sizeof b, "All clear");
     else snprintf(b, sizeof b, "--");
-    op_text(l, LV_HOME_X + 32, LV_ROW1 + 108, fit(b, LV_SMALL_W - 64, &ui72, F_M, F_M), dark ? G_WHITE : G_BLACK, b);
+    op_text(l, LV_HOME_X + 32, LV_ROW1 + 108, lv_fit(b, LV_SMALL_W - 64, &ui72, F_M, F_M), dark ? G_WHITE : G_BLACK, b);
     if (open >= 0) {
         fmt_word(live_val(SL[open]), c, sizeof c); c[0] = (char)tolower((unsigned char)c[0]);
         char detail[64]; snprintf(detail, sizeof detail, "%.20s %.30s", SN[open], c);
-        op_text(l, LV_HOME_X + 32, LV_ROW1 + 214, fit(detail, LV_SMALL_W - 64, F_M, F_LBL, F_LBL), G_WHITE, detail);
+        op_text(l, LV_HOME_X + 32, LV_ROW1 + 214, lv_fit(detail, LV_SMALL_W - 64, F_M, F_LBL, F_LBL), G_WHITE, detail);
     } else {
         fmt_word(live_val(LV_WASHER), c, sizeof c);
-        op_text(l, LV_HOME_X + 32, LV_ROW1 + 214, fit(c, LV_SMALL_W - 64, F_M, F_LBL, F_LBL), dark ? G_WHITE : G_BLACK, c);
+        op_text(l, LV_HOME_X + 32, LV_ROW1 + 214, lv_fit(c, LV_SMALL_W - 64, F_M, F_LBL, F_LBL), dark ? G_WHITE : G_BLACK, c);
         if (known) snprintf(c, sizeof c, "%d of 3 doors shut", known); else snprintf(c, sizeof c, "No door reports");
         op_text(l, LV_HOME_X + 32, LV_ROW1 + 264, F_LBL, dark ? G_WHITE : G_BLACK, c);
     }
@@ -276,7 +337,7 @@ void build_live(layer_t *l)
     card_title(l, LV_RIGHT_X, LV_ROW2, ICON_CALENDAR_BLANK, "Reminders", false);
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 100, F_M, G_BLACK, "Bins");
     fmt_word(live_val(LV_BINS), b, sizeof b);
-    op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 158, fit(b, 440, &ui72, F_M, F_LBL), G_BLACK, b);
+    op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 158, lv_fit(b, 440, &ui72, F_M, F_LBL), G_BLACK, b);
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 254, F_LBL, G_BLACK, live_val(LV_BINS_WHEN));
     op_fill(l, 1290, LV_ROW2 + 36, 2, LV_REM_H - 72, 0xA);
     op_text(l, 1340, LV_ROW2 + 100, F_M, G_BLACK, "Next event");
@@ -286,8 +347,8 @@ void build_live(layer_t *l)
         const char *rest = event + 5; while (*rest == ' ' || *rest == '-') rest++;
         snprintf(b, sizeof b, "%02d:%02d", eh, em);
         op_text(l, 1340, LV_ROW2 + 158, &ui72, G_BLACK, b);
-        op_text(l, 1340, LV_ROW2 + 254, fit(rest, 450, F_LBL, F_LBL, F_S), G_BLACK, rest);
-    } else op_text(l, 1340, LV_ROW2 + 158, fit(event, 450, &ui72, F_M, F_LBL), G_BLACK, event);
+        op_text(l, 1340, LV_ROW2 + 254, lv_fit(rest, 450, F_LBL, F_LBL, F_S), G_BLACK, rest);
+    } else op_text(l, 1340, LV_ROW2 + 158, lv_fit(event, 450, &ui72, F_M, F_LBL), G_BLACK, event);
 }
 
 /* Which regions to repaint for a change of live slot s. */
@@ -422,19 +483,22 @@ bool local_live_tick_inner(void)
     if (mn != last_min) {
         last_min = mn;
         rebuild();
-        mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the digits that changed, not the whole header */
+        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);
+        else mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the digits that changed, not the whole header */
         any = true;
     }
     if (sig != last_sig) {
         last_sig = sig;
         rebuild();
-        mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);
-        mark(LV_RIGHT_X, LV_ROW1, LV_SMALL_W, LV_SMALL_H, IT8951_MODE_GL16);
+        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
+        else { mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);
+               mark(LV_RIGHT_X, LV_ROW1, LV_SMALL_W, LV_SMALL_H, IT8951_MODE_GL16); }
         any = true;
     }
     if (changed) {
         rebuild();
-        for (int i = 0; i < LV_COUNT; i++) if (changed & (1u << i)) live_mark_slot(i);
+        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
+        else for (int i = 0; i < LV_COUNT; i++) if (changed & (1u << i)) live_mark_slot(i);
         any = true;
     }
     return any;

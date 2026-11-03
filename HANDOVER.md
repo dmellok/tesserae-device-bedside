@@ -868,3 +868,48 @@ list fetched from SomaFM's API.
   (`gh release edit v0.5.0 --notes-file`). It carries the radio, the bento,
   Demo data, the Live clock in DU and the second panel's defaults (VCOM 1450,
   SPI 3.75 MHz). Build the first panel with `-DEPD_VCOM_MV=1480`.
+
+## 2026-11-03, late: the keys follow the page, an equaliser, Live layouts, web Radio and Buttons pages
+
+Kayden's list after 0.5.0, built and verified on the glass over USB
+(`tools/flash.sh`), with the panel driven through `/api/cmd` (`key=N`,
+`menu=open`, `set=live_layout|N`) and `/frame?s=2` turned into PNGs by a
+pure-Python script (no PIL on this Mac).
+
+- **The keys follow the page.** `key_role()` in `src/ui_menu.c` decides what
+  each key does on the screen that is showing, and `build_top()` draws an icon
+  (or a drawn chevron, minus or plus: the icon font has none) and a word under
+  each key; the orange key is framed. Dashboard: the bindings as before. Lists
+  and choices: Up, Down, Select, Back. Sliders: Less, More, Done, Back.
+  `local_key()` routes keys 1-3 to `local_turn()` / `local_press()` inside
+  the menus (no hold wait there: `local_key_has_hold()` is false), so a key
+  no longer toggles the lights from inside a menu. `/api/state`
+  `inputs.labels` reports the current roles; the web key map shows the
+  dashboard bindings and says what the keys do in the menus.
+- **A five-band equaliser with presets** replaces the bass and treble shelves
+  (`spk_dsp.h`): peaking filters at 80, 250, 800, 2500 and 7000 Hz, Q 0.9,
+  -12..+12 dB; presets Flat, Warm, Bright, Voice, Night, Bass
+  (`SPK_PRESETS`), "Custom" when the bands match none. API `spk_eq1..5`,
+  `spk_preset` (0-5; -1 is Custom and does nothing); state `spk.eq[]`,
+  `spk.preset`. Stored in `rsv1[17..22]` of the hardware blob (marker, then
+  the bands); an older blob maps bass to the two low bands and treble to the
+  two high ones (the bench panel's -1 / -5 became -1, 0, 0, -2, -5). Panel:
+  Settings > Device > Speaker tuning (Preset, five bands, Level, ...). Web:
+  the Speaker card and the desktop response curve. Tests:
+  `equaliser_bands_shape_the_sound`, `presets_are_recognised`.
+- **Live layouts** (Settings > Home screen > Live layout; web Home screen
+  card; API `live_layout` 0-3): Bento, Big clock, Weather, Tonight, in
+  `src/ui_pages.c` (the bento stays in `ui_live.c`, which exports its helpers:
+  `live_val`, `fmt_temp`, `card_title`, `lv_fit`, `live_alarm`,
+  `live_sound_line`, `live_home_line`). **Live colours** (`live_dark` 0-2:
+  Light, Dark, Dark at night) inverts the finished layer (`layer_invert()`)
+  and the status bar; the bento's Tonight card is drawn light so it reads
+  dark grey after inversion. The other layouts repaint by `mark_changed()`
+  over the whole body (the minute tick in DU when Clock updates says so). Key
+  action `live.next` ("Next Live layout") cycles them. Blob: `rsv1[23]`,
+  `rsv1[24]` (+1).
+- **Web app:** Radio has its own page (desktop key 3; a phone tab): on/off,
+  station, now playing, every SomaFM channel as a two-line list, the seven
+  presets. The Sound card only points there when the kind is Radio. Buttons
+  (desktop key 7; a phone section) holds the keys, knob and menus, key lights
+  and the BOOT button; Display no longer has Controls. Pages are now 1-9.
