@@ -53,8 +53,9 @@
                                    rounded UP to an integer (fractional ones
                                    jitter SCK below the IT8951's minimum), so
                                    the steps are 18.75 / 12.5 / 9.375 / 7.5 MHz.
-                                   18.75 MHz read back corrupted device info
-                                   through the adapter; 12.5 MHz is clean. */
+                                   18.75 MHz read back corrupted device info.
+                                   The product build overrides this to 4 MHz
+                                   (actually 3.75 MHz); see platformio.ini. */
 #endif
 
 /* Bring up the PIO SPI on SCLK/MOSI/miso_pin plus the CS/RST/HRDY GPIOs. CS

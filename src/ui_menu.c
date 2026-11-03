@@ -153,6 +153,7 @@ static int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 5; i++) r[n++] = (row_def_t){ T_SHOW, K_TOGGLE, SHOW_L[i], SHOW_I[i], i };
         r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", ICON_MOON, 0 };
         r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", ICON_SUN, 0 };
+        r[n++] = (row_def_t){ T_DEMO, K_TOGGLE, "Demo data", ICON_CLOUD_SUN, 0 };
         r[n++] = (row_def_t){ I_VIEWPORT, K_INFO, "Tesserae gets", ICON_WIFI_HIGH, 0 };
         break; }
     case N_NIGHTG:
@@ -300,6 +301,7 @@ static bool toggle_get(const row_def_t *r)
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus; case T_SETTLEFULL: return S.settle_full;
+    case T_DEMO: return S.live_demo;
     case T_NIGHT: return S.night; default: return false;
     }
 }
@@ -320,6 +322,7 @@ void toggle_flip(const row_def_t *r)
     case T_TURNHINTS: S.turn_hints = !S.turn_hints; break;
     case T_QUICKMENU: S.quick_menus = !S.quick_menus; break;
     case T_SETTLEFULL: S.settle_full = !S.settle_full; break;
+    case T_DEMO:    S.live_demo = !S.live_demo; break;
     case T_POWERMON: S.power_mon = !S.power_mon; if (!S.power_mon) S.on_battery = false; break;
     case T_AUTOTIME: S.auto_time = !S.auto_time; if (!S.auto_time) manual_start(); rebuild(); break;
     case T_BIRD:   S.birds ^= (uint16_t)(1u << r->arg);

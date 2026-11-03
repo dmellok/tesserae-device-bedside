@@ -809,3 +809,46 @@ list fetched from SomaFM's API.
   A step inside the window repaints two rows (DU, as before); a step that
   moves the window repaints the list (`mark_list()`). Shorter lists are
   unchanged. `s_rows` holds `ROWS_MAX` (72) rows.
+
+## 2026-11-03, evening: the fade isolated again
+
+- The bare `paintest` firmware reproduced both a washed-out INIT + GC16 wedge
+  and progressively lighter identical partials, so the application was not the
+  baseline cause. Rated VCOM, slower SPI and Waveshare's 8-bit word-by-word
+  path each helped a little, but none was sufficient alone. Replacing the
+  cables and moving from Mac USB to an external supply also each helped.
+- **The combination produced a clean wedge:** replacement cables, external
+  power, rated **-1.48 V**, and SPI **4 MHz requested / 3.75 MHz actual**.
+  Those are now the build defaults. Do not connect PowerBoost and Mac USB
+  together without the Schottky diode in the wiring guide.
+- Nine ordinary GC16 partials still faded the Live page at that clean baseline;
+  the 15-second settle refresh restored it. The Live minute clock now honours
+  **Clock updates** too, using DU when two-level updates are active. The default
+  is **Two-level always** for both the Live clock and the strip. Grey cards and
+  other partials keep GC16 and the full clean-refresh policy. Flashed and
+  verified on the glass: the next minute painted the same 143 x 266 column in
+  DU (426 ms) and the column stayed clean.
+- A second ED103TC2, labelled **-1.45 V**, then passed the same clean-ramp and
+  clean-DU-minute checks. The build default is now **1450 mV for that installed
+  second panel**; the first panel must be built with 1480 mV instead.
+- `tools/flash.sh paintest` was never a valid command: the script treats its
+  argument as log seconds and builds the normal image. Build with
+  `pio run -e paintest` and load `.pio/build/paintest/firmware.uf2` into the
+  booting slot with `picotool load -x -p <slot>`.
+
+## 2026-11-03, evening: the new Live bento
+
+- The replacement Live dashboard is an asymmetric six-tile bento in
+  `src/ui_live.c`: Clock, dark Tonight, tall Outside with rain forecast,
+  Bedroom (including humidity and A/C), Home (security and washing), and a wide
+  Reminders tile (bins and next event). The 214 px clock fits its tile; body
+  labels use larger black text rather than small grey type.
+- **Demo data** fills realistic values without changing MQTT configuration.
+  It is in panel Settings > Home screen and the web app's Home screen card,
+  persists in the hardware settings blob (`rsv0` bit 5), and has API key
+  `live_demo`. The currently flashed panel has it enabled.
+- Home turns black for an open door or finished washing. Real values still use
+  the same MQTT sources documented in `docs/live-dashboard.md`.
+- Verified with the populated bento: the minute updated the clock and demo
+  sound-time in DU (two areas, 140 x 266 and 451 x 50) and every tile stayed
+  clean. All host tests and the firmware build passed.

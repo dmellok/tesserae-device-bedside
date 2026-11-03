@@ -55,6 +55,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "show"))       { if (v < 0 || v > 31) return false; S.show = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 1) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "clock_du"))   { if (v < 0 || v > 2) return false; S.clock_du = v; rebuild(); if (ov_active()) mark_ov(); return true; }
+    else if (!strcmp(key, "live_demo"))  { S.live_demo = v != 0; if (s_mode == M_HOME && S.dash_page == 0) mark_screen(); return true; }
     else if (!strcmp(key, "tz"))         { if (v < 0 || v >= N_TZ) return false; S.tz = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "autoupdate"))   { S.auto_update = v != 0; return true; }
     else if (!strcmp(key, "speaker"))      { S.speaker = v != 0; publish("config/speaker", S.speaker ? "on" : "off"); return true; }
@@ -184,7 +185,7 @@ static void ext_pack(ext_blob_t *b)
     memset(b, 0, sizeof *b);
     b->speaker = S.speaker; b->power_mon = S.power_mon;
     b->rsv0 = (uint8_t)((S.turn_hints ? 0 : 1) | (S.quick_menus ? 0 : 2) | (S.settle_full ? 4 : 0)     /* bits 0-1 set = off (older blobs read as on); bit 2 set = on */
-                        | ((S.clock_du + 1) & 3) << 3);                                                 /* bits 3-4: clock updates + 1 (0 = not set yet) */
+                        | ((S.clock_du + 1) & 3) << 3 | (S.live_demo ? 0x20 : 0));                       /* bits 3-4: clock updates + 1; bit 5: Live demo */
     b->pad = (uint8_t)S.clean_min;
     b->spk_gain = (int8_t)S.spk_gain; b->spk_bass = (int8_t)S.spk_bass; b->spk_treble = (int8_t)S.spk_treble;
     b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
@@ -200,6 +201,7 @@ void ext_load(void)
         S.speaker = b.speaker; S.power_mon = b.power_mon;
         S.turn_hints = !(b.rsv0 & 1); S.quick_menus = !(b.rsv0 & 2); S.settle_full = (b.rsv0 & 4) != 0;
         if ((b.rsv0 >> 3) & 3) S.clock_du = ((b.rsv0 >> 3) & 3) - 1;
+        S.live_demo = (b.rsv0 & 0x20) != 0;
         S.clean_min = (b.pad >= 1 && b.pad <= 240) ? b.pad : 10;
         S.spk_gain = clampi(b.spk_gain, -12, 6); S.spk_bass = clampi(b.spk_bass, -8, 8); S.spk_treble = clampi(b.spk_treble, -12, 6);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
@@ -307,8 +309,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"turn_hints\":%d,\"clock_du\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.turn_hints, S.clock_du, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"clock_du\":%d,\"live_demo\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.clock_du, S.live_demo, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

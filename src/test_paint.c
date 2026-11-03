@@ -5,7 +5,8 @@
  * one thing at a time can be changed from the USB serial port while someone
  * looks at the glass.
  *
- * Build and load:  pio run -e paintest;  tools/flash.sh paintest
+ * Build: pio run -e paintest
+ * Load:  picotool load -x -p <booting slot> .pio/build/paintest/firmware.uf2
  * Then (115200 baud, DTR on):
  *   ?        this help            s   status: dev info, VCOM, temperature (two words)
  *   r        INIT, then a 16-step wedge (vertical bars) with GC16

@@ -99,16 +99,17 @@
 
 /* the live dashboard */
 #define LV_HEAD_Y    170
-#define LV_HEAD_H    242
-#define LV_TL_Y      442
-#define LV_TL_H      126
-#define LV_ROW1      590
-#define LV_ROW2      934
-#define LV_TILE_H    322
-#define LV_COL_W     418
-#define LV_GAP       22
-#define LV_COL(i)    (MARGIN + (i) * (LV_COL_W + LV_GAP))
-#define G_TILE       0xE
+#define LV_HEAD_H    350
+#define LV_ROW1      560
+#define LV_ROW2      894
+#define LV_LEFT_W    700
+#define LV_RIGHT_X   760
+#define LV_RIGHT_W   (W - 36 - LV_RIGHT_X)
+#define LV_SMALL_W   524
+#define LV_HOME_X    1308
+#define LV_TILE_H    664
+#define LV_SMALL_H   310
+#define LV_REM_H     330
 
 /* value sliders */
 #define TRACK_X  (MARGIN + 180)
@@ -179,7 +180,7 @@ typedef enum {
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
-    C_CLOCKDU, C_STATION,
+    C_CLOCKDU, T_DEMO, C_STATION,
     /* the Radio section: on/off, my stations, every SomaFM channel */
     T_RADIO, S_RADIO, S_STATIONS, A_SOMA, A_STATION,
 } item_t;
@@ -364,6 +365,7 @@ void build_overlay(layer_t *l);
 void build_toast(layer_t *l);
 void fmt_hm(char *b, size_t n, int mins);
 void mark_ov(void);
+bool clock_du_active(void);
 bool strip_du(void);
 int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *ct);
 void overlay_apply(void);

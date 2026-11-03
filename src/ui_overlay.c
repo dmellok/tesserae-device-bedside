@@ -114,13 +114,18 @@ int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const cha
     return x - x0;
 }
 
-/* The strip's clock painted two-level (DU): no flash, and none of the GC16
- * partial-refresh fade overnight; the digits are black and white, so no
- * anti-aliasing. Settings > Home screen > Clock updates. The card layouts
- * keep GC16: their grey cards would threshold to white. */
+/* Clocks painted two-level (DU): no flash, and none of the GC16 partial-refresh
+ * fade; the digits are black on white, so no anti-aliasing. Settings > Home
+ * screen > Clock updates. The card layouts keep GC16: their grey cards would
+ * threshold to white. */
+bool clock_du_active(void)
+{
+    return S.clock_du == 2 || (S.clock_du == 1 && S.night);
+}
+
 bool strip_du(void)
 {
-    return ov_kind() == 0 && (S.clock_du == 2 || (S.clock_du == 1 && S.night));
+    return ov_kind() == 0 && clock_du_active();
 }
 
 void build_overlay(layer_t *l)

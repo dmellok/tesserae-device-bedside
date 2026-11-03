@@ -44,7 +44,7 @@ local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 1, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
+    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = true, .quick_menus = true, .settle_full = false, .clean_min = 10,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 1, .tz = 0, .auto_time = true, .refresh_mode = 1,
 };
 char s_date[40];

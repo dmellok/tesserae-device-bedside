@@ -1,6 +1,8 @@
 # The live dashboard: feeding it from Home Assistant
 
-The panel's first dashboard, **Live**, is drawn on the device: the clock, the next alarm, tonight's timeline, and seven tiles. The A/C tile, the alarm, the sleep timer and sunrise come from the panel itself. The other tiles read Home Assistant over the same MQTT connection the panel already uses for discovery. No Home Assistant token is needed.
+The panel's first dashboard, **Live**, is drawn on the device as an asymmetric bento: a large clock tile, a dark Tonight tile, a tall Outside tile with the rain forecast, and Bedroom, Home and Reminders tiles. Bedroom includes humidity and A/C; Home combines security and washing; Reminders combines bins and the next event. The alarm, sleep timer and sunrise come from the panel itself. The other values read Home Assistant over the same MQTT connection the panel already uses for discovery. No Home Assistant token is needed.
+
+To evaluate the layout with populated tiles, turn on **Settings → Home screen → Demo data** on the panel or **Home screen → Demo data** in the web app. The option persists and substitutes realistic sample values without changing the MQTT configuration; turn it off to return to live values.
 
 Each tile has a **source**, set in the web app under Device › Live dashboard. A source can be:
 
@@ -12,7 +14,7 @@ Each tile has a **source**, set in the web app under Device › Live dashboard. 
 |---|---|---|
 | Outside | `outside_temp`, `outside_cond`, `outside_high`, `outside_low` | numbers, and a condition such as `rainy` or `partlycloudy` |
 | Chance of rain | `rain_hourly` | up to 8 numbers, `70,60,45,30,20,10,5,5` (now, +1 h, ...) |
-| Bedroom | `bedroom_temp`, `bedroom_humidity` | numbers; the panel draws the 12-hour trend itself |
+| Bedroom | `bedroom_temp`, `bedroom_humidity` | numbers; humidity appears beside the A/C state |
 | Washing | `washer` | any text; `done`, `finished` or `complete` turn the tile black |
 | Security | `front_door`, `back_door`, `garage` | `locked`, `closed`, `off` or `shut` count as shut; anything else turns the tile black |
 | Bins | `bins`, `bins_when` | text, such as `Recycling` and `Out tonight` |

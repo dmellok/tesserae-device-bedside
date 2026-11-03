@@ -27,7 +27,7 @@ the web page. Audio, battery sensing and MQTT follow (see
 ## How it works
 
 ```
- Tesserae server ──(REST, http)──► Pico Plus 2 W ──(PIO SPI 12.5 MHz)──► IT8951 ──► 10.3" glass
+ Tesserae server ──(REST, http)──► Pico Plus 2 W ──(PIO SPI 3.75 MHz)──► IT8951 ──► 10.3" glass
    renders the dashboard,            PSRAM frame buffer 1,314,144 B
    dithers to 16 greys,              + menu / banner overlays (row generator)
    packs 4 bpp (esp32_gray_bin)      + bench web UI on port 80
@@ -76,7 +76,7 @@ boot). Everything else is a build flag; the list is at the top of
 [platformio.ini](platformio.ini). The important one is already set:
 
 ```
--DEPD_VCOM_MV=1480     ; "-1.48V" on this panel's FPC label
+-DEPD_VCOM_MV=1450     ; "-1.45V" on the installed panel's FPC label
 ```
 
 ## First run
@@ -191,9 +191,10 @@ The old Remote tab (glass preview and virtual controller) is gone;
 
 Adapter pin map (the vendor PDF is wrong; found by the firmware's pin discovery):
 SCK GP10, MOSI GP11, **MISO GP12**, CS GP8, RST GP17, **HRDY GP1**. HRDY stays
-low ~820 ms after reset. 12.5 MHz SPI is clean; 18.75 MHz corrupts reads.
-Full-frame GC16: ~845 ms stream + ~630 ms refresh. A2 partial of the menu
-box: ~0.2 s + ~0.2 s. Controller reports LUT `M841_TFA5210`, image buffer
+low ~820 ms after reset. The production build requests 4 MHz SPI (3.75 MHz
+actual with the integer PIO divider); 18.75 MHz corrupts reads. Full-frame
+GC16: ~2.8 s stream + ~0.76 s refresh at that clock. A2 partial of the menu
+box: ~0.2 s + ~0.2 s at the original 12.5 MHz bench clock. Controller reports LUT `M841_TFA5210`, image buffer
 `0x00119F00`. Details and timings in [HANDOVER.md](HANDOVER.md).
 
 ## Known limitations
