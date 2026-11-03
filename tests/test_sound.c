@@ -127,6 +127,7 @@ static void bad_recording_falls_back_to_rain(void)
 static void every_sound_stays_in_range(void)
 {
     for (int k = 0; k < RS_KINDS; k++) for (int l = 1; l <= 5; l += 2) {
+        if (k == RS_RADIO) continue;                                 /* needs a stream: its own test below */
         uint32_t len = adp_encode(src, SR * 3, file, SR);
         rs_init(7);
         rs_params_t p = { .on = true, .kind = k, .level = l, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .thunder = 100, .thunder_near = 100,
@@ -249,6 +250,35 @@ static void the_test_sound_plays_with_the_sleep_sound_off(void)
     CHECK(clip == 0);
 }
 
+/* ---- the radio kind: the engine pulls the decoded stream and treats it like any other bed ---- */
+static int pull_calls;
+static int fake_pull(int16_t *dst, int n)
+{
+    static double ph;
+    for (int i = 0; i < n; i++) { dst[i] = (int16_t)(12000 * sin(ph)); ph += 6.283185307 * 440 / SR; }
+    pull_calls++;
+    return n;
+}
+
+static void the_radio_plays_what_it_is_handed(void)
+{
+    rs_init(3); pull_calls = 0;
+    rs_params_t p = { .on = true, .kind = RS_RADIO, .level = 5, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .radio_pull = fake_pull };
+    render(&p, out, SR * 3);
+    CHECK(pull_calls > 0);
+    CHECK(rms(out + SR * 2, SR) > 12000 * 0.7 * 0.6);          /* the 440 Hz tone, at most a little quieter */
+    CHECK(rms(out + SR * 2, SR) < 12000 * 0.71);
+    p.on = false;
+    render(&p, out, SR * 3);
+    CHECK(rms(out + SR * 2, SR) < 5);                            /* faded out, then nothing more is pulled */
+    int calls = pull_calls; render(&p, out, SR);
+    CHECK_EQ(pull_calls, calls);
+    rs_init(3);
+    rs_params_t q = { .on = true, .kind = RS_RADIO, .level = 5, .volume = 10, .fade = 1.0f, RS_DEFAULTS, .radio_pull = NULL };
+    render(&q, out, SR * 2);
+    CHECK(rms(out + SR, SR) < 5);                                /* no stream to pull from: silence, not a crash */
+}
+
 int main(void)
 {
     make_source();
@@ -263,5 +293,6 @@ int main(void)
     RUN(level_and_limiter_hold_the_peaks);
     RUN(softness_takes_the_edge_off_the_birds);
     RUN(the_test_sound_plays_with_the_sleep_sound_off);
+    RUN(the_radio_plays_what_it_is_handed);
     return test_summary("sound");
 }

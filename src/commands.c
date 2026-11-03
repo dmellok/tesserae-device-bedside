@@ -107,6 +107,15 @@ static void exec_command(const char *name, const char *value)
             if (local_set(key, bar + 1)) local_flush(); else printf("set: rejected %s\n", value);
         }
     }
+    /* A radio preset: radio=<0-6>|<name>|<url> ("" clears the slot). */
+    else if (!strcmp(name, "radio")) {
+        const char *b1 = strchr(value, '|'), *b2 = b1 ? strchr(b1 + 1, '|') : NULL;
+        char nm[RADIO_NAME_MAX];
+        if (b1 && b2 && (size_t)(b2 - b1 - 1) < sizeof nm) {
+            snprintf(nm, sizeof nm, "%.*s", (int)(b2 - b1 - 1), b1 + 1);
+            printf(radio_preset_set(atoi(value), nm, b2 + 1) ? "radio: preset %d saved\n" : "radio: preset %d rejected\n", atoi(value));
+        }
+    }
     else if (!strcmp(name, "boot"))      run_binding(!strcmp(value, "long") ? CONFIG_BIND_BOOT_LONG : CONFIG_BIND_BOOT_SHORT);
     else if (!strcmp(name, "action"))    run_action(value);
     /* Remapping: bind=<input>|<action spec>, label=<1-4>|<text>. */

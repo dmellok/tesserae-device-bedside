@@ -40,6 +40,7 @@
 #include "power.h"
 #include "ha.h"
 #include "live.h"
+#include "radio.h"
 #include "pico/stdio/driver.h"
 
 /* ---- macros ---- */

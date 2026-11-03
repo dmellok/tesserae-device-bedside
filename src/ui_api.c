@@ -18,7 +18,8 @@ bool local_set(const char *key, const char *val)
     if (!strcmp(key, "vol"))            { if (v < 0 || v > 10) return false; S.vol = v; publish("config/volume", "%d", v); rebuild(); R_VOL(); return true; }
     else if (!strcmp(key, "rain_on"))   { S.rain_on = v != 0; publish("set/rain", S.rain_on ? "play" : "pause"); }
     else if (!strcmp(key, "rain_lvl"))  { if (v < 1 || v > 5) return false; S.rain_lvl = v; publish("set/rain", "level %d", v); }
-    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 4) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
+    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 5) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
+    else if (!strcmp(key, "station"))   { if (v < 0 || v >= radio_preset_count()) return false; S.station = v; }
     else if (!strcmp(key, "sleep"))     { if (v != 0 && v != 15 && v != 30 && v != 60) return false; S.sleep_min = v; publish("set/rain", "sleep %d", v); }
     else if (!strcmp(key, "lights_on")) { S.lights_on = v != 0; publish("set/lights", S.lights_on ? "on %d%%" : "off", S.bright); }
     else if (!strcmp(key, "bright"))    { if (v < 5 || v > 100) return false; S.bright = v; S.lights_on = true; publish("set/lights", "on %d%%", v); }
@@ -135,7 +136,7 @@ void sound_load(void)
 {
     snd_blob_t b;
     if (!config_blob_load(1, SND_MAGIC, &b, sizeof b)) { snd_pack(&s_snd_saved); return; }
-    S.vol = clampi(b.vol, 0, 10); S.rain_kind = clampi(b.rain_kind, 0, 4); S.rain_lvl = clampi(b.rain_lvl, 1, 5); S.surface = clampi(b.surface, 0, 3);
+    S.vol = clampi(b.vol, 0, 10); S.rain_kind = clampi(b.rain_kind, 0, 5); S.rain_lvl = clampi(b.rain_lvl, 1, 5); S.surface = clampi(b.surface, 0, 3);
     S.bird_vol = clampi(b.bird_vol, 1, 10); S.birds = b.birds & BIRDS_ALL;
     if (b.pad != 1) S.birds |= BIRDS_SYNTH;      /* settings from before: switch the new birds on once */
     S.patter = b.patter; S.wash = b.wash; S.tone = b.tone; S.wind = b.wind; S.thunder = b.thunder; S.thunder_near = b.thunder_near;
@@ -187,6 +188,7 @@ static void ext_pack(ext_blob_t *b)
     b->spk_gain = (int8_t)S.spk_gain; b->spk_bass = (int8_t)S.spk_bass; b->spk_treble = (int8_t)S.spk_treble;
     b->spk_soft = (uint8_t)S.spk_soft; b->spk_hpf = (uint8_t)S.spk_hpf; b->spk_limit = (uint8_t)S.spk_limit;
     b->bird_soft_p1 = (uint8_t)(S.bird_soft + 1);
+    b->rsv1[0] = (char)(S.station + 1);                         /* the radio preset + 1 (0 = not set) */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -200,6 +202,7 @@ void ext_load(void)
         S.spk_gain = clampi(b.spk_gain, -12, 6); S.spk_bass = clampi(b.spk_bass, -8, 8); S.spk_treble = clampi(b.spk_treble, -12, 6);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
+        if (b.rsv1[0]) S.station = clampi((uint8_t)b.rsv1[0] - 1, 0, RADIO_PRESETS - 1);
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
     ext_pack(&s_ext_saved);
@@ -253,11 +256,39 @@ void local_persist_tick(void)
     if (config_blob_save(1, SND_MAGIC, &now, sizeof now)) { s_snd_saved = now; printf("local: sound settings saved\n"); }
 }
 
+/* A JSON string with its quotes, escaped (the radio's titles and URLs come from outside). */
+static void json_str(char *dst, size_t cap, const char *s)
+{
+    size_t n = 0;
+    if (cap < 3) { if (cap) dst[0] = 0; return; }
+    dst[n++] = '"';
+    for (; *s && n + 7 < cap; s++) {
+        unsigned char c = (unsigned char)*s;
+        if (c == '"' || c == '\\') { dst[n++] = '\\'; dst[n++] = (char)c; }
+        else if (c < 0x20) n += (size_t)snprintf(dst + n, cap - n, "\\u%04x", c);
+        else dst[n++] = (char)c;
+    }
+    dst[n++] = '"'; dst[n] = 0;
+}
+
 size_t local_state_json(char *b, size_t cap)
 {
     size_t n = 0;
 #define J(...) do { int k = snprintf(b + n, cap > n ? cap - n : 0, __VA_ARGS__); if (k > 0) n += (size_t)k; } while (0)
     J("{\"vol\":%d,\"rain\":{\"on\":%d,\"lvl\":%d,\"kind\":%d,\"sleep\":%d,\"sleep_left_s\":%d},", S.vol, S.rain_on, S.rain_lvl, S.rain_kind, S.sleep_min, sleep_left_s() > 0 ? sleep_left_s() : 0);
+    {   /* the radio: what it is doing, and the presets (names and URLs escaped for JSON) */
+        char esc[2 * RADIO_URL_MAX];
+        J("\"radio\":{\"sel\":%d,\"state\":\"%s\",\"station\":", S.station, radio_state_name());
+        json_str(esc, sizeof esc, radio_station()); J("%s,\"title\":", esc);
+        json_str(esc, sizeof esc, radio_title()); J("%s,\"err\":", esc);
+        json_str(esc, sizeof esc, radio_error()); J("%s,\"kbps\":%d,\"buf_ms\":%d,\"underruns\":%lu,\"presets\":[", esc, radio_kbps(), radio_buffer_ms(), (unsigned long)radio_underruns());
+        for (int i = 0; i < radio_preset_count(); i++) {
+            const radio_preset_t *pr = radio_preset(i);
+            json_str(esc, sizeof esc, pr->name); J("%s{\"name\":%s,", i ? "," : "", esc);
+            json_str(esc, sizeof esc, pr->url);  J("\"url\":%s}", esc);
+        }
+        J("]},");
+    }
     {
         int left = s_preview_len_ms ? (int)((int32_t)(s_preview_start_ms + s_preview_len_ms + 20000u - now_ms()) / 1000) : 0;
         int snz = s_snooze_until_ms ? (int)((int32_t)(s_snooze_until_ms - now_ms()) / 1000) : 0;

@@ -81,7 +81,7 @@ static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char
     }
     if (S.show & 4) {
         v[n].icon = S.rain_on ? ICON_CLOUD_RAIN : ICON_PAUSE;
-        snprintf(v[n].val, sizeof v[n].val, "%s", S.rain_on ? KINDS[S.rain_kind] : "Paused");
+        snprintf(v[n].val, sizeof v[n].val, "%s", !S.rain_on ? "Paused" : S.rain_kind == RS_RADIO ? radio_station() : KINDS[S.rain_kind]);
         snprintf(v[n].tail, sizeof v[n].tail, "%d", S.vol);
         n++;
     }

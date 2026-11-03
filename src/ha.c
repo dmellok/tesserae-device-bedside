@@ -161,8 +161,8 @@ typedef struct { const char *comp, *key, *name, *icon, *vt, *extra; char topic; 
 static const ent_t ENTS[] = {
     /* sleep sounds */
     { "switch", "rain_on", "Sleep sounds", "mdi:weather-pouring", "{{ value_json.rain.on }}", SW, 's' },
-    { "select", "rain_kind", "Sleep sound", "mdi:waves", "{{ ['Rain','Ocean','Noise','Wind','Recording'][value_json.rain.kind] }}",
-      "\"ops\":[\"Rain\",\"Ocean\",\"Noise\",\"Wind\",\"Recording\"],\"cmd_tpl\":\"{{ ['Rain','Ocean','Noise','Wind','Recording'].index(value) }}\"", 's' },
+    { "select", "rain_kind", "Sleep sound", "mdi:waves", "{{ ['Rain','Ocean','Noise','Wind','Recording','Radio'][value_json.rain.kind] }}",
+      "\"ops\":[\"Rain\",\"Ocean\",\"Noise\",\"Wind\",\"Recording\",\"Radio\"],\"cmd_tpl\":\"{{ ['Rain','Ocean','Noise','Wind','Recording','Radio'].index(value) }}\"", 's' },
     { "number", "rain_lvl", "Rain intensity", "mdi:weather-rainy", "{{ value_json.rain.lvl }}", "\"min\":1,\"max\":5,\"step\":1,\"mode\":\"slider\"", 's' },
     { "select", "sleep", "Sleep timer", "mdi:timer-sand", "{{ {0:'Off',15:'15 min',30:'30 min',60:'60 min'}[value_json.rain.sleep] }}",
       "\"ops\":[\"Off\",\"15 min\",\"30 min\",\"60 min\"],\"cmd_tpl\":\"{{ {'Off':0,'15 min':15,'30 min':30,'60 min':60}[value] }}\"", 's' },

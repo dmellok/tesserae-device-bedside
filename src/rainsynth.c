@@ -238,6 +238,8 @@ static uint32_t s_last_audition;
 static float    s_bird_lp1, s_bird_lp2;    /* bird softness: two poles on the bird bus alone */
 /* the speaker test signal (rs_params_t.test): its own pink noise and phase */
 static float    g_test;
+static float    g_radio;                   /* the radio bed's gain */
+static int16_t  s_radio_buf[1024];         /* this block of the decoded stream */
 static pink_t   s_tpk;
 static float    s_test_ph, s_sweep_t;
 static float  s_level_s = 3.0f, s_patter = 0.6f, s_wash = 0.55f, s_tone = 0.5f, s_windk = 0.2f;
@@ -261,7 +263,7 @@ void rs_init(uint32_t seed)
     rec_open(NULL, 0); s_rec_lp = 0;
     s_level_s = 3.0f; s_patter = 0.6f; s_wash = 0.55f; s_tone = 0.5f; s_windk = 0.2f;
     g_birds = 0; s_last_audition = 0;
-    s_bird_lp1 = s_bird_lp2 = 0; g_test = 0; s_test_ph = s_sweep_t = 0; memset(&s_tpk, 0, sizeof s_tpk);
+    s_bird_lp1 = s_bird_lp2 = 0; g_test = 0; g_radio = 0; s_test_ph = s_sweep_t = 0; memset(&s_tpk, 0, sizeof s_tpk);
     bs_init(seed * 2654435761u + 1u);
 }
 
@@ -286,6 +288,7 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     float to = (p->on && kind == RS_OCEAN) ? under : 0.0f;
     float tn = (p->on && kind == RS_NOISE) ? under : 0.0f;
     float tw = (p->on && kind == RS_WIND)  ? under : 0.0f;
+    float tq = (p->on && kind == RS_RADIO && p->radio_pull) ? under : 0.0f;
     if (p->rec != R.p || p->rec_len != R.len) rec_open(p->rec, p->rec_len);
     float tc = (p->on && kind == RS_RECORDING && R.ok) ? under : 0.0f;
     if (p->on && kind == RS_RECORDING && !R.ok) tr = under;          /* no usable recording: rain */
@@ -367,6 +370,11 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         crack = T.near > 0.55f ? (T.near - 0.55f) * 2.2f : 0.0f;
     }
 
+    /* the radio: this block of the decoded stream, pulled once (nothing while it is faded out) */
+    bool radio_on = p->radio_pull && (tq > 0 || g_radio > 1e-4f);
+    int radio_n = n > (int)(sizeof s_radio_buf / sizeof s_radio_buf[0]) ? (int)(sizeof s_radio_buf / sizeof s_radio_buf[0]) : n;
+    if (radio_on) p->radio_pull(s_radio_buf, radio_n);
+
     for (int i = 0; i < n; i++) {
         g_rain   += (tr - g_rain)  * glide * 4.0f;
         g_ocean  += (to - g_ocean) * glide * 4.0f;
@@ -376,6 +384,7 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
         g_wind   += (tw - g_wind)  * glide * 4.0f;
         g_rec    += (tc - g_rec)   * glide * 4.0f;
         g_test   += (tt - g_test)  * glide * 6.0f;
+        g_radio  += (tq - g_radio) * glide * 4.0f;
         if (g_master < 1e-5f && tm == 0.0f && g_rain + g_ocean + g_noise + g_wind + g_rec < 1e-4f && !T.on && !birds_on) { out[i] = 0; continue; }
 
         float w = white();
@@ -465,6 +474,10 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
 
         if (g_rec > 1e-4f && R.ok) {
             x += lp(&s_rec_lp, rec_next(), a_rec) * g_recl * 0.8f * g_rec;
+        }
+
+        if (radio_on && i < radio_n) {                             /* intensity trims it: 1 is -4 dB, 5 full */
+            x += (float)s_radio_buf[i] * (1.0f / 32768.0f) * lerp(0.6f, 1.0f, L) * g_radio;
         }
 
         if (g_noise > 1e-4f) {

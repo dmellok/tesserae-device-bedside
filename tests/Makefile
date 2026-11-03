@@ -15,7 +15,7 @@ ifneq ($(SYSROOT),)
 endif
 OUT     := build
 
-TESTS := alarm store misc sound
+TESTS := alarm store misc sound radio
 
 # Run every suite, even after a failure, then fail if any did.
 all: $(addprefix $(OUT)/test_,$(TESTS))
@@ -32,6 +32,8 @@ $(OUT)/test_store: test_store.c host/store_host.c $(ROOT)/src/store.c | $(OUT)
 $(OUT)/test_misc: test_misc.c $(ROOT)/src/sha256.c $(ROOT)/src/ota_version.c $(ROOT)/src/http_chunked.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 $(OUT)/test_sound: test_sound.c $(ROOT)/src/rainsynth.c $(ROOT)/src/birds.c $(ROOT)/src/spk_dsp.c | $(OUT)
+	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
+$(OUT)/test_radio: test_radio.c $(ROOT)/src/icy.c $(ROOT)/src/pcm_resample.c | $(OUT)
 	$(CC) $(CFLAGS) $(INC) $^ -lm -o $@
 
 clean:

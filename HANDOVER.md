@@ -750,3 +750,40 @@ night, with a full clean refresh every 10 minutes.
   report has numbers.
 - VCOM -1.95 V (platformio.ini): -1.90 let the blacks drift, -2.00 darkened
   greys; the middle.
+
+## 2026-11-03: internet radio
+
+A **Radio** sleep sound (kind 5): `src/radio.c` streams an Icecast /
+SHOUTcast MP3 station over plain TCP or TLS (its own altcp pcb, alongside the
+REST client's), parses the ICY headers and interleaved metadata (`src/icy.c`,
+host-tested), keeps 256 KB of compressed audio in PSRAM, decodes it on core 0
+with minimp3 (`src/vendor/minimp3.h`, public domain, `MINIMP3_ONLY_MP3`) into
+8 s of mono 22.05 kHz PCM (`src/pcm_resample.c`: channels averaged, a box
+filter down from 44.1 / 48 kHz), and the sound engine on core 1 pulls that as
+the radio bed (`rs_params_t.radio_pull`), so the tone stage, sleep timer and
+dawn chorus apply as for rain. PSRAM: PCM ring at 5.6 MB, stream + decoder at
+6.19 MB. Playback starts with 2 s in hand; a dead stream reconnects with
+backoff (2, 5, 30 s); a 403 is retried once without a User-Agent (SomaFM
+refuses generic browser-like identities but accepts the device's own).
+
+Things learned on the bench:
+- `radio_tick()` runs from `ui_service()`, so it keeps decoding during a
+  dashboard download. The main loop only turns ~10 times a second, so the
+  decode budget per pass is adaptive (40 ms with under 1 s decoded, 16 ms
+  under 6 s, 4 ms after): at a flat 8 ms the decoder fell behind real time
+  and the sound stuttered.
+- minimp3 returns `frame_bytes == 0` when the window ends mid-frame; that
+  means "more bytes", not "junk". Discarding the window there cost 62 KB and
+  a re-sync per connection.
+- The "no data for 20 s" timeout must compare signed: a packet can land
+  (updating the last-data stamp) after the tick took its clock, and the
+  unsigned difference wraps to huge.
+- Verified: Drone Zone 128 kbps, 1.9 MB in 90 s, 3,872 frames, 836 bad bytes
+  (the initial sync), 0 underruns, titles arriving; core 1 at 17%.
+
+Presets: flash blob slot 6 (`RAD1`), seeded with five SomaFM channels, Radio
+Paradise and FIP; `radio=<i>|<name>|<url>` sets one (web app, Sound card >
+Stations). The chosen preset (`station`) lives in the hardware blob's spare
+byte. Panel: Sound > Station (shown when the kind is Radio). HA's Sleep sound
+select gained Radio. Not done: wake-to-radio, HLS/AAC stations, a station
+list fetched from SomaFM's API.

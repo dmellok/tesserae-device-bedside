@@ -13,8 +13,8 @@
 
 #define RAIN_SR 22050
 
-typedef enum { RS_RAIN = 0, RS_OCEAN = 1, RS_NOISE = 2, RS_WIND = 3, RS_RECORDING = 4 } rs_kind_t;
-#define RS_KINDS 5
+typedef enum { RS_RAIN = 0, RS_OCEAN = 1, RS_NOISE = 2, RS_WIND = 3, RS_RECORDING = 4, RS_RADIO = 5 } rs_kind_t;
+#define RS_KINDS 6
 typedef enum { RS_OPEN = 0, RS_LEAVES = 1, RS_ROOF = 2, RS_WINDOW = 3 } rs_surface_t;
 
 typedef struct {
@@ -48,6 +48,9 @@ typedef struct {
      * swaps it out before that flash can change. */
     const uint8_t *rec;
     uint32_t       rec_len;
+    /* RS_RADIO: pulls n mono samples at RAIN_SR of the decoded stream (radio.h);
+     * zeros when there is nothing to play. NULL: the kind is silent. */
+    int (*radio_pull)(int16_t *dst, int n);
 } rs_params_t;
 
 /* Sensible defaults for the shaping fields. */

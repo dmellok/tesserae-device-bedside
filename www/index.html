@@ -261,9 +261,18 @@ nav .brand,nav .side-foot{display:none}
     <div class="ttl"><div class="ic" data-i="cloud-rain"></div><div class="t">Sleep sounds<small id="rain-sub"></small></div>
       <label class="sw"><input type="checkbox" id="rain_on" data-set="rain_on"><span></span></label></div>
     <div class="body">
-      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise,3:Wind,4:Recording"></div>
+      <div class="lbl">Sound</div><div class="seg" data-seg="rain_kind" data-opts="0:Rain,1:Ocean,2:Noise,3:Wind,4:Recording,5:Radio"></div>
       <div id="rec-box" hidden><label class="fld"><span>Recording</span><select id="rec"></select></label>
         <div class="hint" style="text-align:left;margin-top:6px" id="rec-hint"></div></div>
+      <div id="radio-box" hidden>
+        <label class="fld"><span>Station</span><select id="station"></select></label>
+        <div class="hint" style="text-align:left;margin-top:6px" id="radio-np"></div>
+        <details class="more" id="radio-presets"><summary><span data-i="list"></span>Stations</summary>
+          <div class="hint" style="text-align:left;margin:4px 0 8px">Seven presets. Any Icecast / SHOUTcast MP3 stream works (SomaFM's direct <code>ice1.somafm.com/…-128-mp3</code> links, Radio Paradise, FIP); HLS and AAC-only stations don't.</div>
+          <div id="radio-rows"></div>
+          <button class="btn w" id="radio-save" style="margin-top:10px" type="button">Save stations</button>
+        </details>
+      </div>
       <div class="lbl">Intensity</div><div class="seg" data-seg="rain_lvl" data-opts="1:1,2:2,3:3,4:4,5:5"></div>
       <div class="lbl">Sleep timer</div><div class="seg" data-seg="sleep" data-opts="0:Off,15:15m,30:30m,60:60m"></div>
       <details class="more" id="shape"><summary><span data-i="sliders-horizontal"></span>Shape the rain</summary>
@@ -911,7 +920,27 @@ function renderHW(){
   $('#hw-spk').textContent=!h.speaker?'Off: sound only streams to the web app':h.spk_on?'Playing':'Amp off until there is sound';
   $('#hw-bat').textContent=!h.power_mon?'Not fitted':h.on_battery?`On battery, ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`:`On mains · battery ${h.pct}% (${(h.bat_mv/1000).toFixed(2)} V)`;
   renderRec();
+  renderRadio();
 }
+/* ---- the radio: station picker, now playing, the presets editor ---- */
+let radioRowsSig='';
+function renderRadio(){
+  const r=ui.radio, box=$('#radio-box'); box.hidden=ui.rain.kind!==5; if(box.hidden||!r)return;
+  const sel=$('#station'), opts=r.presets.map((p,i)=>({i,p})).filter(x=>x.p.url);
+  const html=opts.map(x=>`<option value="${x.i}">${x.p.name||x.p.url}</option>`).join('')||'<option value="0">No stations yet</option>';
+  if(sel.innerHTML!==html)sel.innerHTML=html;
+  if(!held('station')&&sel!==document.activeElement)sel.value=String(r.sel);
+  const np=r.state==='playing'?(r.title?`${r.station} · ${r.title}`:r.station):r.state==='off'?'Off: turn the sound on to listen':r.state==='failed'?`Failed: ${r.err}`:`${r.state[0].toUpperCase()+r.state.slice(1)}${r.err?' · '+r.err:''}…`;
+  $('#radio-np').textContent=np+(r.state==='playing'?` · ${r.kbps} kbps, ${(r.buf_ms/1000).toFixed(1)} s ahead`:'');
+  const sig=JSON.stringify(r.presets);
+  if(sig!==radioRowsSig&&!$('#radio-rows').contains(document.activeElement)){radioRowsSig=sig;
+    $('#radio-rows').innerHTML=r.presets.map((p,i)=>`<div class="grid2" style="margin-top:8px"><label class="fld" style="margin:0"><span>Name ${i+1}</span><input data-rn="${i}" value="${p.name.replace(/"/g,'&quot;')}" autocomplete="off"></label><label class="fld" style="margin:0"><span>Stream URL</span><input data-ru="${i}" value="${p.url.replace(/"/g,'&quot;')}" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url"></label></div>`).join('')}
+}
+$('#station').onchange=()=>{touch('station',4000);set('station',$('#station').value)};
+$('#radio-save').onclick=async()=>{const r=ui.radio;let n=0;
+  for(let i=0;i<r.presets.length;i++){const name=$(`[data-rn="${i}"]`).value.trim(),url=$(`[data-ru="${i}"]`).value.trim();
+    if(name!==r.presets[i].name||url!==r.presets[i].url){await cmd('radio='+enc(`${i}|${name}|${url}`));n++}}
+  toast(n?`Saved ${n} station${n>1?'s':''}`:'Nothing changed')};
 var recFiles=null,recT=0;   // var: loadFiles() can run (from the first tab) before this line
 async function renderRec(){
   const h=ui.hw,isRec=ui.rain&&ui.rain.kind===4;

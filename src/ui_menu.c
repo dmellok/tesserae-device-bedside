@@ -98,6 +98,7 @@ static int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ T_RAIN, K_TOGGLE, "Playing", ICON_PLAY, 0 };
         r[n++] = (row_def_t){ V_RAIN_LVL, K_VALUE, "Intensity", ICON_CLOUD_RAIN, 0 };
         r[n++] = (row_def_t){ C_RAIN_KIND, K_CHOICE, "Sound", ICON_SPEAKER_HIGH, 0 };
+        if (S.rain_kind == RS_RADIO) r[n++] = (row_def_t){ C_STATION, K_CHOICE, "Station", ICON_SPEAKER_HIGH, 0 };  /* the radio's presets */
         if (S.rain_kind == 0) r[n++] = (row_def_t){ C_SURFACE, K_CHOICE, "Falling on", ICON_CLOUD_RAIN, 0 };          /* rain only */
         if (S.rain_kind == 0 || S.rain_kind == 4) r[n++] = (row_def_t){ C_THUNDER, K_CHOICE, "Thunder", ICON_CLOUD_LIGHTNING, 0 };   /* over rain or a recording */
         r[n++] = (row_def_t){ C_SLEEP, K_CHOICE, "Sleep timer", ICON_MOON, 0 };
@@ -383,6 +384,10 @@ static int choice_opts(item_t id, const char *const **o)
     case C_OVERLAY:   *o = OVERLAYS; return 4;
     case C_ATNIGHT:   *o = ATNIGHT; return 2;
     case C_CLOCKDU:   *o = CLOCKDU; return 3;
+    case C_STATION: {                                   /* the presets with a URL, by name */
+        static const char *names[RADIO_PRESETS]; int k = 0;
+        for (int i = 0; i < radio_preset_count(); i++) { const radio_preset_t *p = radio_preset(i); names[i] = p->name[0] ? p->name : (p->url[0] ? p->url : "(empty)"); if (p->url[0]) k = i + 1; }
+        *o = names; return k ? k : 1; }
     case C_NIGHTKEYS: *o = NIGHTKEYS; return 2;
     case C_KEY_PRESS: case C_KEY_HOLD: *o = KEYACT_NAME; return N_KEYACT;
     case C_KNOB_HOLD: *o = KNOBACT_NAME; return N_KNOBACT;
@@ -419,6 +424,7 @@ static int choice_get(item_t id)
     case C_OVERLAY:   return S.overlay;
     case C_ATNIGHT:   return S.at_night;
     case C_CLOCKDU:   return S.clock_du;
+    case C_STATION:   return S.station;
     case C_NIGHTKEYS: return S.night_keys;
     case C_KEY_PRESS: case C_KEY_HOLD: {
         const char *b = config_get()->bind[(id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + s_ki];
@@ -462,6 +468,7 @@ static void choice_set(item_t id, int k)
     case C_OVERLAY:   S.overlay = k; overlay_apply(); break;
     case C_ATNIGHT:   S.at_night = k; break;
     case C_CLOCKDU:   S.clock_du = k; break;
+    case C_STATION:   S.station = k; S.rain_on = true; break;
     case C_NIGHTKEYS: S.night_keys = k; apply_colours(); break;
     case C_KEY_PRESS: case C_KEY_HOLD:
         config_set_bind((id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + s_ki, KEYACT_ID[k]); config_save(); break;
@@ -644,6 +651,7 @@ void build_list(layer_t *l)
     if (r->id == C_CLEANMIN) snprintf(small, sizeof small, "Partial updates wear the picture; this resets it while idle");
     if (r->id == S_SPEAKER) snprintf(small, sizeof small, "Tone, low cut, loud moments and a test sound");
     if (r->id == C_CLOCKDU) snprintf(small, sizeof small, "Two-level: black-and-white digits, no flash, no fade");
+    if (r->id == C_STATION) { const char *t = radio_title(); if (radio_state() == RADIO_PLAYING && t[0]) snprintf(small, sizeof small, "%.60s", t); else snprintf(small, sizeof small, "%s " DOT " stations are set in the web app", radio_state_name()); }
     if (r->id == V_BIRD_SOFT) snprintf(small, sizeof small, "Takes the edge off whistles and chirps");
     if (r->id == C_SPK_SOFT) snprintf(small, sizeof small, "Rolls off everything above this: sharp calls, hiss");
     if (r->id == C_SPK_LIMIT) snprintf(small, sizeof small, "Holds the loudest moments down");

@@ -64,7 +64,7 @@ static const char *const SCREEN_NAMES[SCR_COUNT] = { "home", "menu", "rain", "li
 const char *local_screen_name(screen_t s) { return (s >= 0 && s < SCR_COUNT) ? SCREEN_NAMES[s] : "?"; }
 const char *const AC_MODES[5] = { "Off", "Heat", "Fan", "Cool", "Dry" };
 const char *const FANS[4]     = { "Auto", "Low", "Mid", "High" };
-const char *const KINDS[5]    = { "Rain", "Ocean", "Noise", "Wind", "Recording" };
+const char *const KINDS[6]    = { "Rain", "Ocean", "Noise", "Wind", "Recording", "Radio" };
 const char *const DASHES[3]   = { "Live", "Bedside", "Tomorrow" };   /* 0: drawn on the device (build_live) */
 /* Key light palette. */
 const pal_t PAL[9] = {

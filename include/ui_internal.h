@@ -22,6 +22,7 @@
 #include "alarm_sched.h"
 #include "audio.h"
 #include "power.h"
+#include "radio.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -178,7 +179,7 @@ typedef enum {
     T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, V_SPK_BASS, V_SPK_TREBLE, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
-    C_CLOCKDU,
+    C_CLOCKDU, C_STATION,
 } item_t;
 typedef struct { item_t id; rk_t kind; const char *label, *icon; int arg; } row_def_t;
 typedef struct { int v, min, max, step; const char *lo, *hi; bool wrap; } vmeta_t;
@@ -225,7 +226,7 @@ extern int s_man_days;
 extern int64_t s_man_base;
 extern const char *const AC_MODES[5];
 extern const char *const FANS[4];
-extern const char *const KINDS[5];
+extern const char *const KINDS[6];
 extern const char *const DASHES[3];
 extern const pal_t PAL[9];
 extern const char *PAL_NAMES[N_PAL];

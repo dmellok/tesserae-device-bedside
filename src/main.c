@@ -305,8 +305,26 @@ static void audio_update(void)
                       .thunder = ls->thunder, .thunder_near = ls->thunder_near, .strike = ls->strike,
                       .chorus = ls->chorus, .birds = ls->birds, .bird_vol = ls->bird_vol,
                       .audition = ls->audition, .audition_bird = ls->audition_bird, .bird_soft = ls->bird_soft, .test = ls->test,
-                      .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0 };
+                      .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0,
+                      .radio_pull = radio_pull };
     audio_set(&p);
+
+    /* The radio follows the sound: the chosen station while the sound is on
+     * with kind Radio; a different station switches; off stops it, two seconds
+     * after the sound engine has faded the stream out. */
+    {   static int last_station = -1; static bool last_on; static uint32_t off_since;
+        uint32_t tnow = to_ms_since_boot(get_absolute_time());
+        bool want = ls->rain_on && ls->rain_kind == RS_RADIO;
+        const radio_preset_t *pr = radio_preset(ls->station);
+        if (want && pr && pr->url[0]) {
+            if (!last_on || last_station != ls->station) radio_play(pr->url, pr->name);
+            off_since = 0;
+        } else if (radio_state() != RADIO_OFF) {
+            if (!off_since) off_since = tnow | 1u;
+            else if (tnow - off_since > 2000) radio_stop();
+        }
+        last_on = want && pr && pr->url[0]; last_station = ls->station;
+    }
 
     /* The speaker: on while there's something to hear (a bird audition or a
      * thunder strike plays for a while after it's asked for). */
@@ -338,6 +356,7 @@ static void audio_update(void)
 
 static void ui_service(void)
 {
+    radio_tick();                         /* decode ahead, reconnect: here so a frame download doesn't starve it */
     static bool in;
     if (in) return;
     in = true;
@@ -431,6 +450,9 @@ int main(void)
     store_init();
     if (have_psram) net_set_upload_buffer(PSRAM_XIP_BASE + 5u * 1024 * 1024 + 512u * 1024);   /* 5.5 MB, 64 KB */
     if (have_psram) audio_use_buffer((int16_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024), 4u * AUDIO_SR);   /* ~4 s */
+    /* the radio: 8 s of decoded sound at 5.6 MB, the stream and decoder at 6.19 MB (after the audio ring, before the OTA chunk) */
+    if (have_psram) radio_init((uint8_t *)(PSRAM_XIP_BASE + 5u * 1024 * 1024 + 608u * 1024), (uint8_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024 + 192u * 1024));
+    radio_presets_load();
     painter_start(paint_row, audio_core1_start);
     boot_collect();
     show_content(CONTENT_BOOT);
