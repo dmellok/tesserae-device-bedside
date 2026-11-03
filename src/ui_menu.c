@@ -325,7 +325,7 @@ static int accel_for(int d)
 bool local_turn(int d)
 {
     if (!d) return true;
-    if (S.phase == PHASE_RINGING) { snooze(); return true; }
+    if (S.phase == PHASE_RINGING) { if (!inputs_knob_down()) snooze(); return true; }   /* a detent while the knob is pushed is wobble, not a snooze */
     int acc = accel_for(d);
     switch (s_mode) {
     case M_HOME: volume(d > 0 ? 1 : -1); return true;
@@ -466,7 +466,7 @@ bool local_key(int i, bool hold)
 
 bool local_back_up(void)
 {
-    if (S.phase == PHASE_RINGING) { snooze(); return true; }
+    if (S.phase == PHASE_RINGING) { stop_alarm(); return true; }     /* held past 600 ms: still the knob, still stop */
     if (s_mode == M_HOME) return false;
     return local_back();
 }

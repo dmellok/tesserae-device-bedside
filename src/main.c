@@ -204,7 +204,7 @@ void on_input(input_event_t e)
     case IN_PRESS_SHORT: if (local_press()) local_flush(); else run_binding(CONFIG_BIND_KNOB_PRESS); break;
     case IN_PRESS_LONG: {                     /* Back by default; any other binding replaces it */
         const char *b = config_get()->bind[CONFIG_BIND_KNOB_HOLD];
-        if (!b[0] || !strcmp(b, "back")) { if (local_back_up()) local_flush(); }
+        if (!b[0] || !strcmp(b, "back") || local_state()->phase == PHASE_RINGING) { if (local_back_up()) local_flush(); }   /* ringing: the knob stops, whatever its hold is bound to */
         else { run_binding(CONFIG_BIND_KNOB_HOLD); local_flush(); }
         break; }
     case IN_KEY:         on_key_down(e.value); break;

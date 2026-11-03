@@ -10,7 +10,7 @@ void build_ring(layer_t *l)
     op_text_c(l, W / 2, TB_H + 90, F_M, G_LIGHT, "Good morning");
     char t[8]; alarm_txt(t, sizeof t);
     op_text_c(l, W / 2, TB_H + 200, F_HUGE, G_WHITE, t);
-    op_text_c(l, W / 2, TB_H + 620, F_LBL, G_LIGHT, "Press the knob to stop  " DOT "  any key or a turn snoozes");
+    op_text_c(l, W / 2, TB_H + 620, F_LBL, G_LIGHT, "Press or hold the knob to stop  " DOT "  any key or a turn snoozes");
 }
 
 /* ---- the alarm clock and the dawn chorus ------------------------------------
@@ -18,8 +18,9 @@ void build_ring(layer_t *l)
  * the chorus still comes if Home Assistant is down. Before each alarm the wake
  * window (the alarm's "wake up early", else 10 min) builds the chorus from one
  * distant bird to a full one while the sleep sound fades; at the alarm time the
- * panel rings with the chorus at full. Knob press stops; any key or a turn
- * snoozes for 9 min; it gives up after 30 min. A "Once" alarm (no days)
+ * panel rings with the chorus at full. A knob press or hold stops; any key or
+ * a turn snoozes for 9 min (not a detent while the knob is pushed: that is
+ * wobble); it gives up after 30 min. A "Once" alarm (no days)
  * switches itself off after it has rung. */
 uint32_t s_ring_ms, s_snooze_until_ms;
 int      s_ring_alarm = -1;

@@ -953,3 +953,9 @@ better. Two mock-up rounds (artifact `2FMWGH4fjom2LK273nA5Kx`): he chose the
   `/frame` renders the layers, not the glass, so captures never showed it.
   Now `PREVIEW_RECT` goes in the same DU job (as `mark_list()` already did).
   `s_settle_due` / `local_settle_tick()` have been dead since that change.
+- **"The encoder button only snoozes"** (Kayden, 4 Nov): a push held past
+  600 ms was a long press, and `local_back_up()` snoozed on it; a detent of
+  wobble while pushing was a turn, which also snoozes. Now a long press stops
+  (whatever the knob hold is bound to), and a turn while the knob is held
+  (`inputs_knob_down()`) is ignored while ringing. The ring screen says
+  "Press or hold the knob to stop".

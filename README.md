@@ -115,7 +115,7 @@ page, and the top bar labels each key for the screen that is showing:
 | Keys 1 to 3, in a list or a choice | up, down, select |
 | Keys 1 to 3, on a slider | less, more, done |
 | Key 4 MENU (orange) | the menu, then back one level; hold to go straight home |
-| Alarm ringing | knob press stops it, anything else snoozes |
+| Alarm ringing | a knob press or hold stops it; a key or a turn snoozes |
 
 Screens: the server dashboard between a top bar (title, key icons) and a status
 bar (volume, and on the dashboard what is playing, lights, A/C, alarm); a split

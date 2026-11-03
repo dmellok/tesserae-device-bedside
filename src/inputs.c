@@ -222,6 +222,7 @@ input_event_t inputs_poll(void)
 }
 
 bool    inputs_have_encoder(void)     { return s_enc; }
+bool    inputs_knob_down(void)        { return s_btn_down; }
 bool    inputs_have_keys(void)        { return s_keys; }
 int32_t inputs_encoder_position(void) { return s_position; }
 

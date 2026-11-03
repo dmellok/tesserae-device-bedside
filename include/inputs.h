@@ -65,6 +65,7 @@ void inputs_discard(void);
 input_event_t inputs_poll(void);
 
 bool inputs_have_encoder(void);
+bool inputs_knob_down(void);          /* the knob's button is held right now */
 bool inputs_have_keys(void);
 int32_t inputs_encoder_position(void);   /* detents since boot */
 
