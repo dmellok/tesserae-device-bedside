@@ -368,9 +368,9 @@ void mark_screen(void)
      * it here merged with the content into a full-screen job, which costs an
      * INIT clear and a flash on every menu open. Its own changes mark it. */
 }
-/* Quick menus: a knob step paints only the list, in DU (black and white, about
- * a quarter second, no flash); the preview and the greys follow in one GC16
- * pass once the knob has rested for SETTLE_MS. */
+/* Quick menus: a knob step paints the rows that changed and the preview, in DU
+ * (black and white, no flash, about a second with the streaming). Everything
+ * the crisp menus draw is black and white, so there is nothing left to settle. */
 /* The whole list and the preview: a long list scrolled by a row. */
 void mark_list(void)
 {
@@ -393,6 +393,7 @@ void mark_rows(int a, int b)
     if (S.quick_menus) {
         if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }   /* a turn beat the full-quality pass: drop it, it will come again */
         mark_apart(12, y0, LIST_W - 12, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed, rounded bars included */
+        mark_apart(PREVIEW_RECT, IT8951_MODE_DU);                     /* and the preview: it follows the highlighted row */
         if (S.turn_hints) mark_apart(0, LIST_Y, MARGIN - 8, s_list_n * s_row_h, IT8951_MODE_DU);   /* every row's number moved */
         else mark_apart(0, y0, MARGIN - 8, y1 - y0, IT8951_MODE_DU);
         return;                                     /* the art is black and white: DU paints it exactly, nothing to settle */

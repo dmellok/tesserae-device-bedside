@@ -947,3 +947,9 @@ better. Two mock-up rounds (artifact `2FMWGH4fjom2LK273nA5Kx`): he chose the
   step up to twelve, the ends in `ui46`, one hint line. `mark_value()` covers
   TB_H + 90 to + 790. Lists, choices and the info panel are otherwise as
   they were. Turn counts stay on by default (no answer either way).
+- **The preview did not follow the knob** (Kayden, on the glass): since the
+  crisp-menus change `mark_rows()` marked only the two rows in DU, so the
+  right pane only caught up with the 15 s idle clean or when a page opened;
+  `/frame` renders the layers, not the glass, so captures never showed it.
+  Now `PREVIEW_RECT` goes in the same DU job (as `mark_list()` already did).
+  `s_settle_due` / `local_settle_tick()` have been dead since that change.

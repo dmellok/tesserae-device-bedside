@@ -316,10 +316,10 @@ host code).
 ## Menus: quick moves and turn counts
 
 - **Quick menu moves** (Settings > Keys and knob > Menus; web app Buttons page; on by
-  default): a knob step repaints only the rows that changed, in the panel's
-  two-level mode (about 0.6 s). Once the knob rests for half a second the list
-  and the preview repaint in full quality. Off: every step is a full-quality
-  paint (about 1.5 s).
+  default): a knob step repaints the rows that changed and the preview on the
+  right, in the panel's two-level mode (about 1.3 s). Everything the menus
+  draw is black and white, so nothing is left to settle. Off: every step is a
+  full-quality paint (about 1.5 s).
 - **Turn counts** (same places; on by default): beside each row, the knob
   turns to reach it from the highlighted one; + is clockwise.
 - Opening or closing a menu repaints the content area in one pass without the
