@@ -234,7 +234,7 @@ h2{margin:6px 4px -8px}
 #alarms{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;margin-bottom:14px}
 .alarm .time{font-size:46px}
 #alarm-add{width:auto;padding:12px 22px}
-details.more{border-top:0;padding-top:0;margin-top:10px} details.more summary{display:none}
+#shape{border-top:0;padding-top:0;margin-top:10px} #shape summary{display:none}
 .toast{bottom:28px;left:calc(50% + var(--side)/2)}
 .eq{display:block;width:100%;aspect-ratio:3/1;height:auto;border-radius:12px;background:var(--soft)}
 .btn,.chip,.seg button,.rb,.days button,.key,.dl button,.sw input,.bird .rb,summary{cursor:pointer}
@@ -716,7 +716,7 @@ $$('[data-sp]').forEach(b=>b.onclick=()=>{
 });
 const spTxt=v=>`${Math.floor(v)}<small>${v%1?'.5':''}°</small>`;
 const volTxt=v=>v===0?'Muted':`${v} of 10`;
-const KINDS=['Rain','Ocean','Noise','Wind','Recording'], MODES=['Off','Heat','Fan','Cool','Dry'];
+const KINDS=['Rain','Ocean','Noise','Wind','Recording','Radio'], MODES=['Off','Heat','Fan','Cool','Dry'];
 function paintCards(){
   $('#c-rain').classList.toggle('off',!$('#rain_on').checked);
   $('#c-lights').classList.toggle('off',!$('#lights_on').checked);
@@ -1277,7 +1277,7 @@ const ico=i=>ICONS[i]?svg(i):'';
 const pill=(i,t)=>`<span class="pill">${ico(i)}${t}</span>`;
 function renderExtra(){
   if(!st||!ui)return;
-  const r=ui.rain,KINDS=['Rain','Ocean','Noise','Wind','Recording'],s=[];
+  const r=ui.rain,KINDS=['Rain','Ocean','Noise','Wind','Recording','Radio'],s=[];
   s.push(pill('cloud-rain',r.on?`${KINDS[r.kind]} ${r.lvl} · volume ${ui.vol}`:'Sound off'));
   if(st.local)s.push(pill('alarm',st.local.alarm_on?`Alarm ${st.local.alarm}`:'No alarm'));
   if(ui.hw&&ui.hw.power_mon)s.push(pill('battery-charging',ui.hw.on_battery?`Battery ${ui.hw.pct}%`:'Mains'));

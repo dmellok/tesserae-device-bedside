@@ -661,7 +661,7 @@ $$('[data-sp]').forEach(b=>b.onclick=()=>{
 });
 const spTxt=v=>`${Math.floor(v)}<small>${v%1?'.5':''}°</small>`;
 const volTxt=v=>v===0?'Muted':`${v} of 10`;
-const KINDS=['Rain','Ocean','Noise','Wind','Recording'], MODES=['Off','Heat','Fan','Cool','Dry'];
+const KINDS=['Rain','Ocean','Noise','Wind','Recording','Radio'], MODES=['Off','Heat','Fan','Cool','Dry'];
 function paintCards(){
   $('#c-rain').classList.toggle('off',!$('#rain_on').checked);
   $('#c-lights').classList.toggle('off',!$('#lights_on').checked);
