@@ -168,3 +168,59 @@ int sleep_left_s(void) { return s_sleep_end ? (int)((int32_t)(s_sleep_end - now_
 
 /* The device-side state for the web app, as a JSON object (no braces around
  * the whole: the caller embeds it). Returns bytes written. */
+
+/* ---- the alarms: the list, its summary, flash and MQTT ---- */
+alarm_t s_alarms[MAX_ALARMS] = { { 6, 30, true, {1,1,1,1,1,0,0}, 15 } };
+int s_nalarms = 1, s_ai;       /* count; the alarm being edited */
+const char *const DAY_NAMES[7] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+
+void alarm_days_txt(const alarm_t *a, char *b, size_t n)
+{
+    int c = 0; for (int i = 0; i < 7; i++) c += a->days[i];
+    bool wk = a->days[0] && a->days[1] && a->days[2] && a->days[3] && a->days[4];
+    if (c == 7) { snprintf(b, n, "Every day"); return; }
+    if (c == 5 && wk) { snprintf(b, n, "Weekdays"); return; }
+    if (c == 2 && a->days[5] && a->days[6]) { snprintf(b, n, "Weekends"); return; }
+    if (c == 0) { snprintf(b, n, "Once"); return; }
+    size_t k = 0; b[0] = 0;
+    for (int i = 0; i < 7 && k + 4 < n; i++) if (a->days[i]) k += (size_t)snprintf(b + k, n - k, "%s%.2s", k ? " " : "", DAY_NAMES[i]);
+}
+/* The summary the status bar, the alarm screen and the web page show: the
+ * first alarm that is on (or the first alarm). */
+void sync_alarm_summary(void)
+{
+    int k = 0;
+    for (int i = 0; i < s_nalarms; i++) if (s_alarms[i].on) { k = i; break; }
+    if (!s_nalarms) { S.alarm_on = false; return; }
+    S.alarm_h = s_alarms[k].h; S.alarm_m = s_alarms[k].m; S.alarm_on = s_alarms[k].on;
+    memcpy(S.days, s_alarms[k].days, 7); S.offset_min = s_alarms[k].early;
+}
+/* Alarms persist in the flash config. */
+void alarms_load(void)
+{
+    const config_t *c = config_get();
+    s_nalarms = c->n_alarms > MAX_ALARMS ? MAX_ALARMS : c->n_alarms;
+    for (int i = 0; i < s_nalarms; i++) {
+        s_alarms[i].h = c->alarms[i].h % 24; s_alarms[i].m = c->alarms[i].m % 60; s_alarms[i].on = c->alarms[i].on;
+        s_alarms[i].early = c->alarms[i].early;
+        for (int d = 0; d < 7; d++) s_alarms[i].days[d] = (c->alarms[i].days >> d) & 1;
+    }
+}
+void alarms_save(void)
+{
+    config_t *c = config_mut();
+    c->n_alarms = (uint8_t)s_nalarms;
+    for (int i = 0; i < s_nalarms; i++) {
+        uint8_t m = 0; for (int d = 0; d < 7; d++) if (s_alarms[i].days[d]) m |= (uint8_t)(1u << d);
+        c->alarms[i].h = (uint8_t)s_alarms[i].h; c->alarms[i].m = (uint8_t)s_alarms[i].m; c->alarms[i].on = s_alarms[i].on;
+        c->alarms[i].days = m; c->alarms[i].early = (uint8_t)s_alarms[i].early;
+    }
+    config_save();
+}
+void publish_alarm(int i)
+{
+    alarms_save();
+    char d[40]; alarm_days_txt(&s_alarms[i], d, sizeof d);
+    publish("set/alarm", "%d %s %02d:%02d %s early %d", i + 1, s_alarms[i].on ? "on" : "off", s_alarms[i].h, s_alarms[i].m, d, s_alarms[i].early);
+}
+

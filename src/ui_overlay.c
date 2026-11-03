@@ -115,8 +115,8 @@ int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const cha
 }
 
 /* Clocks painted two-level (DU): no flash, and none of the GC16 partial-refresh
- * fade; the digits are black on white, so no anti-aliasing. Settings > Home
- * screen > Clock updates. The card layouts keep GC16: their grey cards would
+ * fade; the digits are black on white, so no anti-aliasing. Settings >
+ * Display > Clock updates. The card layouts keep GC16: their grey cards would
  * threshold to white. */
 bool clock_du_active(void)
 {

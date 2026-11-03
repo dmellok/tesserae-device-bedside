@@ -158,7 +158,8 @@ typedef struct { const char *name; int32_t std_s; uint8_t dst; } tzone_t;
 typedef struct { const char *id, *label; } action_t;
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
-               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_RADIO, N_STATIONS, N_COUNT } node_t;
+               N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_RADIO, N_STATIONS,
+               N_DISPLAY, N_SHOWS, N_KEYLIGHTS, N_MENUS, N_EQ, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -185,6 +186,8 @@ typedef enum {
     T_RADIO, S_RADIO, S_STATIONS, A_SOMA, A_STATION,
     /* the Live page's layout and colours */
     C_LIVE_LAYOUT, C_LIVE_DARK,
+    /* Settings groups one level down: Display; Shows; Key lights; Menus; the Equaliser */
+    S_DISPLAY, S_SHOWS, S_KEYLIGHTS, S_MENUS, S_EQ,
 } item_t;
 
 /* Lists longer than this scroll in a window of LIST_FIT rows at full height
@@ -278,15 +281,23 @@ extern const action_t ACTIONS[];
 /* ui_live.c */
 extern const char *const MONTHS[12];
 
-/* ui_menu.c */
-extern const row_def_t R_T_RAIN, R_T_LIGHTS, R_T_AC, R_T_NIGHT;
-extern mode_t_ s_mode;
+/* ui_alarm.c */
 extern alarm_t s_alarms[MAX_ALARMS];
 extern const char *const DAY_NAMES[7];
+extern int s_ai;
+
+/* ui_tree.c */
+extern const row_def_t R_T_RAIN, R_T_LIGHTS, R_T_AC, R_T_NIGHT;
+extern row_def_t s_rows[ROWS_MAX];
+extern int s_ki;
+extern int s_eqb;
+
+/* ui_menu.c */
+extern mode_t_ s_mode;
 extern int s_depth;
+extern int s_rel_armed;
 extern int s_row_h;
 extern int s_list_n;
-extern int s_ai;
 
 /* ---- shared functions (defined in the module named) ---- */
 /* ui_alarm.c */
@@ -310,7 +321,6 @@ const char *action_name(const char *id);
 const char *const *dash_opts(void);
 int clampi(int v, int lo, int hi);
 void alarm_txt(char *b, size_t n);
-void alarms_load(void);
 void apply_colours(void);
 void dash_go(int k);
 void dash_pick(int k);
@@ -322,7 +332,6 @@ void mark_screen(void);
 void mark_value(void);
 void publish(const char *topic, const char *fmt, ...);
 void rebuild(void);
-void sync_alarm_summary(void);
 
 /* ui_draw.c */
 void layer_copy(layer_t *d, const layer_t *s);
@@ -365,18 +374,36 @@ void build_live(layer_t *l);
 void build_status(layer_t *l, bool inv);
 void manual_start(void);
 
+/* ui_alarm.c (the list) */
+void alarm_days_txt(const alarm_t *a, char *b, size_t n);
+void alarms_load(void);
+void alarms_save(void);
+void publish_alarm(int i);
+void sync_alarm_summary(void);
+
+/* ui_tree.c */
+int node_rows(node_t nd, row_def_t *r);
+const char *node_title(node_t nd);
+node_t sub_node(item_t id);
+bool toggle_get(const row_def_t *r);
+void toggle_flip(const row_def_t *r);
+vmeta_t value_meta(item_t id);
+void value_text(item_t id, char *b, size_t n);
+void value_step(item_t id, int d, int accel);
+int choice_opts(item_t id, const char *const **o);
+int choice_get(item_t id);
+void choice_set(item_t id, int k);
+const char *radio_name(void);
+void row_value(const row_def_t *r, char *b, size_t n);
+
 /* ui_menu.c */
 bool crisp(void);
-void alarm_days_txt(const alarm_t *a, char *b, size_t n);
-void alarms_save(void);
 void build_choice(layer_t *l);
 void build_list(layer_t *l);
 void build_top(layer_t *l, bool inv);
 void build_value(layer_t *l);
 void go_home(void);
-void publish_alarm(int i);
 void state_changed(void);
-void toggle_flip(const row_def_t *r);
 void volume(int d);
 
 /* ui_overlay.c */

@@ -392,7 +392,7 @@ void mark_rows(int a, int b)
     int y0 = ya < yb ? ya : yb, y1 = (ya > yb ? ya : yb) + s_row_h;
     if (S.quick_menus) {
         if (s_settle_queued) { s_dn = 0; s_settle_queued = false; }   /* a turn beat the full-quality pass: drop it, it will come again */
-        mark_apart(MARGIN - 8, y0, LIST_W - MARGIN + 8, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed */
+        mark_apart(12, y0, LIST_W - 12, y1 - y0, IT8951_MODE_DU);   /* the two rows that changed, rounded bars included */
         if (S.turn_hints) mark_apart(0, LIST_Y, MARGIN - 8, s_list_n * s_row_h, IT8951_MODE_DU);   /* every row's number moved */
         else mark_apart(0, y0, MARGIN - 8, y1 - y0, IT8951_MODE_DU);
         return;                                     /* the art is black and white: DU paints it exactly, nothing to settle */
@@ -414,7 +414,7 @@ bool local_settle_tick(void)
 void mark_value(void)
 {
     rebuild();
-    mark(MARGIN, TB_H + 60 + icon170.line_h + 20, W - 2 * MARGIN, 720 - icon170.line_h, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);
+    mark(MARGIN, TB_H + 90, W - 2 * MARGIN, 700, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the value, the bar, its ends, the hint */
 }
 
 void local_init(void) { alarms_load(); sync_alarm_summary(); sound_load(); settings_load(); ext_load(); rebuild(); }

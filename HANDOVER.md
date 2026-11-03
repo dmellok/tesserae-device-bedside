@@ -913,3 +913,37 @@ pure-Python script (no PIL on this Mac).
   presets. The Sound card only points there when the kind is Radio. Buttons
   (desktop key 7; a phone section) holds the keys, knob and menus, key lights
   and the BOOT button; Display no longer has Controls. Pages are now 1-9.
+
+## 2026-11-03, late: Menus Mk III
+
+Kayden asked for the Settings menus organised better and the menus to look
+better. Two mock-up rounds (artifact `2FMWGH4fjom2LK273nA5Kx`): he chose the
+"middle ground" look with the tile mock-up's slider, and the regrouped tree.
+
+- **`src/ui_menu.c` is split** (it had passed 1000 lines): `src/ui_tree.c`
+  holds the tree and the row model (`node_rows`, `node_title`, `sub_node`,
+  the toggle / value / choice getters and setters, `row_value`, `s_rows`,
+  `s_ki`, `s_eqb`); `src/ui_alarm.c` gained the alarm list's persistence
+  (`alarms_load` / `alarms_save` / `publish_alarm` / `sync_alarm_summary`);
+  `ui_menu.c` keeps navigation, the keys and the page builders. The shared
+  names are declared in `ui_internal.h` by file. No behaviour changed.
+- **The Settings tree:** Home screen (Overlay, Shows ▸, At night, Live layout,
+  Live colours, Demo data), Display (Clock updates, Screen updates, Clean
+  refresh every, Waveform temperature, Refresh now), Night, Keys and knob
+  (Key 1-3, Knob hold, Key lights ▸, Menus ▸), Speaker (on/off, Preset,
+  Equaliser ▸ with the five bands and Level, Soften highs, Low cut, Loud
+  moments, Test sound), Time and clock, Device (Software, Status, Battery
+  backup, Wi-Fi setup, Restart, Reset everything). Snooze is under Alarms.
+  The "MENU key" and "Tesserae gets" info rows are gone (the top bar labels
+  the key; the web app shows the viewport). No list is longer than eight
+  rows, so rows keep their 116 px height. New nodes `N_DISPLAY`, `N_SHOWS`,
+  `N_KEYLIGHTS`, `N_MENUS`, `N_EQ` and items `S_DISPLAY` ... `S_EQ`.
+- **The look:** the highlighted row is a rounded bar (radius 28) inset 16 px
+  from the list's edges instead of an edge-to-edge block; `mark_rows()` marks
+  from x = 12 for it. The slider page lost the 170 px icon: the number is
+  drawn in `num180` with its unit beside it on the same baseline ("2 of 5",
+  "+3 dB" with the plus in `ui96`, since the number font has none), the bar
+  (40 px, rounded; a rounded outline while crisp) sits right under it with a tick per
+  step up to twelve, the ends in `ui46`, one hint line. `mark_value()` covers
+  TB_H + 90 to + 790. Lists, choices and the info panel are otherwise as
+  they were. Turn counts stay on by default (no answer either way).

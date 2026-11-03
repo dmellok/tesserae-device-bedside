@@ -176,7 +176,7 @@ The old Remote tab (glass preview and virtual controller) is gone;
 | `src/birds.c`, `include/birds.h`, `assets/birds/` | Dawn chorus from real recordings of six Australian birds plus four synthesised ones, arranged live (clip, timing, pitch, distance, reverb). `tools/make_bird_clips.py` cuts the clips from the Commons sources; `scripts/build_birds.py` packs them as 8-bit mu-law (1.7 MB) into flash at build time. Credits in NOTICES.md. |
 | `src/ha.c`, `include/ha.h` | Home Assistant over MQTT with discovery: 78 entities (sleep sounds, rain and thunder, dawn chorus and each bird, four alarm slots, lights and A/C, night mode, key lights, dashboard, buttons, diagnostics, an Events entity). Broker set in the web app's Device tab. Uses lwIP's MQTT client via `src/vendor/lwip_mqtt.c`. |
 | `src/live.c`, `include/live.h`, `docs/live-dashboard.md` | The Live dashboard's values: one MQTT source per tile (an HA entity via Statestream, a topic, or `bedside/live/<tile>`), the bedroom trend, sunrise. The page itself is `build_live()` in `src/local.c`. |
-| `src/audio.c`, `include/audio.h`, `src/spk_dsp.c` | Runs the synth from a timer interrupt on core 1 into a sample ring; the speaker (MAX98357A over PIO I2S, two 93 ms DMA buffers so a flash write never cuts the sound) plays it through the tone stage in `spk_dsp.c` (low cut, a five-band equaliser at 80 Hz to 7 kHz with six presets, a soften low-pass, level trim, peak limiter; Settings > Device > Speaker tuning, or the web app's Speaker page). `GET /audio` streams the ring as raw s16le mono PCM at 22.05 kHz for the web app's Listen button. |
+| `src/audio.c`, `include/audio.h`, `src/spk_dsp.c` | Runs the synth from a timer interrupt on core 1 into a sample ring; the speaker (MAX98357A over PIO I2S, two 93 ms DMA buffers so a flash write never cuts the sound) plays it through the tone stage in `spk_dsp.c` (low cut, a five-band equaliser at 80 Hz to 7 kHz with six presets, a soften low-pass, level trim, peak limiter; Settings > Speaker, or the web app's Speaker page). `GET /audio` streams the ring as raw s16le mono PCM at 22.05 kHz for the web app's Listen button. |
 | `src/painter.c`, `include/painter.h` | Panel driver on core 1: one paint job at a time from a snapshot, so core 0 stays responsive. Flash writes park it via multicore lockout (see HANDOVER). |
 | `src/net.c`, `include/net.h` | WiFi join + raw-lwIP HTTP server (`/`, `/api/state`, `/api/cmd`, `/frame?s=N`) |
 | `www/app.src.html`, `www/desktop.src.html`, `www/icons.js` | The web app, twice: the phone layout (Room, Alarms, Console, Device) and a desktop layout (sidebar pages: Overview with the panel preview, Sound, Speaker with the response curve, Alarms, Display, Device, Console) served at `/desktop`, which wide screens are sent to. The controls exist once, in `app.src.html` (marked `<!--part:name-->`); `desktop.src.html` places them (`<!--@name-->`) and shares the script and stylesheet. `scripts/build_www.py` assembles both and inlines the Phosphor icons before every build; edit the `.src` files, never `index.html` / `desktop.html`. |
@@ -315,7 +315,7 @@ host code).
 
 ## Menus: quick moves and turn counts
 
-- **Quick menu moves** (Settings > Keys and knob; web app Buttons page; on by
+- **Quick menu moves** (Settings > Keys and knob > Menus; web app Buttons page; on by
   default): a knob step repaints only the rows that changed, in the panel's
   two-level mode (about 0.6 s). Once the knob rests for half a second the list
   and the preview repaint in full quality. Off: every step is a full-quality
