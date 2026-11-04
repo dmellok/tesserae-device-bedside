@@ -269,6 +269,29 @@ void toast_loading(const char *title)
     s_toast_loading = true;
     s_toast_until = (now_ms() + 40000u) | 1u;            /* a first render can take a while */
 }
+/* An update asked for: the card goes up before anything is fetched (the
+ * manifest and the download block the main loop, so nothing drawn after them
+ * would show until they were done), the radio stops (the stream and the
+ * download would share the link), and main.c starts the fetch once the card
+ * is on the glass. */
+void local_ota_prepare(int release)
+{
+    const ota_release_t *e = release >= 0 ? ota_release(release) : NULL;
+    char v[40];
+    if (e) snprintf(v, sizeof v, "%s " DOT " fetching", e->ver); else snprintf(v, sizeof v, "the newest release");
+    toast(ICON_GEAR, "Preparing to update", v);
+    s_toast_loading = true; s_toast_until = (now_ms() + 90000u) | 1u;   /* until the download reports, or it fails */
+    if (S.rain_on && S.rain_kind == RS_RADIO) {                          /* the radio would fight the download for the link */
+        S.rain_on = false; publish("set/rain", "pause");
+        rebuild(); R_SBMID();
+    }
+    s_req_arg = release; s_req = LREQ_INSTALL;
+}
+void local_ota_note(const char *txt, const char *val)
+{
+    s_toast_loading = false; toast(ICON_GEAR, txt, val);
+}
+
 /* The update in progress: a card with the percentage; a failure says why. The
  * overnight check: 03:10 local, auto-update on, no alarm within 90 minutes. */
 void local_ota_service(void)
@@ -294,7 +317,7 @@ void local_ota_service(void)
     done_day = (int)(mn / 1440);
     int ai; int32_t dl;
     if (next_alarm(&ai, &dl) && dl >= 0 && dl < 90 * 60) { printf("ota: auto-update skipped, an alarm is due\n"); return; }
-    ota_auto_update();
+    local_ota_prepare(-1);
 }
 
 /* main.c: a new frame arrived, so the loading card goes with the repaint. */

@@ -18,7 +18,7 @@ bool local_set(const char *key, const char *val)
     if (!strcmp(key, "vol"))            { if (v < 0 || v > 10) return false; S.vol = v; publish("config/volume", "%d", v); rebuild(); R_VOL(); return true; }
     else if (!strcmp(key, "rain_on"))   { S.rain_on = v != 0; publish("set/rain", S.rain_on ? "play" : "pause"); }
     else if (!strcmp(key, "rain_lvl"))  { if (v < 1 || v > 5) return false; S.rain_lvl = v; publish("set/rain", "level %d", v); }
-    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 5) return false; S.rain_kind = v; publish("set/rain", "%s", KINDS[v]); }
+    else if (!strcmp(key, "rain_kind")) { if (v < 0 || v > 5) return false; S.rain_kind = v; if (v != RS_RADIO) S.sleep_kind = v; publish("set/rain", "%s", KINDS[v]); }
     else if (!strcmp(key, "station"))   { if (v < 0 || v >= radio_preset_count()) return false; S.station = v; }
     else if (!strcmp(key, "soma"))      { if (radio_soma_find(val) < 0) return false; S.station = -1; snprintf(S.soma, sizeof S.soma, "%s", val); S.rain_kind = RS_RADIO; S.rain_on = true; }
     else if (!strcmp(key, "sleep"))     { if (v != 0 && v != 15 && v != 30 && v != 60) return false; S.sleep_min = v; publish("set/rain", "sleep %d", v); }
@@ -211,6 +211,7 @@ static void ext_pack(ext_blob_t *b)
     b->rsv1[23] = (char)(S.live_layout + 1); b->rsv1[24] = (char)(S.live_dark + 1);   /* + 1: 0 = not set */
     b->rsv1[25] = (char)(S.alarm_tone + 1);
     b->rsv1[26] = (char)(S.quick_a2 ? 3 : 1);   /* 2 was this morning's "on": reads as off */ b->rsv1[27] = (char)(S.load_1bpp + 1);
+    b->rsv1[28] = (char)(S.sleep_kind + 1);                      /* the sleep noise the rain key starts */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
@@ -234,6 +235,8 @@ void ext_load(void)
         if (b.rsv1[25]) S.alarm_tone = clampi((uint8_t)b.rsv1[25] - 1, 0, RS_TONES - 1);
         if (b.rsv1[26]) S.quick_a2 = (uint8_t)b.rsv1[26] == 3;
         if (b.rsv1[27]) S.load_1bpp = clampi((uint8_t)b.rsv1[27] - 1, 0, 2);
+        if (b.rsv1[28]) S.sleep_kind = clampi((uint8_t)b.rsv1[28] - 1, 0, RS_RADIO - 1);
+        else if (S.rain_kind != RS_RADIO) S.sleep_kind = S.rain_kind;
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
         if (b.rsv1[0]) {
@@ -313,7 +316,7 @@ size_t local_state_json(char *b, size_t cap)
 {
     size_t n = 0;
 #define J(...) do { int k = snprintf(b + n, cap > n ? cap - n : 0, __VA_ARGS__); if (k > 0) n += (size_t)k; } while (0)
-    J("{\"vol\":%d,\"rain\":{\"on\":%d,\"lvl\":%d,\"kind\":%d,\"sleep\":%d,\"sleep_left_s\":%d},", S.vol, S.rain_on, S.rain_lvl, S.rain_kind, S.sleep_min, sleep_left_s() > 0 ? sleep_left_s() : 0);
+    J("{\"vol\":%d,\"rain\":{\"on\":%d,\"lvl\":%d,\"kind\":%d,\"sleep_kind\":%d,\"sleep\":%d,\"sleep_left_s\":%d},", S.vol, S.rain_on, S.rain_lvl, S.rain_kind, S.sleep_kind, S.sleep_min, sleep_left_s() > 0 ? sleep_left_s() : 0);
     {   /* the radio: what it is doing, and the presets (names and URLs escaped for JSON) */
         char esc[2 * RADIO_URL_MAX];
         J("\"radio\":{\"sel\":%d,\"soma\":\"%s\",\"soma_n\":%d,\"soma_live\":%d,\"state\":\"%s\",\"station\":",

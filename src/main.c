@@ -198,6 +198,11 @@ void on_key_up(int i)
 
 void on_input(input_event_t e)
 {
+    /* While an update downloads, the flash writes stall this core and the
+     * next key read came back with keys 1 and 2 down (seen as rain.toggle and
+     * lights.toggle firing by themselves). Nothing a key could do is wanted
+     * then anyway: drop every event until the update is over. */
+    if (ota_busy()) { inputs_discard(); return; }
     s_last_input_ms = to_ms_since_boot(get_absolute_time());
     switch (e.kind) {
     case IN_TURN:
@@ -409,6 +414,19 @@ static void ui_service(void)
     case LREQ_RESTART: printf("rebooting (settings)\n"); sleep_ms(200); watchdog_reboot(0, 0, 0); break;
     case LREQ_SETUP:   printf("rebooting into WiFi setup\n"); watchdog_hw->scratch[0] = SETUP_MAGIC; sleep_ms(200); watchdog_reboot(0, 0, 0); break;
     case LREQ_RESET:   printf("master reset (settings)\n"); config_erase_all(); sleep_ms(200); watchdog_reboot(0, 0, 0); break;
+    case LREQ_INSTALL: {
+        /* The "Preparing to update" card is marked; get it onto the glass before
+         * the manifest fetch and the download hold this core (core 1 paints on). */
+        int rel = local_request_arg();
+        printf("ota: preparing to install %s\n", rel < 0 ? "the newest release" : ota_release(rel) ? ota_release(rel)->ver : "?");
+        local_flush();
+        uint32_t t0 = to_ms_since_boot(get_absolute_time());
+        do { net_poll(); paint_pump(); sleep_ms(20); }
+        while ((s_flush_pending || painter_busy()) && to_ms_since_boot(get_absolute_time()) - t0 < 4000);
+        radio_stop();
+        bool ok = rel < 0 ? ota_auto_update() : ota_install(rel);
+        if (!ok && ota_state() != OTA_FAILED) local_ota_note(rel < 0 ? "Already up to date" : "Update not started", ota_error());
+        break; }
     default: break;
     }
     net_poll();

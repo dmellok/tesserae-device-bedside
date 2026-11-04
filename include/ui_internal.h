@@ -268,6 +268,7 @@ extern const char *const LIVE_DARKS[3];
 extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;
+extern int s_req_arg;
 extern const char *const OVERLAYS[4];
 extern const char *const ATNIGHT[3];
 extern const char *const NIGHTKEYS[2];

@@ -420,7 +420,7 @@ bool local_press(void)
                 ota_releases_fetch(); s_rel_armed = -1; mark_screen();
             } else if (r.id == A_RELEASE) {
                 if (s_rel_armed != r.arg) { s_rel_armed = r.arg; int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
-                else { s_rel_armed = -1; if (!ota_install(r.arg)) toast(ICON_GEAR, "Update failed", ota_error()); }
+                else { s_rel_armed = -1; local_ota_prepare(r.arg); }      /* the card first, then main.c fetches */
             } else if (r.id == A_PREVIEW) {
                 chorus_preview(s_preview_len_ms ? 0 : 90);
                 rebuild(); { int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
@@ -459,7 +459,7 @@ bool local_back(void)
 void state_changed(void)
 {
     rebuild();
-    if (s_mode == M_HOME) R_SBMID();
+    if (s_mode == M_HOME) { R_SBMID(); mark_diff(&P_top, &L_top, IT8951_MODE_GL16); }   /* the key labels follow the state (the rain key reads Stop while the radio plays) */
     else if (s_mode == M_LIST) { int s = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(s, s); }
 }
 
@@ -511,7 +511,15 @@ bool local_action(const char *id)
     if (!strcmp(id, "vol.down"))      { volume(-1); return true; }
     /* The confirmation: the overlay's own item, flashed, when it shows the
      * result (sound bit 4, alarm 2, room 8); a card over the page otherwise. */
-    if (!strcmp(id, "rain.toggle"))   { toggle_flip(&R_T_RAIN); state_changed(); confirm(ICON_CLOUD_RAIN, KINDS[S.rain_kind], S.rain_on ? "On" : "Off", 4); return true; }
+    if (!strcmp(id, "rain.toggle")) {
+        /* The rain key starts the chosen sleep noise, never the radio: while
+         * the radio plays it is a stop key, and then a sleep-noise key again. */
+        if (S.rain_on && S.rain_kind == RS_RADIO) { S.rain_on = false; publish("set/rain", "pause"); state_changed(); confirm(ICON_SPEAKER_SLASH, "Radio", "Off", 4); return true; }
+        if (S.rain_on) { S.rain_on = false; publish("set/rain", "pause"); state_changed(); confirm(ICON_CLOUD_RAIN, KINDS[S.rain_kind], "Off", 4); return true; }
+        if (S.rain_kind == RS_RADIO) S.rain_kind = S.sleep_kind;
+        S.rain_on = true; publish("set/rain", "play %s", KINDS[S.rain_kind]); state_changed();
+        confirm(ICON_CLOUD_RAIN, KINDS[S.rain_kind], "On", 4); return true;
+    }
     if (!strcmp(id, "lights.toggle")) { toggle_flip(&R_T_LIGHTS); state_changed(); confirm(ICON_LIGHTBULB, "Lights", S.lights_on ? "On" : "Off", 8); return true; }
     if (!strcmp(id, "ac.toggle"))     { toggle_flip(&R_T_AC); state_changed();
                                         char v[16]; if (S.ac_mode) snprintf(v, sizeof v, "%s %d" DEG, AC_MODES[S.ac_mode], S.sp_x2 / 2); else snprintf(v, sizeof v, "Off");

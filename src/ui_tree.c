@@ -533,7 +533,7 @@ int choice_get(item_t id)
 void choice_set(item_t id, int k)
 {
     switch (id) {
-    case C_RAIN_KIND: S.rain_kind = k; S.rain_on = true; publish("set/rain", "%s", KINDS[k]); break;
+    case C_RAIN_KIND: S.rain_kind = k; if (k != RS_RADIO) S.sleep_kind = k; S.rain_on = true; publish("set/rain", "%s", KINDS[k]); break;
     case C_SLEEP:     S.sleep_min = SLEEP_V[k]; publish("set/rain", "sleep %d", S.sleep_min); break;
     case C_COLOUR:    S.light_mode = k; S.lights_on = true; publish("set/lights", "%s", k ? "night" : "warm"); break;
     case C_AC_MODE:   S.ac_mode = MODE_V[k]; publish("set/ac", "%s", AC_MODES[S.ac_mode]); break;

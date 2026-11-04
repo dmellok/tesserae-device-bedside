@@ -181,7 +181,7 @@ static void exec_command(const char *name, const char *value)
     }
     else if (!strcmp(name, "picks"))     tesserae_picks_fetch();          /* refresh the dashboard list */
     else if (!strcmp(name, "otacheck"))  ota_releases_fetch();
-    else if (!strcmp(name, "otainstall")) { if (!ota_install(v)) printf("ota: %s\n", ota_error()); }
+    else if (!strcmp(name, "otainstall")) { if (ota_release(v)) local_ota_prepare(v); else printf("ota: no such release\n"); }   /* the panel says so first, then installs */
     else if (!strcmp(name, "https"))     {     /* diagnostics: GET a URL (http or https), print the status and the start */
         static char u[1024]; snprintf(u, sizeof u, "%s", value);
         uint8_t *buf = PSRAM_XIP_BASE + 6u * 1024 * 1024 + 512u * 1024; size_t got = 0; uint32_t total = 0;

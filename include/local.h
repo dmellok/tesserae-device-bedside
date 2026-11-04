@@ -35,6 +35,7 @@ typedef enum { PHASE_IDLE = 0, PHASE_PREWAKE, PHASE_RINGING } alarm_phase_t;
 typedef struct {
     int  alarm_h, alarm_m; bool alarm_on; uint8_t days[7]; int offset_min; alarm_phase_t phase;
     bool rain_on; int rain_lvl; int rain_kind; int sleep_min;        /* kind 0 rain 1 ocean 2 brown */
+    int  sleep_kind;                   /* the last sleep noise chosen (never Radio): what the rain key starts */
     bool lights_on; int bright; int light_mode;                       /* mode 0 warm 1 night */
     int  ac_mode; int sp_x2; int room_x10; int fan;                   /* mode 0 off 1 heat 2 fan 3 cool 4 dry */
     int  vol;
@@ -130,8 +131,14 @@ bool local_tick(void);
  * a repaint is due). */
 bool local_live_active(void);
 /* Things only main.c can do, asked for from the settings: */
-typedef enum { LREQ_NONE, LREQ_REFRESH, LREQ_RESTART, LREQ_RESET, LREQ_SETUP } local_req_t;
+typedef enum { LREQ_NONE, LREQ_REFRESH, LREQ_RESTART, LREQ_RESET, LREQ_SETUP, LREQ_INSTALL } local_req_t;
 local_req_t local_take_request(void);
+int  local_request_arg(void);                     /* LREQ_INSTALL: the release index, -1 for the newest stable */
+/* An update asked for (the panel's Software page, the web app, the overnight
+ * check): says "Preparing to update" at once, stops the radio, and asks main.c
+ * (LREQ_INSTALL) to fetch and install once the message is on the glass. */
+void local_ota_prepare(int release);
+void local_ota_note(const char *txt, const char *val);   /* a card about the update that stays until the next one */
 /* Palette names for the key colours (for the web app / HA). */
 int         local_palette_count(void);
 const char *local_palette_name(int i);

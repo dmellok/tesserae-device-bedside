@@ -1141,3 +1141,29 @@ v0.6.0 --notes-file`). The gist's settings map and proposal were pushed
 for it too. The bench panel runs the same code from USB; install the
 release from Settings › Device › Software to put it on the A/B slot
 properly.
+
+## Preparing to update, phantom keys, the rain key (4 Nov 2026, after v0.6.0)
+
+- **"Preparing to update" at once.** The second press on a release (and
+  `otainstall`, the web app, the overnight check) now goes through
+  `local_ota_prepare()` in `ui_overlay.c`: a loading card ("Preparing to
+  update · 0.6.0 · fetching"), the radio paused if it was playing, then
+  `LREQ_INSTALL` with the release index in `s_req_arg` (-1 = the newest
+  stable). `main.c` flushes, waits for the painter (up to 4 s) so the card
+  is on the glass, calls `radio_stop()`, then `ota_install()` blocks as
+  before. "Already up to date" / "Update not started" come back through
+  `local_ota_note()`.
+- **Phantom keys during the flash writes.** The log showed `action:
+  rain.toggle` and `lights.toggle` while the update wrote flash (the key
+  matrix reads garbage while the XIP cache is off). `on_input()` discards
+  every event while `ota_busy()`. Verified: an install with the radio on
+  logs the pause, the progress lines and nothing else.
+- **The rain key against the radio** (Kayden): key 1 only ever starts the
+  sleep noise, never the radio. `S.sleep_kind` (`local.h`, blob
+  `rsv1[28]`+1, JSON `rain.sleep_kind`) remembers the last non-radio kind
+  chosen on the Sound page, the web app or HA. `rain.toggle`: radio
+  playing → pause it, label "Stop" with the muted speaker; noise playing →
+  pause it; nothing playing → switch the kind to `sleep_kind` and play.
+  `state_changed()` re-marks the top bar on the home screen so the label
+  follows the radio (`mark_diff` of `P_top`). The action and the key-action
+  name are "Sleep noise on/off". Verified on the glass: Stop → Rain → on.

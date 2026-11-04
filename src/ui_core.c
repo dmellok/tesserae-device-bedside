@@ -37,6 +37,7 @@ const int KEY_CX[4] = { 1204, 1372, 1543, 1711 };
 local_state_t S = {
     .alarm_h = 6, .alarm_m = 30, .alarm_on = true, .days = {1,1,1,1,1,0,0}, .offset_min = 15,
     .rain_on = false, .rain_lvl = 3, .rain_kind = 0, .sleep_min = 0,     /* quiet until asked: the panel must not start playing on its own after a power cut at night */
+    .sleep_kind = 0,
     .lights_on = false, .bright = 40, .light_mode = 0,
     .ac_mode = 3, .sp_x2 = 44, .room_x10 = 234, .fan = 0,
     .vol = 6, .night = false, .on_battery = false, .batt_pct = 92,
@@ -96,7 +97,9 @@ const char *const LIVE_DARKS[3]   = { "Light", "Dark", "Dark at night" };
 const int SNOOZE_V[4] = { 5, 9, 10, 15 };
 const char *const RESETS[2]    = { "Keep everything", "Reset everything" };
 local_req_t s_req;
+int s_req_arg;
 local_req_t local_take_request(void) { local_req_t r = s_req; s_req = LREQ_NONE; return r; }
+int local_request_arg(void) { return s_req_arg; }
 void apply_colours(void)
 {
     /* At night the keys keep their day colour at a low glow, or go dark. */
@@ -113,7 +116,7 @@ int local_refresh_mode(void) { return S.refresh_mode; }
 /* What keys 1-3 can do, pressed or held (ids as in the action table). */
 const char *const KEYACT_ID[N_KEYACT] = { "rain.toggle", "lights.toggle", "ac.toggle", "dash.prev", "dash.next", "night", "light.night",
     "alarm.toggle", "open.sound", "open.lights", "open.ac", "open.alarm", "menu", "refresh", "live.next", "none" };
-const char *const KEYACT_NAME[N_KEYACT] = { "Rain on/off", "Lights on/off", "AC on/off", "Previous dashboard", "Next dashboard", "Night mode", "Night light",
+const char *const KEYACT_NAME[N_KEYACT] = { "Sleep noise on/off", "Lights on/off", "AC on/off", "Previous dashboard", "Next dashboard", "Night mode", "Night light",
     "Alarm on/off", "Open Rain", "Open Lights", "Open AC", "Open Alarms", "Open menu", "Refresh dashboard", "Next Live layout", "Nothing" };
 const char *const KNOBACT_ID[N_KNOBACT]   = { "back", "none", "night", "rain.toggle", "dash.next" };
 const char *const KNOBACT_NAME[N_KNOBACT] = { "Back", "Nothing", "Night mode", "Rain on/off", "Next dashboard" };
@@ -280,7 +283,7 @@ __attribute__((unused)) static int cyc(int v, int n, int d) { return ((v + d) % 
 /* ---- actions (key bindings) -------------------------------------------------- */
 const action_t ACTIONS[] = {
     { "none",          "Nothing" },
-    { "rain.toggle",   "Rain on/off" },
+    { "rain.toggle",   "Sleep noise on/off (stops the radio)" },
     { "lights.toggle", "Lights on/off" },
     { "ac.toggle",     "AC on/off" },
     { "alarm.toggle",  "Alarm on/off" },
@@ -325,7 +328,8 @@ __attribute__((unused)) const char *action_name(const char *id)
 const char *action_icon(const char *spec)
 {
     if (!spec || !spec[0] || !strcmp(spec, "none")) return NULL;
-    if (!strcmp(spec, "rain.toggle") || !strcmp(spec, "open.sound")) return ICON_CLOUD_RAIN;
+    if (!strcmp(spec, "rain.toggle")) return S.rain_on && S.rain_kind == RS_RADIO ? ICON_SPEAKER_SLASH : ICON_CLOUD_RAIN;   /* a stop key while the radio plays */
+    if (!strcmp(spec, "open.sound")) return ICON_CLOUD_RAIN;
     if (!strcmp(spec, "lights.toggle") || !strcmp(spec, "light.night") || !strcmp(spec, "open.lights")) return ICON_LIGHTBULB;
     if (!strcmp(spec, "ac.toggle") || !strcmp(spec, "open.ac")) return ICON_SNOWFLAKE;
     if (!strcmp(spec, "alarm.toggle") || !strcmp(spec, "open.alarm")) return ICON_ALARM;
@@ -343,7 +347,7 @@ const char *local_label_for_action(const char *spec)
     static char b[16];
     if (!spec || !spec[0] || !strcmp(spec, "none")) return "";
     /* Fixed names: the status bar shows the state, so a toggle repaints one area. */
-    if (!strcmp(spec, "rain.toggle"))   return "Rain";
+    if (!strcmp(spec, "rain.toggle"))   return S.rain_on && S.rain_kind == RS_RADIO ? "Stop" : KINDS[S.rain_kind == RS_RADIO ? S.sleep_kind : S.rain_kind];   /* the noise it starts; Stop while the radio plays */
     if (!strcmp(spec, "lights.toggle")) return "Lights";
     if (!strcmp(spec, "ac.toggle"))     return "AC";
     if (!strcmp(spec, "alarm.toggle"))  return "Alarm";
