@@ -83,6 +83,8 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "quick_a2"))     { S.quick_a2 = v != 0; return true; }
     else if (!strcmp(key, "onebit"))       { if (v < 0 || v > 2) return false; S.load_1bpp = v; return true; }
     else if (!strcmp(key, "settle_full"))  { S.settle_full = v != 0; return true; }
+    else if (!strcmp(key, "wiz"))          { if (v >= WZ_STEPS) return false; if (v < 0) wizard_finish(); else wizard_goto(v); return true; }   /* setup: a step, or -1 to finish */
+    else if (!strcmp(key, "stop_clean"))   { S.stop_clean = v != 0; return true; }
     else if (!strcmp(key, "clean_min"))    { if (v < 1 || v > 240) return false; S.clean_min = v; return true; }
     else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
     else if (!strcmp(key, "auto_time"))  { S.auto_time = v != 0; if (!S.auto_time) manual_start(); rebuild(); return true; }
@@ -92,7 +94,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "chorus_preview")) { if (v < 0 || v > 900) return false; chorus_preview(v); }
     else if (!strcmp(key, "alarm_tone"))   { if (v < 0 || v >= RS_TONES) return false; S.alarm_tone = v; publish("config/alarm_tone", "%s", RS_TONE_NAMES[v]); }
     else if (!strcmp(key, "tone_preview")) { if (v < -1 || v >= RS_TONES) return false; tone_preview(v < 0 ? S.alarm_tone : v, v ? 6 : 0); return true; }   /* -1: the chosen one; 0 stops */
-    else if (!strcmp(key, "alarm_stop"))  { if (S.phase == PHASE_RINGING) stop_alarm(); else if (s_snooze_until_ms) { s_snooze_until_ms = 0; s_ring_alarm = -1; } else return false; }
+    else if (!strcmp(key, "alarm_stop"))  { if (S.phase == PHASE_RINGING) stop_alarm(); else if (S.phase == PHASE_PREWAKE) stop_prewake(); else if (s_snooze_until_ms) { s_snooze_until_ms = 0; s_ring_alarm = -1; } else return false; }
     else if (!strcmp(key, "alarm_snooze")) { if (S.phase != PHASE_RINGING) return false; snooze(); }
     else if (!strcmp(key, "alarm")) {
         /* i,h,m,on,daysmask,early */
@@ -212,11 +214,14 @@ static void ext_pack(ext_blob_t *b)
     b->rsv1[25] = (char)(S.alarm_tone + 1);
     b->rsv1[26] = (char)(S.quick_a2 ? 3 : 1);   /* 2 was this morning's "on": reads as off */ b->rsv1[27] = (char)(S.load_1bpp + 1);
     b->rsv1[28] = (char)(S.sleep_kind + 1);                      /* the sleep noise the rain key starts */
+    b->rsv1[29] = (char)(S.stop_clean ? 1 : 2);                  /* 0 = not set: on */
+    b->rsv1[30] = (char)(S.wiz < 0 ? 1 : S.wiz + 2);              /* setup: 1 done, 2 + the step while it runs; 0 = never decided */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void ext_load(void)
 {
     ext_blob_t b;
+    int wiz = 0;
     if (config_blob_load(5, EXT_MAGIC, &b, sizeof b)) {
         S.speaker = b.speaker; S.power_mon = b.power_mon;
         S.turn_hints = (b.rsv0 & 0x80) ? (b.rsv0 & 1) != 0 : false;
@@ -237,6 +242,8 @@ void ext_load(void)
         if (b.rsv1[27]) S.load_1bpp = clampi((uint8_t)b.rsv1[27] - 1, 0, 2);
         if (b.rsv1[28]) S.sleep_kind = clampi((uint8_t)b.rsv1[28] - 1, 0, RS_RADIO - 1);
         else if (S.rain_kind != RS_RADIO) S.sleep_kind = S.rain_kind;
+        S.stop_clean = (uint8_t)b.rsv1[29] != 2;
+        wiz = (uint8_t)b.rsv1[30];
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
         if (b.bird_soft_p1) S.bird_soft = clampi(b.bird_soft_p1 - 1, 0, 100);
         if (b.rsv1[0]) {
@@ -246,6 +253,10 @@ void ext_load(void)
         }
         b.rec[39] = 0; memcpy(S.rec, b.rec, sizeof S.rec);
     }
+    /* setup: never decided (a fresh device, after a reset, or one from before
+     * setup existed): a device that is already paired skips it */
+    if (wiz == 0) S.wiz = config_get()->device_token[0] ? -1 : 0;
+    else S.wiz = wiz == 1 ? -1 : clampi(wiz - 2, 0, WZ_STEPS - 1);
     ext_pack(&s_ext_saved);
 }
 
@@ -346,8 +357,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"auto_update\":%d,\"turn_hints\":%d,\"large_text\":%d,\"quick_a2\":%d,\"onebit\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.auto_update, S.turn_hints, S.large_text, S.quick_a2, S.load_1bpp, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"auto_update\":%d,\"turn_hints\":%d,\"large_text\":%d,\"quick_a2\":%d,\"onebit\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"stop_clean\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.auto_update, S.turn_hints, S.large_text, S.quick_a2, S.load_1bpp, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.stop_clean, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);
@@ -368,8 +379,8 @@ size_t local_state_json(char *b, size_t cap)
     J("\"picks\":[");
     for (int i = 0; i < tesserae_pick_count(); i++) J("%s\"%s\"", i ? "," : "", tesserae_pick_title(i));
     J("],\"pick\":%d,", S.dash_page ? s_dash_sel - 1 : -1);
-    J("\"night\":%d,\"keylights\":%d,\"dash\":%d,\"dashes\":[\"%s\",\"%s\",\"%s\"],\"phase\":%d,\"screen\":\"%s\",\"alarms\":[",
-      S.night, inputs_backlight() * 100 / 255, S.dash_page, DASHES[0], DASHES[1], DASHES[2], (int)S.phase, local_screen_name(local_screen()));
+    J("\"night\":%d,\"keylights\":%d,\"dash\":%d,\"dashes\":[\"%s\",\"%s\",\"%s\"],\"phase\":%d,\"screen\":\"%s\",\"wiz\":%d,\"wiz_steps\":%d,\"alarms\":[",
+      S.night, inputs_backlight() * 100 / 255, S.dash_page, DASHES[0], DASHES[1], DASHES[2], (int)S.phase, local_screen_name(local_screen()), S.wiz, WZ_STEPS);
     for (int i = 0; i < s_nalarms; i++) {
         int mask = 0; for (int d = 0; d < 7; d++) if (s_alarms[i].days[d]) mask |= 1 << d;
         char dt[40]; alarm_days_txt(&s_alarms[i], dt, sizeof dt);

@@ -335,6 +335,7 @@ static bool disc_build(int k, char *topic, size_t tn, char *pl, size_t pn)
 
 /* ---- public ------------------------------------------------------------------------ */
 bool ha_connected(void) { return s_st == HS_UP; }
+bool ha_enabled(void)   { return C.enabled && C.host[0]; }
 
 void ha_init(void)
 {

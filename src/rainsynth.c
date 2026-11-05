@@ -353,7 +353,10 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     if (p->audition != s_last_audition) { s_last_audition = p->audition; bs_call(p->audition_bird); }
     bs_block(chorus, p->birds, blk);
     float bv = (p->bird_vol < 0 ? 0 : p->bird_vol > 10 ? 10 : (float)p->bird_vol) / 10.0f;
-    float tb = powf(bv, 1.5f) * 1.8f * (chorus > 0 ? lerp(0.35f, 1.0f, chorus) : 1.0f);
+    /* The chorus rises evenly in loudness: -30 dB as it starts, full at the ring
+     * (-6 dB in the last minute). It was 0.35..1 in amplitude, only 9 dB of
+     * rise, so the first birds already sounded almost at full. */
+    float tb = powf(bv, 1.5f) * 1.8f * (chorus > 0 ? powf(10.0f, -1.5f * (1.0f - chorus)) : 1.0f);
     bool birds_on = chorus > 0 || bs_active();
     /* softness: 0 leaves the birds alone (9 kHz, nothing to hear at 22 kHz), 100 rolls them off above ~1.6 kHz */
     float a_bird = lp_coef(9000.0f * powf(0.18f, clamp01(p->bird_soft / 100.0f)));

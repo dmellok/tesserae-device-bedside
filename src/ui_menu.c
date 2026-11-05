@@ -166,7 +166,7 @@ static void scroll_bar(layer_t *l, int total, int top, int shown)
 
 /* A split list: rows on the left, the highlighted row large on the right.
  * sw: a toggle's state per row (-1 none); total / top: the whole list, for the scroll bar. */
-static void build_split(layer_t *l, const char *const *labels, const char *const *icons, char vals[][24],
+static int build_split(layer_t *l, const char *const *labels, const char *const *icons, char vals[][24],
                         const bool *chev, const bool *check, const int8_t *sw, int n, int sel, int total, int top,
                         const char *pv_icon, const char *pv_big, const char *pv_small)
 {
@@ -205,7 +205,32 @@ static void build_split(layer_t *l, const char *const *labels, const char *const
     const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < W - LIST_W - 80 ? F_NUM : F_XL;
     if (draw_font_w(bf, pv_big) > W - LIST_W - 80) bf = fm;
     op_text_c(l, cx, y, bf, G_BLACK, pv_big); y += bf->line_h + 18;
-    op_text_c(l, cx, y, fl, DIM_G, pv_small);
+    if (pv_small[0]) { op_text_c(l, cx, y, fl, DIM_G, pv_small); y += fl->line_h; }
+    return y;
+}
+
+/* A paragraph centred in the preview, broken at words to fit maxw; at most max_lines. */
+static int wrap_c(layer_t *l, int cx, int y, const bfont_t *f, uint8_t g, const char *t, int maxw, int max_lines)
+{
+    char line[96]; int k = 0;
+    while (*t && k < max_lines) {
+        while (*t == ' ') t++;
+        size_t best = 0, i = 0;
+        for (;;) {                                     /* the longest run of whole words that fits */
+            while (t[i] && t[i] != ' ') i++;
+            if (i >= sizeof line) break;
+            memcpy(line, t, i); line[i] = 0;
+            if (draw_font_w(f, line) > maxw && best) break;
+            best = i;
+            if (!t[i]) break;
+            i++;
+        }
+        if (!best) break;
+        memcpy(line, t, best); line[best] = 0;
+        op_text_c(l, cx, y, f, g, line);
+        y += f->line_h + 4; k++; t += best;
+    }
+    return y;
 }
 
 void build_list(layer_t *l)
@@ -229,6 +254,14 @@ void build_list(layer_t *l)
     if (r->id == I_STATUS) { if (S.on_battery) snprintf(big, sizeof big, "Battery %d%%", S.batt_pct); else snprintf(big, sizeof big, "Mains"); }
     if (r->id == A_SOMA) snprintf(big, sizeof big, "%.22s", radio_soma(r->arg)->title);
     fit_line(small, sizeof small, mf_lbl(), W - LIST_W - 60);
+    if (nd == N_WIZARD) {
+        /* setup: the step's heading and what it is for; what the highlighted row does under it */
+        int y = build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, wizard_icon(), wizard_heading(), "");
+        char intro[200]; wizard_intro(intro, sizeof intro);
+        y = wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 6, mf_lbl(), G_BLACK, intro, W - LIST_W - 120, 5);
+        wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 40, mf_lbl(), DIM_G, small, W - LIST_W - 120, 2);
+        return;
+    }
     build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, r->icon, big, small);
 }
 
@@ -293,8 +326,38 @@ static void push_node(node_t n)
     printf("local: %s\n", node_title(n));
     mark_screen();
 }
+/* ---- first-run setup (the steps are ui_wizard.c) ---- */
+bool wizard_showing(void) { return s_mode != M_HOME && s_depth >= 1 && s_stack[0].node == N_WIZARD; }
+void wizard_open(void)
+{
+    if (S.wiz < 0 || S.wiz >= WZ_STEPS) S.wiz = 0;
+    disarm();
+    s_stack[0].node = N_WIZARD; s_stack[0].sel = wizard_default_sel(); s_stack[0].top = 0; s_depth = 1;
+    s_mode = M_LIST;
+    printf("local: setup, step %d\n", S.wiz + 1);
+    mark_screen();
+}
+/* Another step (from the panel or the web app): the panel follows, from its
+ * home screen or from inside a step (a choice open there closes). Elsewhere in
+ * the menus it is left alone; the knob on the home screen comes back to it. */
+void wizard_goto(int step)
+{
+    if (step < 0) step = 0;
+    if (step >= WZ_STEPS) step = WZ_STEPS - 1;
+    S.wiz = step;
+    if (s_mode == M_HOME || wizard_showing()) wizard_open();
+}
+void wizard_finish(void)
+{
+    bool on = wizard_showing();
+    S.wiz = -1;
+    printf("local: setup finished\n");
+    if (on) go_home();
+}
+
 static void list_back(void)
 {
+    if (s_depth <= 1 && s_stack[0].node == N_WIZARD && S.wiz > 0) { wizard_goto(S.wiz - 1); return; }   /* setup: Back is the step before */
     if (s_depth <= 1) { go_home(); return; }
     disarm();
     s_depth--;
@@ -379,8 +442,9 @@ bool local_turn(int d)
 bool local_press(void)
 {
     if (S.phase == PHASE_RINGING) { stop_alarm(); return true; }
+    if (S.phase == PHASE_PREWAKE) { stop_prewake(); return true; }
     switch (s_mode) {
-    case M_HOME: push_node(N_ROOT); return true;
+    case M_HOME: if (S.wiz >= 0) wizard_open(); else push_node(N_ROOT); return true;   /* setup running: the knob goes back to it */
     case M_VALUE:
         if (s_edit == V_ALARM_TIME) publish_alarm(s_ai);
         s_mode = M_LIST; mark_screen(); return true;
@@ -408,8 +472,16 @@ bool local_press(void)
             if (r.id == A_ADD_ALARM && s_nalarms < MAX_ALARMS) {
                 s_alarms[s_nalarms] = (alarm_t){ 7, 0, true, {1,1,1,1,1,0,0}, 15 };
                 s_ai = s_nalarms++; publish_alarm(s_ai); sync_alarm_summary();
+                if (s_stack[s_depth - 1].node == N_WIZARD) { s_stack[s_depth - 1].sel = 1; mark_screen(); return true; }   /* setup: its rows, on the Time */
                 s_stack[s_depth - 1].sel = s_ai;
                 push_node(N_ALARM);
+            } else if (r.id == A_WZ_NEXT) {
+                wizard_goto(S.wiz + 1);
+            } else if (r.id == A_WZ_LATER || r.id == A_WZ_DONE) {
+                wizard_finish();
+                if (r.id == A_WZ_DONE) toast(ICON_CHECK, "All set", "");
+            } else if (r.id == A_WZ_RERUN) {
+                S.wiz = 0; wizard_open();
             } else if (r.id == A_REFRESH) {
                 s_req = LREQ_REFRESH;
             } else if (r.id == A_RESTART || r.id == A_WIFISETUP) {
@@ -497,6 +569,7 @@ bool local_key(int i, bool hold)
 bool local_back_up(void)
 {
     if (S.phase == PHASE_RINGING) { stop_alarm(); return true; }     /* held past 600 ms: still the knob, still stop */
+    if (S.phase == PHASE_PREWAKE) { stop_prewake(); return true; }
     if (s_mode == M_HOME) return false;
     return local_back();
 }
@@ -552,4 +625,20 @@ bool local_scenario(const char *name)
     if (!strcmp(name, "power"))   { S.on_battery = true; publish("state/power", "battery %d%%", S.batt_pct); state_changed(); return true; }
     if (!strcmp(name, "mains"))   { S.on_battery = false; publish("state/power", "mains"); state_changed(); return true; }
     return false;
+}
+
+/* main.c: boot is over (the log has had its time); a fresh device starts in setup. */
+void local_wizard_boot(void) { if (S.wiz >= 0 && s_mode == M_HOME) wizard_open(); }
+/* main.c, every pass: setup is showing and something its rows show changed (pairing, Home Assistant). */
+bool local_wizard_tick(void)
+{
+    static uint32_t last;
+    uint32_t t = now_ms();
+    if (t - last < 1000u) return false;
+    last = t;
+    bool ch = wizard_changed();
+    if (!ch || !wizard_showing() || s_mode != M_LIST || s_depth != 1) return false;
+    s_stack[0].sel = clampi(s_stack[0].sel, 0, wizard_rows(s_rows) - 1);
+    mark_list();
+    return true;
 }

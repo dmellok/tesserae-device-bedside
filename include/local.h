@@ -73,6 +73,8 @@ typedef struct {
     bool quick_a2;                     /* ...with the A2 waveform in the menus (API quick_a2, experiments only): faster, but on this panel it left old ink under new */
     int  load_1bpp;                    /* two-level loads one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental, it8951.h) */
     int  clean_min;                    /* a full clean refresh this many minutes after partials while idle (default 10) */
+    int  wiz;                          /* first-run setup: the step showing (ui_wizard.c), -1 when it is not running */
+    bool stop_clean;                   /* a full clean refresh ~15 s after the user stops (knob, keys, web app) (default on) */
     bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
     bool auto_update;                  /* install the newest stable release overnight */
     /* hardware: play through the speaker; read the PowerBoost (battery backup
@@ -143,6 +145,8 @@ void local_ota_note(const char *txt, const char *val);   /* a card about the upd
 int         local_palette_count(void);
 const char *local_palette_name(int i);
 bool local_live_tick(void);
+void local_wizard_boot(void);          /* boot is over: setup if it is running */
+bool local_wizard_tick(void);          /* setup showing: redraw when pairing etc. changed */
 
 /* Pop the next dirty rectangle (several small ones per change, not a union).
  * Returns false when none are left. */

@@ -40,6 +40,7 @@ static bool     s_night;
 static uint8_t  s_lit_prev = 0xFF;
 static uint8_t  s_enabled = 0x0F;
 static uint32_t s_last_key_poll_ms;
+static uint32_t s_lights_ms;          /* when the LEDs were last sent */
 static input_event_t s_pend[4];       /* synthesized tap: press then release */
 static int      s_npend;
 
@@ -73,6 +74,7 @@ static void lights_update(bool force)
     uint8_t lit = s_key_state;
     if (!force && lit == s_lit_prev) return;
     s_lit_prev = lit;
+    s_lights_ms = now_ms();
     if (s_keys) {
         uint8_t px[12];
         for (int i = 0; i < 4; i++) key_colour(i, (lit >> i) & 1, px + i * 3);
@@ -127,6 +129,10 @@ static bool read_intflag(uint8_t *keys)
     uint8_t b[4];
     if (!seesaw_read(NEOKEY_ADDR, SS_GPIO_BASE, SS_GPIO_INTFLAG, b, 4, 500)) return false;
     uint32_t f = ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3];
+    /* Only the four key pins latch (INTENSET), so a flag anywhere else means
+     * the read came back garbled (all ones when the chip did not answer in
+     * time): a whole tap must not be made from it. */
+    if (f & ~KEY_MASK) { printf("inputs: key flags garbled (%08lx), ignored\n", (unsigned long)f); return false; }
     *keys = (uint8_t)((f >> KEY_FIRST_PIN) & 0xF);
     return true;
 }
@@ -148,6 +154,10 @@ input_event_t inputs_poll(void)
     s_last_poll_ms = t;
 
     if ((!s_enc || !s_keys) && t - s_last_probe_ms > REPROBE_MS) probe();
+    /* The LEDs were only sent on a change, so one garbled update (a key's LED
+     * dark until the next press) stayed. Send them again every 2 s: the same
+     * colours latch with no flicker. */
+    if ((s_enc || s_keys) && t - s_lights_ms > 2000u) lights_update(true);
 
     /* ---- knob ---- */
     if (s_enc) {
@@ -193,6 +203,7 @@ input_event_t inputs_poll(void)
                 for (int i = 0; i < 4 && s_npend < 3; i++) {
                     if (!((missed >> i) & 1)) continue;
                     if (gap > INPUTS_TAP_EXPIRE_MS) { printf("inputs: key %d tap expired (%lu ms)\n", i + 1, (unsigned long)gap); continue; }
+                    printf("inputs: key %d tap from the latch (%lu ms gap)\n", i + 1, (unsigned long)gap);
                     s_pend[s_npend++] = ev(IN_KEY, i);
                     s_pend[s_npend++] = ev(IN_KEY_RELEASE, i);
                 }
@@ -207,7 +218,7 @@ input_event_t inputs_poll(void)
                 if (!(changed & (1u << i))) continue;
                 s_key_state = (uint8_t)((s_key_state & ~(1u << i)) | (raw & (1u << i)));
                 lights_update(false);
-                if ((raw >> i) & 1) { s_key_t0[i] = t; s_key_held &= (uint8_t)~(1u << i); return ev(IN_KEY, i); }
+                if ((raw >> i) & 1) { printf("inputs: key %d down\n", i + 1); s_key_t0[i] = t; s_key_held &= (uint8_t)~(1u << i); return ev(IN_KEY, i); }
                 return ev(IN_KEY_RELEASE, i);
             }
         }

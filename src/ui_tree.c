@@ -102,6 +102,7 @@ int node_rows(node_t nd, row_def_t *r)
     case N_PANEL:                                   /* the panel's tuning: rarely touched, under Device */
         r[n++] = (row_def_t){ C_REFRESHMODE, K_CHOICE, "Screen updates", NULL, 0 };
         r[n++] = (row_def_t){ C_CLEANMIN, K_CHOICE, "Clean refresh every", NULL, 0 };
+        r[n++] = (row_def_t){ T_STOPCLEAN, K_TOGGLE, "Clean-up when you stop", NULL, 0 };
         r[n++] = (row_def_t){ C_WFTEMP, K_CHOICE, "Waveform temp", NULL, 0 };
         break;
     case N_NIGHTG:
@@ -154,6 +155,7 @@ int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ I_STATUS, K_INFO, "Status", NULL, 0 };
         r[n++] = (row_def_t){ T_POWERMON, K_TOGGLE, "Battery backup", NULL, 0 };
         r[n++] = (row_def_t){ A_WIFISETUP, K_ACTION, "Wi-Fi setup", NULL, 0 };
+        r[n++] = (row_def_t){ A_WZ_RERUN, K_ACTION, "Run setup again", NULL, 0 };
         r[n++] = (row_def_t){ A_RESTART, K_ACTION, "Restart", NULL, 0 };
         r[n++] = (row_def_t){ C_RESET, K_CHOICE, "Reset everything", NULL, 0 };
         break;
@@ -182,6 +184,7 @@ int node_rows(node_t nd, row_def_t *r)
         }
         if (!n) r[n++] = (row_def_t){ I_STATUS, K_INFO, "Set stations in the web app", NULL, 0 };
         break;
+    case N_WIZARD: n = wizard_rows(r); break;
     default: break;
     }
     /* No Back row: the MENU key is labelled Back on every page and a knob hold does the same. */
@@ -200,6 +203,7 @@ const char *node_title(node_t nd)
     case N_TIMEG: return "Time and clock"; case N_DEVICE: return "Device"; case N_SOFTWARE: return "Software"; case N_SPEAKER: return "Speaker";
     case N_DISPLAY: return "Display"; case N_SHOWS: return "Shows"; case N_KEYLIGHTS: return "Key lights"; case N_MENUS: return "Menus"; case N_EQ: return "Equaliser";
     case N_PANEL: return "Panel";
+    case N_WIZARD: return wizard_title();
     default: return "";
     }
 }
@@ -267,6 +271,7 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case C_REFRESHMODE: snprintf(b, n, "%s", S.refresh_mode == 2 ? "Whole screen, every change; flashes"
                                              : S.refresh_mode == 1 ? "Full quality, just what changed" : "Just what changed, a clean-up when you stop"); break;
     case C_CLEANMIN:  snprintf(b, n, "Partial updates wear the picture; this resets it while idle"); break;
+    case T_STOPCLEAN: snprintf(b, n, "A full refresh 15 s after you stop using it; flashes"); break;
     case C_WFTEMP:    { int s = it8951_temp_sensed(); if (s >= 0) snprintf(b, n, "Board sensor says %d C; lower is darker", s); else snprintf(b, n, "Lower is darker, higher is lighter"); } break;
     case T_NIGHT:     snprintf(b, n, "Dim keys, a quiet overlay, a dark Live page"); break;
     case C_AUTONIGHT: snprintf(b, n, "Night mode comes on by itself between these hours"); break;
@@ -312,6 +317,7 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case S_STATIONS:  snprintf(b, n, "Your own streams, set in the web app"); break;
     case C_STATION:   { const char *t = radio_title(); if (radio_state() == RADIO_PLAYING && t[0]) snprintf(b, n, "%.60s", t); else snprintf(b, n, "%s " DOT " stations are set in the web app", radio_state_name()); } break;
     case A_SOMA:      snprintf(b, n, "%.62s", radio_soma(r->arg)->desc); break;
+    case I_WZ: case A_WZ_NEXT: case A_WZ_LATER: case A_WZ_DONE: case A_WZ_RERUN: wizard_row_desc(r, b, n); break;
     case A_STATION:   { const radio_preset_t *p = radio_preset(r->arg); snprintf(b, n, "%.62s", p ? p->url : ""); } break;
     default: break;
     }
@@ -343,6 +349,7 @@ bool toggle_get(const row_def_t *r)
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus; case T_SETTLEFULL: return S.settle_full;
+    case T_STOPCLEAN: return S.stop_clean;
     case T_QUICK_A2: return S.quick_a2;
     case T_LARGE: return S.large_text;
     case T_DEMO: return S.live_demo;
@@ -366,6 +373,7 @@ void toggle_flip(const row_def_t *r)
     case T_TURNHINTS: S.turn_hints = !S.turn_hints; break;
     case T_QUICKMENU: S.quick_menus = !S.quick_menus; break;
     case T_SETTLEFULL: S.settle_full = !S.settle_full; break;
+    case T_STOPCLEAN: S.stop_clean = !S.stop_clean; break;
     case T_QUICK_A2: S.quick_a2 = !S.quick_a2; break;
     case T_LARGE:   S.large_text = !S.large_text; break;
     case T_DEMO:    S.live_demo = !S.live_demo; break;
@@ -606,7 +614,8 @@ void row_value(const row_def_t *r, char *b, size_t n)
                          snprintf(b, n, "%s", action_name(config_get()->bind[r->id == C_KNOB_HOLD ? CONFIG_BIND_KNOB_HOLD
                                   : (r->id == C_KEY_HOLD ? CONFIG_BIND_KEY1_HOLD : CONFIG_BIND_KEY1) + r->arg])); } break;
     case K_INFO:
-        if (r->id == I_VIEWPORT) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(b, n, "%d x %d", w, h); }
+        if (r->id == I_WZ) wizard_row_value(r, b, n);
+        else if (r->id == I_VIEWPORT) { int x, y, w, h; viewport(&x, &y, &w, &h); snprintf(b, n, "%d x %d", w, h); }
         else if (r->id == I_FWVER) snprintf(b, n, "%s", FW_VERSION);
         else if (r->id == I_MENUKEY) snprintf(b, n, "Fixed");
         else if (S.on_battery) snprintf(b, n, "Battery %d%%", S.batt_pct);

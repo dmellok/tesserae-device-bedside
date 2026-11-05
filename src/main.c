@@ -213,7 +213,7 @@ void on_input(input_event_t e)
     case IN_PRESS_SHORT: if (local_press()) local_flush(); else run_binding(CONFIG_BIND_KNOB_PRESS); break;
     case IN_PRESS_LONG: {                     /* Back by default; any other binding replaces it */
         const char *b = config_get()->bind[CONFIG_BIND_KNOB_HOLD];
-        if (!b[0] || !strcmp(b, "back") || local_state()->phase == PHASE_RINGING) { if (local_back_up()) local_flush(); }   /* ringing: the knob stops, whatever its hold is bound to */
+        if (!b[0] || !strcmp(b, "back") || local_state()->phase != PHASE_IDLE) { if (local_back_up()) local_flush(); }   /* ringing or the dawn chorus: the knob stops, whatever its hold is bound to */
         else { run_binding(CONFIG_BIND_KNOB_HOLD); local_flush(); }
         break; }
     case IN_KEY:         on_key_down(e.value); break;
@@ -401,10 +401,15 @@ static void ui_service(void)
             }
         }
         else if (booting) boot_service();
-        else if (live != last_live || cur_content == CONTENT_BOOT) { last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE)); }
+        else if (live != last_live || cur_content == CONTENT_BOOT) {
+            bool was_boot = cur_content == CONTENT_BOOT;
+            last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE));
+            if (was_boot) { local_wizard_boot(); local_flush(); }   /* a fresh device: first-run setup */
+        }
     }
     if (local_live_tick()) local_flush();
     if (!painter_busy() && local_settle_tick()) local_flush();   /* the knob stopped: menus back to full quality */
+    if (local_wizard_tick()) local_flush();                      /* setup: pairing and the like moved on */
     if (!painter_busy() && !s_flush_pending && it8951_rails_live()) {   /* quiet for a while: the panel's rails off (they drift the image) */
         painter_lock(); bool off = it8951_idle_tick(); painter_unlock();
         if (off) printf("it8951: panel power off (idle)\n");
@@ -521,7 +526,10 @@ int main(void)
     live_init();
     rest_set_idle_hook(ui_service);
     tesserae_set_buffer_guard(frame_buffer_wait);
-    local_set_dirty_full(); local_flush();      /* top bar with the key labels */
+    /* No full repaint here: the boot screen is up, and the switch to the home
+     * page when it ends repaints everything (top bar included). One queued now
+     * ran first, a full INIT + GC16 of the boot log with the home layers over
+     * it, and put the real home page ~7 s behind it. */
     banner_update();
 
     help();

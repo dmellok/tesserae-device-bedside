@@ -27,6 +27,7 @@
 
 void   ha_init(void);
 bool   ha_connected(void);
+bool   ha_enabled(void);              /* switched on with a broker set */
 /* Main loop: connect, (re)announce, publish state changes. */
 void   ha_poll(void);
 /* Forward a device event ("alarm_ringing", "prewake 06:15" ...). */

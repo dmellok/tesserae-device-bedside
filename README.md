@@ -95,6 +95,15 @@ boot). Everything else is a build flag; the list is at the top of
    says *bad frame from server*, the device was registered under a kind or
    panel that does not match: delete it in Settings → Devices and let it
    re-pair.
+   On a fresh device (or after *Reset everything*) the panel opens
+   **first-run setup** as soon as it has joined WiFi: Tesserae pairing (live
+   status), time zone / 12-24 h / weather location, night mode, a first alarm,
+   and Home Assistant, then a summary. The phone app at `http://<device ip>/`
+   shows the same step as a sheet over the app; either one moves both on
+   (`/api/cmd?set=wiz|<step>`, `-1` to finish; `ui.wiz` in `/api/state`).
+   A device that is already paired skips it. *Settings → Device → Run setup
+   again* on the panel, or *Device → Wi-Fi → Run setup again* in the app,
+   starts it again. The steps are `src/ui_wizard.c`.
 4. Open `http://<device ip>/` for the room controls, the Tesserae state
    (paired, ETag, poll cadence, server local time), the tunables, and a
    Console tab with the live serial log and the serial commands.
