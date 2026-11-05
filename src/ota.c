@@ -117,7 +117,7 @@ void ota_boot_check(void)
     int other = spare_slot(&start, &size);
     if (other < 0 || other == s_boot_part) { printf("ota: no other slot to clear (%d)\n", other); return; }
     if (*(const volatile uint32_t *)(FLASH_RAW + start) != 0xFFFFFFFFu) {
-        memset(s_sect, 0xFF, sizeof s_sect);
+        memset(s_sect, 0xFF, 256);
         config_flash_sector(start, s_sect, 256);
         printf("ota: slot %c cleared, only this image boots now\n", 'A' + other);
     }
@@ -160,7 +160,7 @@ static void verify_and_reboot(void)
     }
     uint8_t got[32]; sha256_final(&h, got);
     if (memcmp(got, s_want, 32)) {
-        memset(s_sect, 0xFF, sizeof s_sect);
+        memset(s_sect, 0xFF, 256);
         config_flash_sector(s_slot_start, s_sect, 256);     /* never boot a bad image */
         fail("checksum mismatch after writing"); return;
     }
