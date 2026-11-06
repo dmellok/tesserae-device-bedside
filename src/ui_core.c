@@ -45,7 +45,7 @@ local_state_t S = {
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
-    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = false, .large_text = false, .quick_menus = true, .settle_full = false, .clean_min = 10,
+    .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = false, .large_text = false, .quick_menus = true, .settle_full = false, .clean_min = 10, .stop_clean = true, .wiz = -1,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 2, .tz = 0, .auto_time = true, .refresh_mode = 1,
     .alarm_tone = 3,                                                    /* Chime: gentle, after the chorus has built */
     .quick_a2 = false, .load_1bpp = 0,                                  /* A2 did not clear on this panel: old digits stayed under new ones */
@@ -84,8 +84,8 @@ const char *const SNOOZES[4]   = { "5 min", "9 min", "10 min", "15 min" };
 /* Waveform temperature: the controller's own sensor is on the HAT, not the glass */
 const char *const WFTEMPS[N_WFTEMP] = { "Default (20)", "14 C", "16 C", "18 C", "22 C", "24 C", "26 C", "28 C", "30 C" };
 const int         WFTEMP_V[N_WFTEMP] = { 0, 14, 16, 18, 22, 24, 26, 28, 30 };
-const char *const CLEANS[N_CLEAN]   = { "5 min", "10 min", "20 min", "45 min" };
-const int         CLEAN_V[N_CLEAN]  = { 5, 10, 20, 45 };
+const char *const CLEANS[N_CLEAN]   = { "5 min", "10 min", "20 min", "45 min", "1 hour", "2 hours" };
+const int         CLEAN_V[N_CLEAN]  = { 5, 10, 20, 45, 60, 120 };
 /* Speaker tuning (spk_dsp.h): the soften and low-cut tables index SPK_SOFT_HZ / SPK_LOWCUT_HZ. */
 const char *const SOFTENS[6] = { "Off", "8 kHz", "6 kHz", "5 kHz", "4 kHz", "3 kHz" };
 const char *const LOWCUTS[5] = { "Off", "60 Hz", "90 Hz", "120 Hz", "160 Hz" };

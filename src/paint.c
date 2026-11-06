@@ -134,6 +134,7 @@ static void local_flush_now(void) { s_flush_pending = true; paint_pump(); }
 void cleanup_if_idle(void)
 {
     uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (!local_state()->stop_clean) s_touched = false;   /* Settings: Clean-up when you stop, off */
     if (s_touched && !painter_busy() && !s_flush_pending && now - s_last_input_ms >= SETTLE_MS) {
         printf("paint: input settled, full refresh\n");
         s_touched = false;
@@ -142,11 +143,14 @@ void cleanup_if_idle(void)
         local_flush_now();
         return;
     }
-    /* Residual drift from partials: a full INIT + GC16 resets it. After 30 of
-     * them, or 45 minutes with any, once the panel has been idle 20 s (the
-     * flash is just the panel, no light, so nights are fine). */
-    uint32_t interval = (uint32_t)(local_state()->clean_min > 0 ? local_state()->clean_min : 10) * 60u * 1000u;
-    bool due = s_partials >= 30 || (s_partials > 0 && now - s_last_full_ms > interval);
+    /* Residual drift from partials: a full INIT + GC16 resets it. Every
+     * clean_min minutes with any, or sooner after 3 per minute of that (30 at
+     * the default 10; so a once-a-minute clock never runs ahead of a longer
+     * setting), once the panel has been idle 20 s (the flash is just the
+     * panel, no light, so nights are fine). */
+    uint32_t mins = (uint32_t)(local_state()->clean_min > 0 ? local_state()->clean_min : 10);
+    uint32_t interval = mins * 60u * 1000u;
+    bool due = s_partials >= 3u * mins || (s_partials > 0 && now - s_last_full_ms > interval);
     if (due && !painter_busy() && !s_flush_pending && now - s_last_input_ms > 20000 && local_screen() == SCR_HOME) {
         painter_lock(); int board = it8951_sense_temp(); painter_unlock();     /* the night's temperature, for the log and the waveform choice */
         printf("paint: full clean refresh after %lu partial updates, board %d C, waveform %d C, VCOM %d mV\n",

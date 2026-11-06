@@ -13,4 +13,4 @@ www_desktop:
 .incbin "www/desktop.html"
 .global www_desktop_end
 www_desktop_end:
-/* www sha1 8dde02742185f0c03aeef3b25d686593aa108a14 8808f8dc592164a099ae3a2c5af1d59c02dc8330 */
+/* www sha1 90d1ef98d1d3c40c517e1dc1e96dc6e2e8cdf03f ea19036622f37f114a833976674e34008e4deace */

@@ -48,6 +48,10 @@ void build_ring(layer_t *l)
 uint32_t s_ring_ms, s_snooze_until_ms;
 int      s_ring_alarm = -1;
 static int64_t  s_fired_min = -10;
+/* The dawn chorus (pre-wake) has its own stop: the knob, as when it rings.
+ * Stopping it skips that ring too (you are up); the minute it would ring: */
+static int64_t  s_prewake_ring_min = -10, s_skip_min = -10;
+static int      s_prewake_alarm = -1;
 
 bool clock_now(int *wday, int *sec, int64_t *minute)
 {
@@ -119,6 +123,20 @@ void stop_alarm(void)
     publish("event", "alarm_stopped"); go_home();
 }
 
+void stop_prewake(void)
+{
+    S.phase = PHASE_IDLE;
+    s_skip_min = s_fired_min = s_prewake_ring_min;
+    int i = s_prewake_alarm;
+    if (i >= 0 && i < s_nalarms && alarm_is_once(&s_alarms[i])) { s_alarms[i].on = false; alarms_save(); sync_alarm_summary(); }
+    publish("event", "alarm_stopped");
+    go_home();
+    char v[32], hm[8];
+    if (i >= 0 && i < s_nalarms) { fmt_hm(hm, sizeof hm, s_alarms[i].h * 60 + s_alarms[i].m); snprintf(v, sizeof v, "No alarm at %s", hm); }
+    else snprintf(v, sizeof v, "Alarm skipped");
+    toast(ICON_ALARM, "Dawn chorus off", v);
+}
+
 void chorus_preview(int seconds)
 {
     if (seconds <= 0) { s_preview_len_ms = 0; publish("event", "chorus_preview_stop"); return; }
@@ -173,7 +191,10 @@ void local_alarm_tick(bool *changed)
     }
     if (best >= 0 && best_delta > 0) {
         int win = alarm_window_s(&s_alarms[best]);
+        int64_t ring_min = (minute * 60 + sec % 60 + best_delta) / 60;
+        if (best_delta <= win && ring_min == s_skip_min) { if (S.phase == PHASE_PREWAKE) S.phase = PHASE_IDLE; S.chorus = c; return; }   /* stopped this morning */
         if (best_delta <= win) {
+            s_prewake_ring_min = ring_min; s_prewake_alarm = best;
             float w = alarm_chorus_level(best_delta, win);
             if (w > c) c = w;
             if (S.phase == PHASE_IDLE) {

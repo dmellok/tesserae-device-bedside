@@ -197,6 +197,23 @@ details.more[open] summary::after{transform:rotate(-135deg)}
 .pv .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--sub)}
 .pv .foot span{flex:1}
 nav .brand,nav .side-foot{display:none}
+/* first-run setup: a sheet over the app while the device says setup is running */
+.wiz{position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch}
+.wiz[hidden]{display:none}
+.wiz-box{max-width:540px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) 18px 40px}
+.wiz-top{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--sub);min-height:40px}
+.wiz-top button{border:0;background:none;color:var(--sub);font-size:14px;padding:8px 0}
+.wiz-bar{height:4px;border-radius:2px;background:var(--line);margin:4px 0 26px;overflow:hidden}
+.wiz-bar i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.wiz h1{font-size:28px;letter-spacing:-.02em;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.wiz h1 .i{width:30px;height:30px}
+.wiz>.wiz-box>p{color:var(--sub);margin:0 0 20px;font-size:16px;line-height:1.45}
+.wiz-nav{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:22px}
+.wiz-nav.first{grid-template-columns:1fr}
+.wiz .state{font-size:20px;font-weight:600;margin-bottom:4px}
+.wiz ol{margin:10px 0 0;padding-left:20px;color:var(--sub);font-size:15px;line-height:1.5}
+.wiz dl{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;margin:0;font-size:16px}
+.wiz dt{color:var(--sub)} .wiz dd{margin:0;text-align:right;font-weight:600}
 
 /* ---- the desktop shell ---- */
 :root{--side:236px;--top:60px}
@@ -520,8 +537,9 @@ h2{margin:6px 4px -8px}
       <option value="0">Fast: just the part that changed, a full clean-up when you stop</option>
       <option value="1">Clean: full quality, just the part that changed</option>
       <option value="2">Full: the whole screen, every change</option></select></label>
-    <label class="fld"><span>Clean refresh every</span><select data-pset="clean_min"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="45">45 minutes</option></select></label>
-    <div class="hint" style="text-align:left;margin-top:6px">Partial updates (the clock, menus) wear the picture a little each time on this panel. A full clean refresh runs 15 s after you stop using it, and this often while it sits.</div>
+    <label class="fld"><span>Clean refresh every</span><select data-pset="clean_min"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select></label>
+    <label class="fld"><span>Clean-up when you stop</span><select data-pset="stop_clean"><option value="1">On</option><option value="0">Off</option></select></label>
+    <div class="hint" style="text-align:left;margin-top:6px">Partial updates (the clock, menus) wear the picture a little each time on this panel. A full clean refresh runs 15 s after you stop using it (unless that is off), and this often while it sits.</div>
     <label class="fld"><span>Waveform temperature</span><select data-pset="wf_temp">
       <option value="0">Default (20 °C)</option><option value="14">14 °C</option><option value="16">16 °C</option><option value="18">18 °C</option>
       <option value="22">22 °C</option><option value="24">24 °C</option><option value="26">26 °C</option><option value="28">28 °C</option><option value="30">30 °C</option></select></label>
@@ -646,6 +664,7 @@ h2{margin:6px 4px -8px}
       <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password"></label>
       <button class="btn w" style="margin-top:14px">Save, applies after restart</button>
     </form>
+    <button class="btn w" id="wz-rerun" style="margin-top:10px">Run setup again</button>
   </div>
     <h2>Reset</h2>
     <div class="card">
@@ -675,6 +694,14 @@ h2{margin:6px 4px -8px}
 </section>
 </main>
 
+<div class="wiz" id="wiz" hidden><div class="wiz-box">
+  <div class="wiz-top"><span id="wz-n"></span><button id="wz-later">Set up later</button></div>
+  <div class="wiz-bar"><i id="wz-bar"></i></div>
+  <h1 id="wz-h"></h1>
+  <p id="wz-p"></p>
+  <div id="wz-body"></div>
+  <div class="wiz-nav" id="wz-nav"><button class="btn" id="wz-back">Back</button><button class="btn pri" id="wz-next">Continue</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1297,6 +1324,111 @@ function renderDevice(){
       sel.onchange=()=>{cmd('bind='+enc(sel.dataset.bind+'|'+sel.value));toast('Saved')}})}
 }
 
+/* ---- first-run setup: the device holds the step (ui.wiz, -1 when not running); the panel shows the same one ---- */
+const WZ_HEADS=[['house','Welcome'],['monitor','Tesserae'],['sun','Time and place'],['moon','Night'],['alarm','Alarm'],['lightbulb','Home Assistant'],['check','All set']];
+const escH=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+let wzShown=null, wzLocal=null;
+function wzGo(n){wzLocal=n;touch('wiz',4000);set('wiz',n);renderWizard()}
+$('#wz-back').onclick=()=>wzGo(Math.max(0,(wzLocal??ui.wiz)-1));
+$('#wz-next').onclick=()=>{const w=wzLocal??ui.wiz,last=(ui.wiz_steps||7)-1;if(w>=last){wzGo(-1);toast('All set')}else wzGo(w+1)};
+$('#wz-later').onclick=()=>{wzGo(-1);toast('Setup is under Device, Wi-Fi')};
+$('#wz-rerun').onclick=()=>wzGo(0);
+function wzTess(){const t=st.tesserae,frame=t.frames>0&&t.paired;
+  const s=!t.server?['No server yet','Enter the address of your Tesserae server below.']
+    :frame?['Paired, dashboard showing','You can bind more dashboards to this panel in Tesserae any time.']
+    :t.paired?['Paired','Now bind a dashboard: in Tesserae, open the panel under Settings → Devices, choose a 1872 × 1404 dashboard and press Send.']
+    :/discover/.test(t.state)?['Waiting for you in Tesserae',`In Tesserae open Settings → Devices → Discovered and press Register beside “${escH(t.name)}”.`]
+    :t.error?['Can’t reach the server',escH(t.error)]:['Waiting for the server',escH(t.state)];
+  return{frame,s}}
+function wzAlarm(){return ui.alarms&&ui.alarms[0]}
+function wzSendAlarm(a){touch('wzal',3000);cmd('set='+enc(`alarm|0,${a.h},${a.m},${a.on?1:0},${a.days},${a.early}`))}
+function wzBuild(w){
+  const b=$('#wz-body'),p=ui.panel||{};
+  if(w===0){b.innerHTML=`<div class="card"><div class="lbl" style="margin-top:0">Five short steps</div><ol style="margin-top:0">
+      <li>Pair with Tesserae, which draws the dashboards</li><li>Time zone, 12 or 24 hours, weather location</li><li>Night mode</li><li>Your first alarm</li><li>Home Assistant (optional)</li></ol></div>
+      <div class="hint" style="text-align:left">The panel shows the same step. Use its knob or this page: either moves both on.</div>`}
+  if(w===1){b.innerHTML=`<div class="card"><div class="state" id="wz-ts"></div><div class="hint" style="text-align:left;margin:0" id="wz-tsh"></div></div>
+      <div class="card"><form id="wz-srv"><label class="fld" style="margin-top:0"><span>Tesserae server</span><input name="server" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="http://192.168.1.50:8765"></label>
+      <div class="hint" style="text-align:left">Plain http, with the port. The panel can’t resolve .local names.</div>
+      <button class="btn w" style="margin-top:12px">Save server</button></form>
+      <form id="wz-pair" class="inl" style="margin-top:12px"><label class="fld"><span>Pairing code, if Tesserae shows one</span><input name="pair" autocomplete="one-time-code" autocapitalize="characters"></label><button class="btn">Pair</button></form></div>`;
+    const f=$('#wz-srv');f.server.value=st.tesserae.server||'';
+    f.onsubmit=e=>{e.preventDefault();const v=f.server.value.trim();if(v&&v!==st.tesserae.server){touch('tess',8000);cmd('server='+enc(v));toast('Server saved')}};
+    $('#wz-pair').onsubmit=e=>{e.preventDefault();const v=e.target.pair.value.trim();if(!v)return;cmd('pair='+enc(v));e.target.reset();toast('Pairing…')}}
+  if(w===2){const tz=(p.tzs||['Automatic']).map((n,i)=>`<option value="${i}">${i?escH(n):'Automatic (from Tesserae)'}</option>`).join('');
+    b.innerHTML=`<div class="card"><div class="row"><div style="flex:1">Set time automatically<small style="display:block;color:var(--sub);font-size:12px">From the network; the zone from Tesserae unless you pick one</small></div><label class="sw"><input type="checkbox" id="wz-auto"><span></span></label></div>
+      <div class="grid2"><label class="fld"><span>Time zone</span><select id="wz-tz">${tz}</select></label>
+      <label class="fld"><span>Clock</span><select id="wz-clk"><option value="0">24-hour</option><option value="1">12-hour</option></select></label></div>
+      <label class="fld"><span>Weather location (latitude, longitude)</span><input id="wz-loc" inputmode="decimal" autocomplete="off" placeholder="-37.80, 144.97"></label>
+      <div class="hint" style="text-align:left">For the weather on the panel’s Live page. Find it by long-pressing a spot in your maps app.</div></div>`;
+    $('#wz-auto').onchange=e=>set('auto_time',e.target.checked?1:0);
+    $('#wz-tz').onchange=e=>{touch('pset_tz',4000);set('tz',e.target.value)};
+    $('#wz-clk').onchange=e=>{touch('pset_clock12',4000);set('clock12',e.target.value)};
+    $('#wz-loc').onchange=e=>{const v=e.target.value.replace(/\s/g,'');if(!/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(v)){toast('Use latitude, longitude');return}cmd('live_loc='+enc(v));toast('Saved')}}
+  if(w===3){b.innerHTML=`<div class="card"><label class="fld" style="margin-top:0"><span>Night mode comes on by itself</span><select id="wz-an"><option value="0">Never (switch it by hand)</option><option value="1">21:00 to 07:00</option><option value="2">22:00 to 07:00</option><option value="3">23:00 to 07:00</option></select></label>
+      <label class="fld"><span>Key lights at night</span><select id="wz-nk"><option value="0">A low glow</option><option value="1">Off</option></select></label></div>`;
+    $('#wz-an').onchange=e=>{touch('pset_auto_night',4000);set('auto_night',e.target.value)};
+    $('#wz-nk').onchange=e=>{touch('pset_night_keys',4000);set('night_keys',e.target.value)}}
+  if(w===4){const a=wzAlarm();
+    if(!a){b.innerHTML=`<button class="btn pri w" id="wz-add">${svg('plus')}Add an alarm</button><div class="hint" style="margin-top:12px">Optional: Continue skips it. More alarms are on the Alarms tab.</div>`;
+      $('#wz-add').onclick=()=>{touch('wzal',3000);cmd('set='+enc('alarm_add|1'));ui.alarms=[{h:7,m:0,on:1,days:31,early:15}];wzShown=null;renderWizard()};return}
+    const A={...a};
+    b.innerHTML=`<div class="card alarm"><div class="row"><input class="time" type="time" id="wz-at" value="${String(A.h).padStart(2,'0')}:${String(A.m).padStart(2,'0')}">
+      <label class="sw"><input type="checkbox" id="wz-aon" ${A.on?'checked':''}><span></span></label></div>
+      <div class="days">${DAYS.map((d,k)=>`<button data-d="${k}" class="${A.days>>k&1?'on':''}">${d}</button>`).join('')}</div>
+      <div class="presets"><button class="chip" data-m="31">Weekdays</button><button class="chip" data-m="96">Weekends</button><button class="chip" data-m="127">Every day</button></div>
+      <label class="fld"><span>Dawn chorus and lights</span><select id="wz-ae">${EARLY.map(e=>`<option value="${e}" ${e===A.early?'selected':''}>${e?`Start ${e} min early`:'Off'}</option>`).join('')}</select></label></div>`;
+    const paint=()=>{b.querySelectorAll('.days button').forEach(x=>x.classList.toggle('on',!!(A.days>>+x.dataset.d&1)))};
+    $('#wz-at').onchange=e=>{const[h,m]=e.target.value.split(':').map(Number);if(isNaN(h))return;A.h=h;A.m=m;wzSendAlarm(A)};
+    $('#wz-aon').onchange=e=>{A.on=e.target.checked?1:0;wzSendAlarm(A)};
+    b.querySelectorAll('.days button').forEach(x=>x.onclick=()=>{A.days^=1<<+x.dataset.d;paint();wzSendAlarm(A)});
+    b.querySelectorAll('[data-m]').forEach(x=>x.onclick=()=>{A.days=+x.dataset.m;paint();wzSendAlarm(A)});
+    $('#wz-ae').onchange=e=>{A.early=+e.target.value;wzSendAlarm(A)}}
+  if(w===5){const m=st.mqtt||{};
+    b.innerHTML=`<div class="card"><div class="state" id="wz-ha"></div><div class="hint" style="text-align:left;margin:0" id="wz-hah"></div>
+      <form id="wz-haf"><div class="inl"><label class="fld" style="flex:3"><span>MQTT broker</span><input name="host" placeholder="192.168.1.10" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld" style="flex:1"><span>Port</span><input name="port" inputmode="numeric" placeholder="1883"></label></div>
+      <div class="grid2"><label class="fld"><span>Username</span><input name="user" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Password</span><input name="pass" type="password" autocomplete="new-password"></label></div>
+      <button class="btn w" style="margin-top:14px">Save and connect</button></form></div>
+      <div class="hint" style="text-align:left">The broker's IP address: the panel can't resolve .local names. Needs the MQTT integration in Home Assistant (with the Mosquitto add-on, use a Home Assistant user). The panel then appears there as one device.</div>`;
+    const f=$('#wz-haf');f.host.value=m.host||'';f.port.value=m.port||'';f.user.value=m.user||'';f.pass.placeholder=m.has_pass?'unchanged':'';
+    f.onsubmit=e=>{e.preventDefault();if(!f.host.value.trim()){toast('Enter the broker');return}touch('ha',6000);
+      cmd('mqtt='+enc([1,f.host.value.trim(),f.port.value.trim()||'1883',f.user.value.trim(),m.prefix||'',m.base||'',f.pass.value||'*'].join('|')));f.pass.value='';toast('Connecting to the broker…')}}
+  if(w===6){b.innerHTML=`<div class="card"><dl id="wz-sum"></dl></div>`}
+}
+function wzLive(w){
+  const set1=(id,v)=>{const e=$(id);if(e&&e!==document.activeElement&&e.value!==String(v))e.value=String(v)};
+  const p=ui.panel||{};
+  if(w===1){const{s}=wzTess();$('#wz-ts').textContent=s[0];$('#wz-tsh').innerHTML=s[1]}
+  if(w===2){if(!held('auto_time'))$('#wz-auto').checked=!!p.auto_time;if(!held('pset_tz'))set1('#wz-tz',+p.tz);if(!held('pset_clock12'))set1('#wz-clk',+p.clock12);
+    const lv=st.live;if(lv)set1('#wz-loc',lv.lat+', '+lv.lon)}
+  if(w===3){if(!held('pset_auto_night'))set1('#wz-an',+p.auto_night);if(!held('pset_night_keys'))set1('#wz-nk',+p.night_keys)}
+  if(w===4&&!held('wzal')){const a=wzAlarm(),has=!!$('#wz-at');if(!!a!==has){wzShown=null;return renderWizard()}}
+  if(w===5){const m=st.mqtt||{};
+    $('#wz-ha').textContent=!m.enabled||!m.host?'Not set up':m.error?'Not connected':m.state;$('#wz-hah').textContent=m.error||(m.host?`${m.user||'anonymous'} @ ${m.host}:${m.port}`:'Optional: Continue skips it.')}
+  if(w===6){const t=st.tesserae,a=(ui.alarms||[]).find(x=>x.on),m=st.mqtt||{};
+    $('#wz-sum').innerHTML=`<dt>Dashboard</dt><dd>${t.frames>0&&t.paired?'Showing':t.paired?'None bound':'Not paired'}</dd>
+      <dt>Alarm</dt><dd>${a?String(a.h).padStart(2,'0')+':'+String(a.m).padStart(2,'0')+' · '+escH(a.dt):'Off'}</dd>
+      <dt>Home Assistant</dt><dd>${!m.enabled||!m.host?'Not set up':m.error?'Not connected':escH(m.state)}</dd>`}
+  const{frame}=wzTess(),next=$('#wz-next');
+  next.textContent=w===0?'Start':w===6?'Finish':(w===1&&!frame)||(w===5&&!(st.mqtt||{}).host)?'Skip for now':'Continue';
+}
+function renderWizard(){
+  if(!ui)return;
+  if(wzLocal!==null&&!held('wiz'))wzLocal=null;
+  const w=wzLocal??ui.wiz, n=ui.wiz_steps||7;
+  $('#wiz').hidden=!(w>=0); document.body.style.overflow=w>=0?'hidden':'';
+  if(w<0){wzShown=null;return}
+  if(w!==wzShown){wzShown=w;wzBuild(w);
+    $('#wz-h').innerHTML=svg(WZ_HEADS[w][0])+WZ_HEADS[w][1];
+    $('#wz-p').textContent=['Let’s get your bedside panel ready.','Tesserae draws the dashboards this panel shows.','So the clock, the alarm and the weather are right.','When the panel goes quiet for the night.','Wake to birds that build up before the alarm.','Optional: lights, A/C and the panel in your home.','The panel is ready. Everything here can be changed later.'][w];
+    $('#wz-n').textContent=`Step ${w+1} of ${n}`;$('#wz-bar').style.width=((w+1)/n*100)+'%';
+    $('#wz-back').hidden=w===0;$('#wz-nav').classList.toggle('first',w===0);$('#wz-later').hidden=w===n-1;
+    $('#wiz').scrollTop=0}
+  wzLive(w);
+}
+
 /* ---- polling ---- */
 function setConn(ok,txt){document.body.classList.toggle('offline',!ok);$('#dot').className='dot '+(ok?'ok':'bad');$('#connt').textContent=txt}
 let pollT=0, inflight=false;
@@ -1309,7 +1441,7 @@ async function poll(){
     st=await(await fetch('/api/state',{cache:'no-store',signal:ctl.signal})).json();clearTimeout(to);
     ui=st.ui;failN=0;
     setConn(true,st.busy?'Refreshing':(st.tesserae.local_time||'Online').replace(/^.*T(\d\d:\d\d).*$/,'$1'));
-    renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();
+    renderRoom();renderAlarms();renderChorus();renderDevice();renderHA();renderPanelSettings();renderWizard();
     if(typeof renderExtra==='function')renderExtra();   // the desktop shell's own bits (top-bar status, the EQ graph)
     if(!held('dash')){
       // Tesserae 0.498+: Live, then the dashboards bound to this panel; older servers: the rotation

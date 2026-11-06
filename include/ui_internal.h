@@ -76,7 +76,7 @@
 /* the option tables */
 #define N_PAL 9
 #define N_WFTEMP 9
-#define N_CLEAN 4
+#define N_CLEAN 6
 #define N_KEYACT 16
 #define N_KNOBACT 5
 #define N_TZ 9
@@ -160,7 +160,7 @@ typedef struct { const char *id, *label; } action_t;
 typedef enum { M_HOME, M_LIST, M_VALUE, M_CHOICE } mode_t_;
 typedef enum { N_ROOT, N_RAIN, N_LIGHTS, N_AC, N_ALARMS, N_ALARM, N_DAYS, N_SETTINGS, N_CHORUS,
                N_HOMESCR, N_NIGHTG, N_KEYS, N_KEY, N_TIMEG, N_DEVICE, N_SOFTWARE, N_SPEAKER, N_RADIO, N_STATIONS,
-               N_DISPLAY, N_SHOWS, N_KEYLIGHTS, N_MENUS, N_EQ, N_PANEL, N_COUNT } node_t;
+               N_DISPLAY, N_SHOWS, N_KEYLIGHTS, N_MENUS, N_EQ, N_PANEL, N_WIZARD, N_COUNT } node_t;
 typedef enum { K_TOGGLE, K_VALUE, K_CHOICE, K_SUB, K_INFO, K_ACTION, K_BACK } rk_t;
 typedef enum {
     T_RAIN, V_RAIN_LVL, C_RAIN_KIND, C_SLEEP, C_SURFACE, C_THUNDER,
@@ -179,7 +179,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, C_CLEANMIN, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
-    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL,
+    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL, T_STOPCLEAN,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, C_SPK_PRESET, V_SPK_EQ, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
     C_CLOCKDU, T_DEMO, C_STATION,
@@ -195,6 +195,8 @@ typedef enum {
     C_ALARM_TONE,
     /* Keys and knob > Menus > Fastest steps (A2 for the quick steps) */
     T_QUICK_A2,
+    /* first-run setup (ui_wizard.c): its facts, Continue, Set up later, Finish; Device > Run setup again */
+    I_WZ, A_WZ_NEXT, A_WZ_LATER, A_WZ_DONE, A_WZ_RERUN,
 } item_t;
 
 /* Lists longer than this scroll in a window of LIST_FIT rows at full height
@@ -320,6 +322,7 @@ void tone_preview_soon(int tone);
 void ring(int i);
 void snooze(void);
 void stop_alarm(void);
+void stop_prewake(void);              /* the knob during the dawn chorus: stops it and skips that ring */
 
 /* ui_api.c */
 void ext_load(void);
@@ -423,6 +426,23 @@ void build_value(layer_t *l);
 void go_home(void);
 void state_changed(void);
 void volume(int d);
+
+/* ui_wizard.c: first-run setup (the steps and their words; ui_menu.c navigates) */
+#define WZ_STEPS 7
+const char *wizard_title(void);
+const char *wizard_heading(void);
+const char *wizard_icon(void);
+void wizard_intro(char *b, size_t n);
+int  wizard_rows(row_def_t *r);
+int  wizard_default_sel(void);
+void wizard_row_value(const row_def_t *r, char *b, size_t n);
+void wizard_row_desc(const row_def_t *r, char *b, size_t n);
+bool wizard_changed(void);
+/* ui_menu.c: the wizard on screen */
+bool wizard_showing(void);
+void wizard_open(void);
+void wizard_goto(int step);
+void wizard_finish(void);
 
 /* ui_overlay.c */
 bool ov_active(void);
