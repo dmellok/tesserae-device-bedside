@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Amp and Battery Wiring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F3F4F1; --panel:#FFFFFF; --ink:#16191B; --sub:#5B6166; --line:#D7DAD5; --soft:#E9EBE6;
+  --board:#1F5C47; --board-ink:#E9F2EC; --pad:#C9A44A; --hdr:#26292B; --pin:#C9A44A;
+  --w5v:#C8372D; --wgnd:#2B2F33; --w33:#D9822B; --wbclk:#C99A12; --wlrc:#2E8B57; --wdin:#2F6FB5; --wsd:#7B4FB0;
+  --wbat:#8A5A2B; --wusb:#C2477A; --wlbo:#1E8C8C; --wspk:#4B4B4B;
+  --warn:#8A6400; --warn-bg:#FBF1D3; --hat:#9AA1A6;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121516; --panel:#1A1E20; --ink:#E7EAE8; --sub:#9AA2A6; --line:#2C3235; --soft:#22272A;
+  --board:#1D4C3B; --board-ink:#DCEBE2; --hdr:#0D0F10; --wgnd:#B9C0C4; --wspk:#9AA0A4; --hat:#5E676C;
+  --warn:#E6C35C; --warn-bg:#33290F; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#121516; --panel:#1A1E20; --ink:#E7EAE8; --sub:#9AA2A6; --line:#2C3235; --soft:#22272A;
+  --board:#1D4C3B; --board-ink:#DCEBE2; --hdr:#0D0F10; --wgnd:#B9C0C4; --wspk:#9AA0A4; --hat:#5E676C;
+  --warn:#E6C35C; --warn-bg:#33290F; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif;margin:0;padding-inline:16px;padding-block:28px 64px}
+.wrap{max-width:1080px;margin:0 auto}
+h1,h2,h3{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;letter-spacing:-.005em}
+h1{font-size:clamp(28px,4.2vw,40px);line-height:1.08;margin:0 0 8px;font-weight:700}
+h2{font-size:24px;margin:44px 0 6px;font-weight:700}
+h3{font-size:16px;margin:18px 0 6px;font-weight:600}
+p{max-width:68ch;margin:0 0 10px}
+.lede{color:var(--sub);font-size:16px}
+.eyebrow{font:600 12px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--sub);margin-bottom:10px}
+code,.m{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.92em}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0 4px;font-size:13px;color:var(--sub)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:22px;height:4px;border-radius:2px;display:inline-block}
+.fig{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow-x:auto}
+.fig svg{display:block;min-width:820px;width:100%;height:auto}
+.fig.narrow svg{min-width:640px}
+.cap{font-size:13px;color:var(--sub);padding:0 16px 14px;margin:0}
+.note{border-left:4px solid var(--warn);background:var(--warn-bg);border-radius:6px;padding:10px 14px;margin:12px 0;font-size:14px;max-width:78ch}
+.note b{color:var(--ink)}
+.tw{overflow-x:auto;margin:10px 0}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11.5px/1.2 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);background:var(--soft)}
+tr:last-child td{border-bottom:0}
+td .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ol,ul{padding-left:20px;margin:6px 0} li{margin-bottom:5px}
+.svgt{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif}
+.svgm{font-family:"IBM Plex Mono",ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Bedside Dashboard · bench wiring</div>
+  <h1>Amp and battery wiring to the Pi header</h1>
+  <p class="lede">The MAX98357A amplifier and the PowerBoost 1000C both connect to the 40-pin Pi header on the GPIO splitter. Every wire below names the header pin, the Raspberry Pi BCM name printed on the splitter, and the Pico GPIO it reaches through the Pico-to-Pi adapter. These are the pins the firmware already uses.</p>
+
+  <div class="note"><b>The soldered board changes some of this.</b> On the <a href="power-amp-board.html">power and amp board</a> every ground is one piece and the amp takes its 5 V from the board, so header pins 4, 9 and 39 are no longer used: the board reaches the header on pins 2 (5 V) and 6 (GND) only. EN goes to the power switch instead of staying unconnected. The signal pins below are unchanged.</div>
+
+  <div class="legend" aria-label="Wire colours">
+    <span><i style="background:var(--w5v)"></i>5 V</span>
+    <span><i style="background:var(--wgnd)"></i>GND</span>
+    <span><i style="background:var(--wbclk)"></i>BCLK</span>
+    <span><i style="background:var(--wlrc)"></i>LRC</span>
+    <span><i style="background:var(--wdin)"></i>DIN</span>
+    <span><i style="background:var(--wsd)"></i>SD (amp on/off)</span>
+    <span><i style="background:var(--wbat)"></i>Battery sense</span>
+    <span><i style="background:var(--wusb)"></i>Mains sense</span>
+    <span><i style="background:var(--wlbo)"></i>Low-battery sense</span>
+  </div>
+
+  <div class="note"><b>Check continuity on GP18, GP19 and GP21 first.</b> The Pico-to-Pi adapter's mapping for header pins 12, 35 and 40 hasn't been confirmed with a meter yet. Before soldering, beep each header pin through to the Pico GP pad named here.</div>
+
+  <h2>The header at a glance</h2>
+  <p>Pin 1 is the square pad, top left, with the board's header facing you. Odd pins run down the left column and even pins down the right. Grey pins are already taken by the e-paper HAT; leave them alone.</p>
+  <div class="fig narrow"><svg id="hdrmap" viewBox="0 0 760 520" role="img" aria-label="40-pin header map with the pins used by the amp and battery sensing highlighted"></svg></div>
+
+  <h2>1 · MAX98357A amplifier and speaker</h2>
+  <p>Adafruit 3006. Four signal wires to the header plus 5 V and ground, two short leads to the speaker, and a 470 µF capacitor across the amp's power pins. The firmware drives SD from GP16: low shuts the amp off completely between sounds, and high plays the left channel (the firmware sends the same mono signal on both).</p>
+  <div class="fig"><svg id="amp" viewBox="0 0 1000 490" role="img" aria-label="Wiring diagram: Pi header to MAX98357A amplifier and speaker"></svg>
+    <p class="cap">The amp's pins in the order printed on the breakout: LRC, BCLK, DIN, GAIN, SD, GND, Vin. GAIN stays unconnected (9 dB). Tie it to Vin for 6 dB if the speaker is too loud at the bedside. The 470 µF capacitor sits right at the amp: its long leg (+) on Vin, the striped side (−) on GND. It covers the amp's current bursts so they don't sag the panel's supply.</p></div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Amp pin</th><th>Header pin</th><th>Splitter label</th><th>Pico</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><span class="sw" style="background:var(--w5v)"></span>Vin</td><td class="m">4</td><td class="m">5V</td><td class="m">VBUS rail</td><td>5 V, as Adafruit recommends even with 3.3 V logic</td></tr>
+      <tr><td><span class="sw" style="background:var(--wgnd)"></span>GND</td><td class="m">9</td><td class="m">GND</td><td class="m">GND</td><td>Any header ground works; 9 keeps it next to the others</td></tr>
+      <tr><td><span class="sw" style="background:var(--wbclk)"></span>BCLK</td><td class="m">12</td><td class="m">BCM18 · PCM_CLK</td><td class="m">GP18</td><td>Bit clock</td></tr>
+      <tr><td><span class="sw" style="background:var(--wlrc)"></span>LRC</td><td class="m">35</td><td class="m">BCM19 · PCM_FS</td><td class="m">GP19</td><td>Left/right clock. Must be BCLK + 1 for the firmware</td></tr>
+      <tr><td><span class="sw" style="background:var(--wdin)"></span>DIN</td><td class="m">40</td><td class="m">BCM21 · PCM_DOUT</td><td class="m">GP21</td><td>Audio data</td></tr>
+      <tr><td><span class="sw" style="background:var(--wsd)"></span>SD</td><td class="m">36</td><td class="m">BCM16</td><td class="m">GP16</td><td>Low = off and silent; high = plays</td></tr>
+      <tr><td>GAIN</td><td>—</td><td>—</td><td>—</td><td>Leave unconnected (9 dB)</td></tr>
+      <tr><td>470 µF cap</td><td>—</td><td>—</td><td>—</td><td>Across Vin (+) and GND (−, stripe), as close to the amp as you can. Polarised: backwards, it can burst. A 100 nF cap alongside it is optional</td></tr>
+      <tr><td><span class="sw" style="background:var(--wspk)"></span>+ / −</td><td>—</td><td>—</td><td>—</td><td>Visaton FRS 5 X (8 Ω). Short, twisted leads</td></tr>
+    </tbody></table></div>
+
+  <h2>2 · PowerBoost 1000C, battery and mains sensing</h2>
+  <p>Adafruit 2465. It takes mains from the USB-C socket, charges the LiPo, and feeds the 5 V rail through a Schottky diode. Three sense lines come back to the Pico's analogue pins, each through a 2:1 divider, because the PowerBoost's lines reach 5 V and the Pico's analogue pins only take 3.3 V: the battery voltage, whether mains is in, and the PowerBoost's own low-battery flag.</p>
+  <div class="fig"><svg id="pb" viewBox="0 0 1140 700" role="img" aria-label="Wiring diagram: USB-C breakout and LiPo into the PowerBoost 1000C, diode to the 5 V rail, three divider sense lines to the header"></svg>
+    <p class="cap">Each divider is two 100 kΩ resistors in series from the PowerBoost pad to ground. The joint between them goes to the header pin. The 100 nF caps (dashed) are optional; the firmware already averages its readings. The dividers' grounds share header pin 39. EN stays unconnected: tying it to ground switches the whole device off.</p></div>
+
+  <div class="tw"><table>
+    <thead><tr><th>From</th><th>Through</th><th>Header pin</th><th>Pico</th><th>What it reads</th></tr></thead>
+    <tbody>
+      <tr><td><span class="sw" style="background:var(--w5v)"></span>PowerBoost 5V</td><td>1N5819 Schottky diode (band towards the header)</td><td class="m">2</td><td class="m">VBUS rail</td><td>Powers everything; the diode stops the laptop and the PowerBoost back-feeding each other while you flash over USB</td></tr>
+      <tr><td><span class="sw" style="background:var(--wgnd)"></span>PowerBoost GND</td><td>—</td><td class="m">6</td><td class="m">GND</td><td>One common ground for the whole unit</td></tr>
+      <tr><td><span class="sw" style="background:var(--wgnd)"></span>Divider grounds</td><td>—</td><td class="m">39</td><td class="m">GND</td><td>The bottom of each divider and cap; any header ground works</td></tr>
+      <tr><td><span class="sw" style="background:var(--wbat)"></span>PowerBoost Bat</td><td>100 kΩ / 100 kΩ</td><td class="m">37 · BCM26</td><td class="m">GP26 · ADC0</td><td>Battery 3.0–4.2 V → 1.5–2.1 V at the pin</td></tr>
+      <tr><td><span class="sw" style="background:var(--wusb)"></span>PowerBoost USB</td><td>100 kΩ / 100 kΩ</td><td class="m">13 · BCM27</td><td class="m">GP27 · ADC1</td><td>About 2.5 V on mains, 0 V on battery: the "on battery" badge</td></tr>
+      <tr><td><span class="sw" style="background:var(--wlbo)"></span>PowerBoost LBO</td><td>100 kΩ / 100 kΩ</td><td class="m">22 · BCM25</td><td class="m">GP28 · ADC2</td><td>Drops to 0 V when the cell is under ~3.2 V: the "battery low" warning, alongside the battery voltage</td></tr>
+      <tr><td>USB-C breakout VBUS / GND</td><td>—</td><td>—</td><td>—</td><td>To the PowerBoost's USB and GND input pads</td></tr>
+      <tr><td>LiPo 4400 mAh</td><td>JST-PH</td><td>—</td><td>—</td><td>Check the plug's polarity before the first connect</td></tr>
+    </tbody></table></div>
+
+  <div class="note"><b>After wiring:</b> turn on <b>Battery backup</b> in Settings › Device (or the web app's Hardware card). It stays off until then because unwired analogue pins float and would show a battery that isn't there. With it on, the Hardware card shows the battery voltage and charge, so you can check the dividers straight away: a full cell should read about 4.1–4.2 V.</div>
+
+  <h2>Before you power up</h2>
+  <div class="grid2">
+    <div class="card"><h3>Continuity, with the power off</h3>
+      <ol>
+        <li>Header pin 12 → Pico GP18, pin 35 → GP19, pin 40 → GP21, pin 36 → GP16.</li>
+        <li>Pins 37, 13 and 22 → GP26, GP27 and GP28.</li>
+        <li>No short between 5 V (pins 2/4) and GND.</li>
+        <li>Each divider joint reads about 50 kΩ to ground.</li>
+        <li>The 470 µF cap's stripe is on the amp's GND side.</li>
+      </ol></div>
+    <div class="card"><h3>First power-up</h3>
+      <ol>
+        <li>Mains only, no LiPo yet: the panel should boot normally.</li>
+        <li>Play rain from the web app. The amp's SD pin goes high and you should hear it within a second.</li>
+        <li>Plug in the LiPo, turn on Battery backup, then pull the mains: the strip should show the battery and a popup should say "On battery".</li>
+        <li>If the bench supply sags during refreshes, lower the volume first; the amp can pull up to 0.8 A.</li>
+      </ol></div>
+  </div>
+
+  <h2>Parts list</h2>
+  <p>All the discrete parts come from Jaycar. Check stock at your local store before heading in.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Qty</th><th>Part</th><th>Jaycar</th><th>For</th></tr></thead>
+    <tbody>
+      <tr><td class="m">1 pack</td><td>100 kΩ 0.5 W metal film resistors, pack of 8</td><td class="m"><a href="https://www.jaycar.com.au/100k-ohm-0-5-watt-metal-film-resistors-pack-of-8/p/RR0620" target="_blank" rel="noopener">RR0620</a></td><td>The three dividers (6 needed, 2 spare)</td></tr>
+      <tr><td class="m">2</td><td>1N5819 Schottky diode, 40 V 1 A</td><td class="m"><a href="https://www.jaycar.com.au/1n5819-schottky-diode-40v-1a-do41/p/ZR1020" target="_blank" rel="noopener">ZR1020</a></td><td>The PowerBoost 5V feed (1 needed, 1 spare)</td></tr>
+      <tr><td class="m">1–2</td><td>470 µF 16 V low-ESR electrolytic capacitor</td><td class="m"><a href="https://www.jaycar.com.au/470uf-16vdc-low-esr-electrolytic-capacitor/p/RE6314" target="_blank" rel="noopener">RE6314</a></td><td>Across the amp's Vin and GND (1 needed, 1 spare)</td></tr>
+      <tr><td class="m">0–4</td><td>100 nF 50 V monolithic capacitor</td><td class="m"><a href="https://www.jaycar.com.au/100nf-50vdc-monolithic-capacitor/p/RC5490" target="_blank" rel="noopener">RC5490</a></td><td>Optional: one per divider, one beside the 470 µF</td></tr>
+    </tbody></table></div>
+  <h3>Also needed</h3>
+  <ul>
+    <li>Female Dupont crimps and single-pin housings for the header end: 11 wires, plus spares</li>
+    <li>26 AWG silicone wire, and heat-shrink to cover the inline resistors, diode and capacitor</li>
+    <li>A short twisted pair for the speaker</li>
+  </ul>
+</div>
+
+<script>
+(function(){
+const css=n=>`var(--${n})`;
+const HDR=[ // [pin, label, kind]  kind: p5 p33 gnd gpio
+ [1,'3V3','p33'],[2,'5V','p5'],[3,'BCM2','gpio'],[4,'5V','p5'],[5,'BCM3','gpio'],[6,'GND','gnd'],[7,'BCM4','gpio'],[8,'BCM14','gpio'],
+ [9,'GND','gnd'],[10,'BCM15','gpio'],[11,'BCM17','gpio'],[12,'BCM18','gpio'],[13,'BCM27','gpio'],[14,'GND','gnd'],[15,'BCM22','gpio'],[16,'BCM23','gpio'],
+ [17,'3V3','p33'],[18,'BCM24','gpio'],[19,'BCM10','gpio'],[20,'GND','gnd'],[21,'BCM9','gpio'],[22,'BCM25','gpio'],[23,'BCM11','gpio'],[24,'BCM8','gpio'],
+ [25,'GND','gnd'],[26,'BCM7','gpio'],[27,'ID_SD','gpio'],[28,'ID_SC','gpio'],[29,'BCM5','gpio'],[30,'GND','gnd'],[31,'BCM6','gpio'],[32,'BCM12','gpio'],
+ [33,'BCM13','gpio'],[34,'GND','gnd'],[35,'BCM19','gpio'],[36,'BCM16','gpio'],[37,'BCM26','gpio'],[38,'BCM20','gpio'],[39,'GND','gnd'],[40,'BCM21','gpio']];
+const HAT={19:'HAT MOSI',21:'HAT MISO',23:'HAT SCK',24:'HAT CS',11:'HAT RST',18:'HAT HRDY',7:'I2C SDA',29:'I2C SCL'};
+const USE={39:['wgnd','Divider ground','GND'], // pin: [wire colour, role, pico]
+ 2:['w5v','PowerBoost 5V','VBUS'],4:['w5v','Amp Vin','VBUS'],6:['wgnd','PowerBoost GND','GND'],9:['wgnd','Amp GND','GND'],
+ 12:['wbclk','Amp BCLK','GP18'],35:['wlrc','Amp LRC','GP19'],40:['wdin','Amp DIN','GP21'],36:['wsd','Amp SD','GP16'],
+ 37:['wbat','Battery sense','GP26'],13:['wusb','Mains sense','GP27'],22:['wlbo','Low-battery sense','GP28']};
+const el=(t,a,txt)=>{let s=`<${t}`;for(const k in a)s+=` ${k}="${a[k]}"`;return txt==null?s+'/>':s+`>${txt}</${t}>`};
+
+/* ---- header map ---- */
+(function(){
+ let s='';const x0=300,y0=24,p=24; // pin pitch
+ s+=el('rect',{x:x0-22,y:y0-14,width:p+44,height:20*p+4,rx:6,fill:css('hdr')});
+ HDR.forEach(([n,l,k])=>{
+  const odd=n%2, r=(n-1)>>1, cx=x0+(odd?0:p), cy=y0+r*p;
+  const u=USE[n], hat=HAT[n];
+  const fill=u?css(u[0]):hat?css('hat'):css('pin');
+  if(n===1)s+=el('rect',{x:cx-7,y:cy-7,width:14,height:14,fill});else s+=el('circle',u?{cx,cy,r:7,fill,stroke:'#E9ECE8','stroke-width':1.6}:{cx,cy,r:7,fill});
+  const tx=odd?x0-34:x0+p+34, anchor=odd?'end':'start';
+  s+=el('text',{x:odd?x0-14:x0+p+14,y:cy+4,'text-anchor':anchor,'font-size':11,fill:css('sub'),class:'svgm'},n);
+  const label=u?`${l} · ${u[1]} → ${u[2]}`:hat?`${l} · ${hat}`:l;
+  s+=el('text',{x:tx,y:cy+4,'text-anchor':anchor,'font-size':u?12.5:11.5,'font-weight':u?600:400,fill:u?css('ink'):css('sub'),class:'svgt'},label);
+ });
+ document.getElementById('hdrmap').innerHTML=s;
+})();
+
+/* ---- shared header drawing for the wiring diagrams (vertical, pins 1-40) ---- */
+function header(x0,y0,p,used){
+ let s=el('rect',{x:x0-16,y:y0-14,width:p+32,height:20*p+4,rx:5,fill:css('hdr')});
+ s+=el('text',{x:x0+p/2,y:y0-24,'text-anchor':'middle','font-size':12,'font-weight':600,fill:css('ink'),class:'svgt'},'Pi header');
+ s+=el('text',{x:x0-24,y:y0+4,'text-anchor':'end','font-size':10.5,fill:css('sub'),class:'svgm'},'pin 1');
+ const pos={};
+ HDR.forEach(([n])=>{
+  const odd=n%2, r=(n-1)>>1, cx=x0+(odd?0:p), cy=y0+r*p; pos[n]=[cx,cy];
+  const u=used[n], fill=u?css(u):HAT[n]?css('hat'):css('pin');
+  if(n===1)s+=el('rect',{x:cx-5.5,y:cy-5.5,width:11,height:11,fill});else s+=el('circle',u?{cx,cy,r:5.5,fill,stroke:'#E9ECE8','stroke-width':1.6}:{cx,cy,r:5.5,fill,opacity:.5});
+ });
+ return {svg:s,pos};
+}
+/* Wires are point lists; where a horizontal run crosses another wire's vertical run it hops over it. */
+function Router(){ this.w=[]; }
+Router.prototype.add=function(pts,colour,width,dash){ this.w.push({pts,colour,width:width||3.2,dash}); return this; };
+Router.prototype.pin=function(pos,n,lane,tx,ty,p,colour,width,dash){
+ const [cx,cy]=pos[n], odd=n%2;
+ const pts=odd?[[cx,cy],[cx+p/2,cy-p/2],[lane,cy-p/2],[lane,ty],[tx,ty]]:[[cx,cy],[lane,cy],[lane,ty],[tx,ty]];
+ return this.add(pts,colour,width,dash);
+};
+Router.prototype.svg=function(){
+ const V=[]; this.w.forEach((w,i)=>{for(let k=1;k<w.pts.length;k++){const[a,b]=[w.pts[k-1],w.pts[k]];if(a[0]===b[0]&&a[1]!==b[1])V.push({i,x:a[0],y1:Math.min(a[1],b[1]),y2:Math.max(a[1],b[1])});}});
+ let out='';
+ this.w.forEach((w,i)=>{
+  let d=`M${w.pts[0][0]} ${w.pts[0][1]}`;
+  for(let k=1;k<w.pts.length;k++){
+   const[a,b]=[w.pts[k-1],w.pts[k]];
+   if(a[1]===b[1]&&a[0]!==b[0]){
+    const dir=b[0]>a[0]?1:-1, y=a[1], r=5;
+    const xs=V.filter(v=>v.i!==i&&y>v.y1+1&&y<v.y2-1&&(v.x-a[0])*dir>r+1&&(b[0]-v.x)*dir>r+1).map(v=>v.x).sort((m,n)=>(m-n)*dir);
+    xs.forEach(x=>{d+=` L ${x-dir*r} ${y} A ${r} ${r} 0 0 ${dir>0?1:0} ${x+dir*r} ${y}`;});
+   }
+   d+=` L ${b[0]} ${b[1]}`;
+  }
+  const at={d,fill:'none',stroke:css(w.colour),'stroke-width':w.width,'stroke-linejoin':'round','stroke-linecap':'round'};
+  if(w.dash)at['stroke-dasharray']='7 6';
+  out+=el('path',at);
+ });
+ return out;
+};
+function tag(x,y,txt,anchor='start',colour='sub',size=11.5){return el('text',{x,y,'text-anchor':anchor,'font-size':size,fill:css(colour),class:'svgm'},txt)}
+function label(x,y,txt,anchor='end'){ // a wire label with a ground-coloured backing so it reads over anything
+ const w=txt.length*6.9+10, x0=anchor==='end'?x-w:x;
+ return el('rect',{x:x0,y:y-11,width:w,height:16,rx:3,fill:css('panel')})+tag(anchor==='end'?x-5:x+5,y+1,txt,anchor,'ink');
+}
+function board(x,y,w,h,title,sub){
+ return el('rect',{x,y,width:w,height:h,rx:8,fill:css('board')})+
+  el('text',{x:x+w/2,y:y+26,'text-anchor':'middle','font-size':15,'font-weight':700,fill:css('board-ink'),class:'svgt'},title)+
+  (sub?el('text',{x:x+w/2,y:y+44,'text-anchor':'middle','font-size':11,fill:css('board-ink'),opacity:.8,class:'svgt'},sub):'');
+}
+function pad(x,y,txt,side='left',dim=false){
+ const lx=side==='left'?x+14:x-14;
+ return el('rect',{x:x-6,y:y-6,width:12,height:12,rx:2,fill:css('pad'),opacity:dim?.45:1})+
+  el('text',{x:lx,y:y+4.5,'text-anchor':side==='left'?'start':'end','font-size':13,'font-weight':600,fill:css('board-ink'),opacity:dim?.55:1,class:'svgm'},txt);
+}
+
+/* ---- amp ---- */
+(function(){
+ const p=22,x0=70,y0=60;
+ const used={4:'w5v',9:'wgnd',12:'wbclk',35:'wlrc',36:'wsd',40:'wdin'};
+ const h=header(x0,y0,p,used); let s=h.svg;
+ const bx=640,by=60,bw=200,bh=380; s+=board(bx,by,bw,bh,'MAX98357A','Adafruit 3006 · I2S amp');
+ const order=['LRC','BCLK','DIN','GAIN','SD','GND','Vin'], py={};
+ order.forEach((n,i)=>{py[n]=by+92+i*40; s+=pad(bx,py[n],n,'left',n==='GAIN');});
+ const W=[[4,'Vin','w5v',190,'pin 4 · 5V'],[9,'GND','wgnd',220,'pin 9 · GND'],[12,'BCLK','wbclk',250,'pin 12 · BCM18 → GP18'],
+          [35,'LRC','wlrc',290,'pin 35 · BCM19 → GP19'],[36,'SD','wsd',320,'pin 36 · BCM16 → GP16'],[40,'DIN','wdin',350,'pin 40 · BCM21 → GP21']];
+ const R=new Router(); W.forEach(([n,a,c,lane])=>R.pin(h.pos,n,lane,bx-6,py[a],p,c));
+ s+=R.svg();
+ { // 470 uF across Vin (+, bottom) and GND (top), near the amp
+  const cx=bx-180, yg=py['GND'], yv=py['Vin'], m=(yg+yv)/2;
+  s+=el('path',{d:`M${cx} ${yg} L ${cx} ${m-5} M ${cx-11} ${m-5} L ${cx+11} ${m-5}`,fill:'none',stroke:css('ink'),'stroke-width':2.4});
+  s+=el('path',{d:`M${cx-11} ${m+6} Q ${cx} ${m+1} ${cx+11} ${m+6} M ${cx} ${m+3.5} L ${cx} ${yv}`,fill:'none',stroke:css('ink'),'stroke-width':2.4});
+  s+=el('circle',{cx,cy:yg,r:3.5,fill:css('wgnd')})+el('circle',{cx,cy:yv,r:3.5,fill:css('w5v')});
+  s+=tag(cx+16,m+14,'+','start','ink',12);
+  s+=tag(cx-16,m+4,'470 µF','end','ink',11.5);
+ }
+ W.forEach(([n,a,c,lane,lab])=>{s+=label(bx-18,py[a]-9,lab);});
+ // speaker
+ const tx=bx+bw, ty=py['GND'];
+ s+=el('rect',{x:tx-34,y:ty-26,width:30,height:52,rx:3,fill:css('soft'),stroke:css('board-ink'),'stroke-width':1});
+ s+=el('text',{x:tx-19,y:ty-7,'text-anchor':'middle','font-size':13,'font-weight':700,fill:css('ink'),class:'svgm'},'+');
+ s+=el('text',{x:tx-19,y:ty+17,'text-anchor':'middle','font-size':13,'font-weight':700,fill:css('ink'),class:'svgm'},'−');
+ const sx=940, sy=ty;
+ s+=el('path',{d:`M${tx-4} ${ty-12} C ${tx+40} ${ty-12}, ${sx-70} ${sy-14}, ${sx-38} ${sy-14}`,fill:'none',stroke:css('w5v'),'stroke-width':3});
+ s+=el('path',{d:`M${tx-4} ${ty+12} C ${tx+40} ${ty+12}, ${sx-70} ${sy+14}, ${sx-38} ${sy+14}`,fill:'none',stroke:css('wspk'),'stroke-width':3});
+ s+=el('rect',{x:sx-38,y:sy-22,width:16,height:44,fill:css('ink')});
+ s+=el('path',{d:`M${sx-22} ${sy-22} L ${sx+10} ${sy-48} L ${sx+10} ${sy+48} L ${sx-22} ${sy+22} Z`,fill:'none',stroke:css('ink'),'stroke-width':2.5,'stroke-linejoin':'round'});
+ s+=el('text',{x:sx-12,y:sy+72,'text-anchor':'middle','font-size':13,'font-weight':600,fill:css('ink'),class:'svgt'},'FRS 5 X · 8 Ω');
+ s+=el('text',{x:sx-12,y:sy+88,'text-anchor':'middle','font-size':11,fill:css('sub'),class:'svgt'},'speaker');
+ s+=el('text',{x:tx-19,y:ty+46,'text-anchor':'middle','font-size':10.5,fill:css('board-ink'),opacity:.8,class:'svgt'},'terminal');
+ s+=el('text',{x:bx+bw/2,y:py['GAIN']+4.5,'text-anchor':'end','font-size':11,fill:css('board-ink'),opacity:.7,class:'svgt'},'');
+ document.getElementById('amp').setAttribute('viewBox','0 0 1000 490');
+ document.getElementById('amp').innerHTML=s;
+})();
+
+/* ---- PowerBoost ---- */
+(function(){
+ const p=22,x0=70,y0=60;
+ const used={2:'w5v',6:'wgnd',13:'wusb',22:'wlbo',37:'wbat',39:'wgnd'};
+ const h=header(x0,y0,p,used); let s=h.svg;
+ const bx=770,by=80,bw=210,bh=560; s+=board(bx,by,bw,bh,'PowerBoost 1000C','Adafruit 2465');
+ const names=['5V','GND','Bat','USB','LBO','EN'], py={};
+ names.forEach((n,i)=>{py[n]=by+90+i*80; s+=pad(bx,py[n],n,'left',n==='EN');});
+ s+=el('text',{x:bx+60,y:py['EN']+4.5,'font-size':11,fill:css('board-ink'),opacity:.6,class:'svgt'},'leave unconnected');
+ const R=new Router();
+ // 5 V through the diode, ground straight across
+ const dX=430;
+ R.pin(h.pos,2,230,dX-16,py['5V'],p,'w5v'); R.add([[dX+16,py['5V']],[bx-6,py['5V']]],'w5v');
+ R.pin(h.pos,6,200,bx-6,py['GND'],p,'wgnd');
+ // dividers: a box per sense line; IN on the right, OUT on the left, GND on the left lower
+ const DX0=520, DW=200, rail=488, bus=py['EN']+40;
+ const SENSE=[['Bat',37,'wbat',330,'pin 37 · BCM26 → GP26'],['USB',13,'wusb',250,'pin 13 · BCM27 → GP27'],['LBO',22,'wlbo',290,'pin 22 · BCM25 → GP28']];
+ let boxes='';
+ SENSE.forEach(([nm,pin,c,lane])=>{
+  const y=py[nm];
+  const opt=false;
+  const ra={x:DX0,y:y-30,width:DW,height:66,rx:6,fill:css('soft'),stroke:css('line')}; if(opt)ra['stroke-dasharray']='6 5';
+  boxes+=el('rect',ra);
+  boxes+=el('text',{x:DX0+8,y:y-17,'font-size':10,'font-weight':600,fill:css('sub'),class:'svgt'},nm+' divider'+(opt?' · optional':''));
+  // inside: IN -> R1 -> node -> OUT ; node -> R2 -> GND ; node -> cap -> GND
+  const nx=DX0+100, gy=y+24, r1=DX0+150;
+  boxes+=el('path',{d:`M${DX0+DW} ${y} L ${r1+12} ${y} l -3 -6 l -6 12 l -6 -12 l -6 12 l -6 -12 l -6 12 l -3 -6 L ${nx} ${y}`,fill:'none',stroke:css('ink'),'stroke-width':1.6,'stroke-linejoin':'round'});
+  boxes+=tag(r1-6,y-11,'100 kΩ','middle','sub',10);
+  boxes+=el('path',{d:`M${nx} ${y} L ${nx} ${y+3} l 5 2 l -10 3 l 10 3 l -10 3 l 10 3 l -5 2 L ${nx} ${gy}`,fill:'none',stroke:css('ink'),'stroke-width':1.6,'stroke-linejoin':'round'});
+  boxes+=tag(nx+10,y+16,'100 kΩ','start','sub',10);
+  const cx=DX0+56;
+  boxes+=el('path',{d:`M${nx} ${y} L ${cx} ${y} L ${cx} ${y+8} M ${cx-8} ${y+8} L ${cx+8} ${y+8} M ${cx-8} ${y+14} L ${cx+8} ${y+14} M ${cx} ${y+14} L ${cx} ${gy}`,fill:'none',stroke:css('ink'),'stroke-width':1.6,'stroke-dasharray':'3 3'});
+  boxes+=tag(cx-12,y+16,'100 nF','end','sub',10);
+  boxes+=el('path',{d:`M${DX0} ${gy} L ${nx} ${gy}`,fill:'none',stroke:css('ink'),'stroke-width':1.6});
+  boxes+=el('path',{d:`M${DX0} ${y} L ${cx} ${y}`,fill:'none',stroke:css(c),'stroke-width':2.4});
+  boxes+=el('circle',{cx:nx,cy:y,r:3.5,fill:css(c)});
+  // wires: pad -> IN, OUT -> header, GND -> rail
+  R.add([[bx-6,y],[DX0+DW,y]],c,3.2,opt);
+  R.pin(h.pos,pin,lane,DX0,y,p,c,2.8,opt);
+  R.add([[DX0,y+24],[rail,y+24]],'wgnd',2.6,opt);
+ });
+ // the divider ground rail and bus to header pin 39
+ R.add([[rail,py['Bat']+24],[rail,bus],[150,bus]],'wgnd',2.6);
+ R.pin(h.pos,39,150,150,bus,p,'wgnd',2.6);
+ s+=R.svg()+boxes;
+ // the diode symbol, cathode (bar) towards the header
+ const dY=py['5V'];
+ s+=el('path',{d:`M${dX+16} ${dY-12} L ${dX-12} ${dY} L ${dX+16} ${dY+12} Z`,fill:css('ink')});
+ s+=el('line',{x1:dX-14,y1:dY-13,x2:dX-14,y2:dY+13,stroke:css('ink'),'stroke-width':3.5});
+ s+=tag(dX,dY+30,'1N5819 diode · band towards the header','middle','ink');
+ // labels near the module end of each wire
+ s+=label(dX-36,py['5V']-9,'pin 2 · 5V');
+ s+=label(DX0-8+0,py['GND']-9,'pin 6 · GND');
+ SENSE.forEach(([nm,pin,c,lane,lab])=>{s+=label(DX0-40,py[nm]-9,lab);});
+ s+=label(rail-6,bus-9,'pin 39 · GND (divider ground)');
+ // inputs on the right: USB-C breakout and the LiPo
+ const ix=bx+bw;
+ s+=pad(ix,by+120,'USB','right'); s+=pad(ix,by+150,'GND','right');
+ s+=el('rect',{x:ix+50,y:by+100,width:96,height:66,rx:6,fill:css('soft'),stroke:css('line')});
+ s+=el('text',{x:ix+98,y:by+128,'text-anchor':'middle','font-size':13,'font-weight':600,fill:css('ink'),class:'svgt'},'USB-C');
+ s+=el('text',{x:ix+98,y:by+146,'text-anchor':'middle','font-size':10.5,fill:css('sub'),class:'svgt'},'mains in');
+ s+=el('line',{x1:ix+6,y1:by+120,x2:ix+50,y2:by+120,stroke:css('w5v'),'stroke-width':3});
+ s+=el('line',{x1:ix+6,y1:by+150,x2:ix+50,y2:by+150,stroke:css('wgnd'),'stroke-width':3});
+ s+=tag(ix+28,by+112,'VBUS','middle','sub',10); s+=tag(ix+28,by+166,'GND','middle','sub',10);
+ const ly=by+bh-130;
+ s+=el('rect',{x:ix-4,y:ly-8,width:18,height:28,rx:2,fill:css('pad')});
+ s+=el('text',{x:ix-12,y:ly+10,'text-anchor':'end','font-size':12,'font-weight':600,fill:css('board-ink'),class:'svgm'},'JST');
+ s+=el('rect',{x:ix+50,y:ly-44,width:96,height:112,rx:10,fill:css('soft'),stroke:css('line')});
+ s+=el('text',{x:ix+98,y:ly+4,'text-anchor':'middle','font-size':13,'font-weight':600,fill:css('ink'),class:'svgt'},'LiPo');
+ s+=el('text',{x:ix+98,y:ly+22,'text-anchor':'middle','font-size':10.5,fill:css('sub'),class:'svgt'},'3.7 V 4400 mAh');
+ s+=el('line',{x1:ix+14,y1:ly,x2:ix+50,y2:ly,stroke:css('w5v'),'stroke-width':3});
+ s+=el('line',{x1:ix+14,y1:ly+12,x2:ix+50,y2:ly+12,stroke:css('wgnd'),'stroke-width':3});
+ s+=el('text',{x:ix+98,y:ly+90,'text-anchor':'middle','font-size':10.5,fill:css('sub'),class:'svgt'},'check plug polarity');
+ document.getElementById('pb').setAttribute('viewBox','0 0 1140 660');
+ document.getElementById('pb').innerHTML=s;
+})();
+})();
+</script>
+</body>
+</html>

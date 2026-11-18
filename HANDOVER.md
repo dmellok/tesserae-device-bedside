@@ -1167,3 +1167,25 @@ properly.
   `state_changed()` re-marks the top bar on the home screen so the label
   follows the radio (`mark_diff` of `P_top`). The action and the key-action
   name are "Sleep noise on/off". Verified on the glass: Stop → Rain → on.
+
+## 2026-11-18: battery reading, WiFi from the setup page, wiring docs
+
+- **Battery showed 0% on battery** (it read 1.5 V, later 6.6 V). The
+  RP2350B's ADC is GP40-47; the Pico Plus 2 W ties GP26/27/28 to GP40/41/42
+  on the same pads, which is where header pins 37, 13 and 22 land through the
+  adapter (all three checked live, pin 22 included). `power_init()` set up
+  GP26-28 only, so GP40-42 kept their reset pull-downs. It now inits
+  `ADC_BASE_PIN + 0..2` and leaves GP26-28 hi-Z with no pulls. Verified on
+  the bench: 3.98 V / 80% on battery, `usb_mv` 4945 on mains, LBO 1.6-2.0 V.
+  The board itself measured fine (R1, R2 99 kΩ; H1 half the battery).
+- **`hw.adc_mv`** in `/api/state`: millivolts at the pin for ADC channels 0-7
+  (GP40-47). Channel 3 is VSYS, 5 the BOOT button, 7 the PSRAM CS. A reading
+  near 0 on all three sense lines with nothing on USB-C usually means the
+  LiPo isn't plugged in.
+- **WiFi from the setup page survives a reboot.** `config_seed()` applied
+  `WIFI_SSID` from `secrets.h` on every boot, so a network entered on the
+  setup page was overwritten straight after the restart. The secrets.h WiFi
+  now only seeds a device with none stored.
+- **Docs:** `docs/power-amp-board.html` (the soldered board, both sides,
+  wires to the header, meter points) and `docs/amp-battery-wiring.html` (the
+  header-level diagrams, with a note on what the board changed).

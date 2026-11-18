@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Power and Amp Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef1ee; --surface:#ffffff; --ink:#18201b; --muted:#56635a; --line:#d3dbd4; --accent:#1d6b48;
+  --warn:#8a6a00; --warn-bg:#fbf0c4;
+  --board:#d9e3d1; --board-edge:#b9c8b0; --pad:#c7a04a; --pad-hole:#5a5040; --grid:#9fb197; --silk:#4d5f52;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --n-vbus:#d35400; --n-p5v:#c0392b; --n-gnd:#2b3137; --n-vbat:#a8741a; --n-lbo:#6a5bb0;
+  --n-susb:#c4407a; --n-sbat:#7a4a22; --n-slbo:#138585; --n-nc:#8b968e; --n-en:#2f62c9; --n-i2s:#4a5a8c;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ color-scheme:dark;
+    --bg:#111512; --surface:#1a201c; --ink:#e4ebe5; --muted:#9aa89e; --line:#2c3630; --accent:#5fcf96;
+    --warn:#e6c35c; --warn-bg:#3a3214;
+    --board:#24372b; --board-edge:#33493a; --pad:#b8933f; --pad-hole:#0f1511; --grid:#4c6353; --silk:#a9bdae;
+    --n-vbus:#f08a3c; --n-p5v:#f0675a; --n-gnd:#d4dbe1; --n-vbat:#e0aa45; --n-lbo:#a597f0;
+    --n-susb:#f07aae; --n-sbat:#d79a63; --n-slbo:#4fd1cf; --n-nc:#6d7a71; --n-en:#79a6f7; --n-i2s:#9fb0e6; }
+}
+:root[data-theme="dark"]{ color-scheme:dark;
+    --bg:#111512; --surface:#1a201c; --ink:#e4ebe5; --muted:#9aa89e; --line:#2c3630; --accent:#5fcf96;
+    --warn:#e6c35c; --warn-bg:#3a3214;
+    --board:#24372b; --board-edge:#33493a; --pad:#b8933f; --pad-hole:#0f1511; --grid:#4c6353; --silk:#a9bdae;
+    --n-vbus:#f08a3c; --n-p5v:#f0675a; --n-gnd:#d4dbe1; --n-vbat:#e0aa45; --n-lbo:#a597f0;
+    --n-susb:#f07aae; --n-sbat:#d79a63; --n-slbo:#4fd1cf; --n-nc:#6d7a71; --n-en:#79a6f7; --n-i2s:#9fb0e6; }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0;padding-block:28px 64px;padding-inline:16px}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+h1{font-size:clamp(28px,4.4vw,40px);line-height:1.08;margin:0 0 10px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+h2{font-size:21px;margin:44px 0 10px;font-weight:600;text-wrap:balance}
+h3{font-size:15px;margin:0 0 6px;font-weight:600}
+p{max-width:68ch;margin:0 0 10px}
+.lede{color:var(--muted);font-size:16.5px;max-width:72ch}
+code,.m{font-family:var(--mono);font-size:.92em}
+code{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+a{color:var(--accent)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:22px 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:4px 11px 4px 9px;cursor:pointer}
+.chip i{width:14px;height:4px;border-radius:2px;display:inline-block}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chip:focus-visible,.toggle input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:inline-flex;gap:7px;align-items:center;font-size:13.5px;color:var(--muted);cursor:pointer}
+.views{display:grid;grid-template-columns:1fr;gap:18px;max-width:1000px}
+.view{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 14px 10px}
+.view header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+.view header span{font-size:13px;color:var(--muted)}
+.diag{overflow-x:auto}
+.diag svg{display:block;width:100%;height:auto;min-width:620px;font-family:var(--mono)}
+.status{font-family:var(--mono);font-size:13px;color:var(--muted);min-height:1.6em;margin:8px 2px 0}
+.status b{color:var(--ink);font-weight:600}
+svg .net{transition:opacity .15s}
+svg.focus .net{opacity:.13}
+svg.focus .net.on{opacity:1}
+@media (prefers-reduced-motion:reduce){svg .net{transition:none}}
+.cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+ol.steps{padding-left:0;list-style:none;counter-reset:s;margin:6px 0}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:30px 1fr;gap:4px 10px;margin-bottom:14px}
+ol.steps li::before{content:counter(s);font-family:var(--mono);font-weight:600;font-size:13px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ink);display:grid;place-items:center;margin-top:1px}
+ol.steps li p{margin:0}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.m{white-space:nowrap}
+tbody tr.grp td{background:var(--bg);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-block:6px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+.note{border-left:4px solid var(--warn);background:var(--warn-bg);border-radius:8px;padding:11px 14px;margin:14px 0;font-size:14.5px;max-width:78ch}
+.note p{max-width:none;margin:0 0 6px}.note p:last-child{margin:0}
+ul.tight{padding-left:18px;margin:6px 0} ul.tight li{margin-bottom:6px}
+.foot{margin-top:40px;font-size:13px;color:var(--muted);max-width:80ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Bedside Dashboard · power and amp board · 5 × 7 cm protoboard, 24 × 18 holes (A–X × 1–18, row 1 at the bottom)</p>
+  <h1>Power and amp board</h1>
+  <p class="lede">The PowerBoost and the amp sit side by side along row 10. Every line below them is one straight piece of tinned wire on the back, running down to a pin on the bottom edge, with one short insulated jumper on top where the 5 V crosses the amp's signals. The small parts stand upright between neighbouring lines. There are no solder blobs between holes, and no two joints on different lines sit side by side.</p>
+
+  <div class="toolbar">
+    <div class="chips" id="chips" role="group" aria-label="Highlight a connection"></div>
+    <label class="toggle"><input type="checkbox" id="showwires" checked> Show the wiring on the component side</label>
+    <label class="toggle"><input type="checkbox" id="showpb" checked> Show the modules</label>
+    <label class="toggle"><input type="checkbox" id="showtp" checked> Show meter points</label>
+  </div>
+
+  <div class="views">
+    <section class="view" aria-label="Component side">
+      <header><h3>Component side</h3><span>parts on top; coloured lines are the wires on the back, seen through the board</span></header>
+      <div class="diag" id="top"></div>
+    </section>
+    <section class="view" aria-label="Solder side">
+      <header><h3>Solder side</h3><span>flipped left to right, so X is on the left</span></header>
+      <div class="diag" id="bot"></div>
+    </section>
+  </div>
+  <p class="status" id="status" aria-live="polite">Tap a hole or a colour above to follow a connection.</p>
+
+  <div class="cols">
+    <div>
+      <h2>Build order</h2>
+      <ol class="steps">
+        <li><p><strong>Small parts, standing up.</strong> Fit R1 to R6 upright: the body stands on the hole marked with a white dot, and the top lead bends over and down into the other hole. R1, R3, R5 and R6 sit in neighbouring holes. R2 and R4 reach over one line to the next, so their bent lead spans 0.2". Fit C1 to C3 the same way: C1 and C2 span 0.2", so 5 mm legs drop straight in; C3 sits in neighbouring holes, so pinch its legs in just under the body.</p></li>
+        <li><p><strong>Diode and big cap.</strong> D1 lies flat down column M, from M9 to M5, with its band at M5. The 470 µF stands across the amp's supply in W4 and V4: long leg (+) in W4, the striped side towards V.</p></li>
+        <li><p><strong>Pin headers.</strong> Two 1×7 headers along the bottom edge: E1–K1 for the PowerBoost side, and Q1–W1 for the amp's four signals, ground and +5 V, in the amp's own pin order. Pull the pin out of T1 with pliers before fitting: GAIN stays unconnected, and the gap keys the amp's plug.</p></li>
+        <li><p><strong>The modules.</strong> Push a 1×8 header into F10–M10 and a 1×7 into Q10–W10, sit the PowerBoost and the amp on them and solder both ends. The PowerBoost's USB pad goes in F10. The amp's LRC goes in Q10 and its Vin in W10, with the speaker terminal towards the top edge. Both modules' screw terminal and battery socket face the top edge.</p></li>
+        <li><p><strong>Wires on the back, one line at a time.</strong> Each coloured line is one length of tinned wire. Lay it along its row or column, then solder it at both ends and wherever it meets a part's lead. Do the ground first: row 12 from E12 to V12, then columns E, J, L and V. Then the rest, left to right.</p></li>
+        <li><p><strong>The one jumper.</strong> A short red insulated wire on the component side, from P7 to W7, carries the 5 V over the amp's four signal lines. Strip its ends, push them through, and solder them on the back. It is the only place two lines cross.</p></li>
+        <li><p><strong>Beep test before power.</strong> On continuity, each line should beep from end to end, and no two neighbouring lines should beep together. The table below lists the neighbours worth testing.</p></li>
+        <li><p><strong>Power, USB-C only first.</strong> Plug in the USB-C, no battery, and check the voltages. Then plug in the LiPo and check again.</p></li>
+      </ol>
+    </div>
+    <div>
+      <h2>Where the wires go</h2>
+      <p><strong>Colours.</strong> Red is 5 V and black is ground, everywhere. The amp's lines match the gist's amp diagram: green LRC, yellow BCLK, blue DIN, and white for SD. The sense lines take green, grey and blue, picked so no two neighbouring pins on the splitter share a colour. The USB-C socket gets red and black, the switch white and black, and the speaker red to + and black to −.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Pin</th><th>Hole</th><th>Carries</th><th>To</th><th>Wire</th></tr></thead>
+          <tbody id="conn"></tbody>
+        </table>
+      </div>
+      <p class="foot" style="margin-top:10px">Header pin numbers as in the gist's header map. Every ground on the board is one piece, so the separate sense ground to pin 39 and the amp's ground to pin 9 are no longer needed: the black wire next to the red one carries the ground for everything. The amp takes its 5 V from this board, so splitter pin 4 is free too.</p>
+    </div>
+  </div>
+
+  <h2>Wires to the GPIO header</h2>
+  <p>Each wire in its real colour, from the board's bottom edge to the 40-pin header on the splitter, the USB-C socket and the power switch. Pin 1 is the square pad. Grey pins belong to the e-paper board: leave them alone. Wires to the right-hand column pass between the left-hand pins on their way in, so follow the colour, not the nearest pin.</p>
+  <section class="view" aria-label="Wiring to the GPIO header" style="max-width:1000px">
+    <div class="diag" id="gpio"></div>
+  </section>
+  <p class="foot" style="margin-top:10px">Before powering up, check on continuity that header pins 12, 35 and 40 reach Pico GP18, GP19 and GP21 through the adapter, as the gist's wiring section says. Pins 4, 9 and 39 are no longer used. The switch's two wires can go either way round: they only join EN to ground when it's off.</p>
+
+  <h2>Meter points</h2>
+  <p>Set the meter to DC volts, 20 V range. The black lead stays on <strong>COM</strong>, the ground pin at V1 on the bottom edge, unless the table says otherwise. Touch the red lead on the numbered point; most are header pins you can reach from the top. Work down the table in order: each step adds one thing, so the first reading that's wrong tells you where to look.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Point</th><th>Hole</th><th>What it is</th><th>Expect</th></tr></thead>
+      <tbody id="tp"></tbody>
+    </table>
+  </div>
+  <p class="foot" style="margin-top:10px">A clock line reads about half of 3.3 V on DC volts, because it spends half its time high. If your meter has a Hz setting, it can read LRC directly; BCLK is above what many meters count. Point 14 is the only one with neither lead on COM. A meter floats, so it is safe across the speaker; a scope's ground clip is not.</p>
+
+  <h2>Checks</h2>
+  <div class="cols">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Beep test, no power</th><th>Between</th><th>Expect</th></tr></thead>
+        <tbody>
+          <tr><td>Ground is one piece</td><td class="m">E1 · J1 · V1 · L4</td><td>beep</td></tr>
+          <tr><td>Neighbouring lines on the left</td><td class="m">E–F · F–G · G–H · H–I · I–J · J–K at row 2</td><td>no beep</td></tr>
+          <tr><td>The I2S lines</td><td class="m">Q–R · R–S · S–U · U–V · V–W at row 2</td><td>no beep</td></tr>
+          <tr><td>Supply against ground</td><td class="m">W1–V1 · F1–E1</td><td>no beep</td></tr>
+          <tr><td>Switch line against ground</td><td class="m">I1–J1</td><td>no beep</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Powered</th><th>Pin</th><th>Expect</th></tr></thead>
+        <tbody>
+          <tr><td>+5 V out</td><td class="m">W1</td><td>about 4.8 V</td></tr>
+          <tr><td>Amp supply</td><td class="m">W10 (Vin)</td><td>same as W1</td></tr>
+          <tr><td>Mains sense, USB-C in</td><td class="m">G1</td><td>about 2.5 V, 0 V unplugged</td></tr>
+          <tr><td>Battery sense</td><td class="m">H1</td><td>half the battery: 1.5–2.1 V</td></tr>
+          <tr><td>Low battery</td><td class="m">K1</td><td>same as H1; 0 V under 3.2 V</td></tr>
+          <tr><td>Switch: short I1 to J1</td><td class="m">W1</td><td>0 V</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>Every sense reading stays under 3.3 V.</strong> If any of G1, H1 or K1 reads above 2.6 V, unplug and look for a missing bottom resistor.</p>
+    <p><strong>The 470 µF is polarised.</strong> Long leg in W4, the side with the stripe towards V4. Fitted backwards it can burst.</p>
+    <p><strong>Off means no alarm.</strong> With the switch off the Pico has no power. The e-ink keeps its last picture, so the screen won't look off.</p>
+  </div>
+
+  <p class="foot">Pad order and footprints from Adafruit's board files: PowerBoost 1000C Rev B (USB, Bat, VS, EN, GND, LBO, G, 5V) and the mono MAX98357A breakout (LRC, BCLK, DIN, GAIN, SD, GND, Vin, left to right with the speaker terminal at the top; its header is turned 180° in the file). The board size is an assumption: a common 5 × 7 cm protoboard with 24 × 18 holes; if yours is lettered the other way round, read the letters as numbers. The layout was checked by script for shorts, one piece per connection, no neighbouring joints on different lines, nothing under the modules or the 470 µF but their own pins.</p>
+</div>
+<script>
+const D={"parts":{"PB":{"kind":"pb","pins":[["F9","VBUS","USB"],["G9","VBAT","Bat"],["H9","VS","VS"],["I9","EN","EN"],["J9","GND","GND"],["K9","LBO","LBO"],["L9","GND","G"],["M9","P5V","5V"]]},"AMP":{"kind":"amp","pins":[["Q9","LRC","LRC"],["R9","BCLK","BCLK"],["S9","DIN","DIN"],["T9","GAIN","GAIN"],["U9","SD","SD"],["V9","GND","GND"],["W9","P5V_OUT","Vin"]]},"R3":{"kind":"rstand","pins":[["F13","VBUS","1"],["G13","S_USB","2"]],"role":"mains divider, top"},"R4":{"kind":"rstand","pins":[["G15","S_USB","1"],["E15","GND","2"]],"role":"mains divider, bottom"},"R1":{"kind":"rstand","pins":[["G11","VBAT","1"],["H11","S_BAT","2"]],"role":"battery divider, top"},"R2":{"kind":"rstand","pins":[["H14","S_BAT","1"],["J14","GND","2"]],"role":"battery divider, bottom"},"R5":{"kind":"rstand","pins":[["K10","LBO","1"],["K11","S_LBO","2"]],"role":"low-battery divider, top"},"R6":{"kind":"rstand","pins":[["K13","S_LBO","1"],["L13","GND","2"]],"role":"low-battery divider, bottom"},"C1":{"kind":"cap","pins":[["G17","S_USB","1"],["E17","GND","2"]],"role":"100 nF, mains sense"},"C2":{"kind":"cap","pins":[["H16","S_BAT","1"],["J16","GND","2"]],"role":"100 nF, battery sense"},"C3":{"kind":"cap","pins":[["K15","S_LBO","1"],["L15","GND","2"]],"role":"100 nF, low-battery sense"},"C4":{"kind":"ecap","pins":[["W15","P5V_OUT","+"],["V15","GND","−"]],"role":"470 µF, the amp supply"},"D1":{"kind":"diode","pins":[["M10","P5V","A"],["M14","P5V_OUT","K"]],"role":"1N5819, band to M14"},"J1":{"kind":"hdr","pins":[["E18","GND","1"],["F18","VBUS","2"],["G18","S_USB","3"],["H18","S_BAT","4"],["I18","EN","5"],["J18","GND","6"],["K18","S_LBO","7"]],"role":"bottom edge"},"J3":{"kind":"hdr","pins":[["Q18","LRC","1"],["R18","BCLK","2"],["S18","DIN","3"],["T18","NC","4"],["U18","SD","5"],["V18","GND","6"],["W18","P5V_OUT","7"]],"role":"power and amp, to the splitter"}},"wires":[["GND",["E7","F7","G7","H7","I7","J7","K7","L7","M7","N7","O7","P7","Q7","R7","S7","T7","U7","V7"]],["GND",["E7","E8","E9","E10","E11","E12","E13","E14","E15","E16","E17","E18"]],["GND",["J7","J8","J9"]],["GND",["J9","J10","J11","J12","J13","J14","J15","J16","J17","J18"]],["GND",["L7","L8","L9"]],["GND",["L9","L10","L11","L12","L13","L14","L15"]],["GND",["V7","V8","V9"]],["GND",["V9","V10","V11","V12","V13","V14","V15","V16","V17","V18"]],["VBUS",["F9","F10","F11","F12","F13","F14","F15","F16","F17","F18"]],["VBAT",["G9","G10","G11"]],["S_USB",["G13","G14","G15","G16","G17","G18"]],["S_BAT",["H11","H12","H13","H14","H15","H16","H17","H18"]],["EN",["I9","I10","I11","I12","I13","I14","I15","I16","I17","I18"]],["LBO",["K9","K10"]],["S_LBO",["K11","K12","K13","K14","K15","K16","K17","K18"]],["P5V",["M9","M10"]],["P5V_OUT",["M14","N14","O14","P14","P13","P12"]],["P5V_OUT",["W9","W10","W11","W12","W13","W14","W15","W16","W17","W18"]],["LRC",["Q9","Q10","Q11","Q12","Q13","Q14","Q15","Q16","Q17","Q18"]],["BCLK",["R9","R10","R11","R12","R13","R14","R15","R16","R17","R18"]],["DIN",["S9","S10","S11","S12","S13","S14","S15","S16","S17","S18"]],["SD",["U9","U10","U11","U12","U13","U14","U15","U16","U17","U18"]]],"jumpers":[["P5V_OUT","P12","W12"]]};
+const LET='ABCDEFGHIJKLMNOPQRSTUVWX', NC=24, NR=18;
+const P=24, BMX=55, BMY=32, LEFT=30, RIGHT=40, TOPS=26, BOTL=236;
+const WV=LEFT+RIGHT+(NC-1)*P+2*BMX, HV=TOPS+(NR-1)*P+2*BMY+BOTL;
+const NET={
+ VBUS:{c:'--n-vbus',name:'USB-C 5 V in'}, P5V:{c:'--n-p5v',name:'PowerBoost 5 V'},
+ P5V_OUT:{c:'--n-p5v',name:'+5 V after the diode: amp and splitter'}, GND:{c:'--n-gnd',name:'Ground'},
+ VBAT:{c:'--n-vbat',name:'Battery, from the Bat pad'}, S_BAT:{c:'--n-sbat',name:'Battery sense, half the battery'},
+ LBO:{c:'--n-lbo',name:'Low battery, from the LBO pad'}, S_LBO:{c:'--n-slbo',name:'Low-battery sense'},
+ S_USB:{c:'--n-susb',name:'Mains sense'}, EN:{c:'--n-en',name:'EN, to the power switch: closed is off'},
+ SD:{c:'--n-i2s',name:'Amp SD, on/off from GP16'}, DIN:{c:'--n-i2s',name:'I2S data'}, BCLK:{c:'--n-i2s',name:'I2S bit clock'},
+ LRC:{c:'--n-i2s',name:'I2S left/right clock'}, VS:{c:'--n-nc',name:'VS, not connected'}, GAIN:{c:'--n-nc',name:'GAIN, left open (9 dB)'},
+ NC:{c:'--n-nc',name:'no pin: pulled out as a key'}};
+const GROUPS=[['USB-C in',['VBUS'],'--n-vbus'],['Mains sense',['S_USB'],'--n-susb'],['Battery',['VBAT','S_BAT'],'--n-sbat'],
+ ['Low battery',['LBO','S_LBO'],'--n-slbo'],['+5 V',['P5V','P5V_OUT'],'--n-p5v'],['Ground',['GND'],'--n-gnd'],
+ ['Power switch',['EN'],'--n-en'],['I2S to the amp',['SD','DIN','BCLK','LRC'],'--n-i2s']];
+const BODY={R1:'H11',R3:'F13',R5:'K11',R4:'G15',R2:'H14',R6:'K13'};
+const DEST={J1:{'1':['GND','USB-C −'],'2':['USB-C +','socket'],'3':['Mains sense','pin 13'],'4':['Battery sense','pin 37'],
+  '5':['EN','switch'],'6':['GND','switch'],'7':['Low battery','pin 22']},
+ J3:{'1':['LRC','pin 35'],'2':['BCLK','pin 12'],'3':['DIN','pin 40'],'4':['no pin',''],'5':['SD','pin 36'],'6':['GND','pin 6'],'7':['+5 V','pin 2']}};
+const WCOL={red:'#d63a2f',yellow:'#f2c230',grey:'#9aa0a6',green:'#2e9e4f',white:'#f5f5f2',black:'#1d1d1d',blue:'#2f6fd0'};
+const WIRE={J1:{'1':'black','2':'red','3':'green','4':'grey','5':'white','6':'black','7':'blue'},J3:{'1':'green','2':'yellow','3':'blue','5':'white','6':'black','7':'red'}};
+const TP=[
+ ['USB-C only, no battery, switch on, no sound'],
+ ['1','F18','VBUS','USB-C in','5.0–5.2 V'],
+ ['2','G18','S_USB','Mains sense','about half of point 1: 2.5 V'],
+ ['3','M10','P5V','PowerBoost 5 V, diode D1\'s plain end','5.0–5.2 V'],
+ ['4','M14','P5V_OUT','After the diode, D1\'s band end','0.2–0.45 V less than point 3'],
+ ['5','W18','P5V_OUT','+5 V at the amp\'s pin','same as point 4. If it reads 0 V, the red jumper isn\'t joined'],
+ ['6','I18','EN','The switch line','3–5 V with the switch on'],
+ ['Plug in the LiPo'],
+ ['7','G11','VBAT','Battery, at R1\'s lead','3.0–4.2 V, the battery\'s own voltage'],
+ ['8','H18','S_BAT','Battery sense','half of point 7: 1.5–2.1 V'],
+ ['9','K18','S_LBO','Low-battery sense','same as point 8; 0 V once the battery is under 3.2 V'],
+ ['Play rain at a normal volume'],
+ ['10','U18','SD','Amp on/off','3.3 V while sound plays, 0 V when it stops'],
+ ['11','Q18','LRC','I2S left/right clock','about 1.6 V; on a Hz setting, 22.05 kHz'],
+ ['12','R18','BCLK','I2S bit clock','about 1.6 V; 705.6 kHz if your meter counts that high'],
+ ['13','S18','DIN','I2S data','somewhere between 0 and 1.6 V, wandering with the sound'],
+ ['14','SPK','','Speaker terminals, on AC volts, one lead on each','a few hundred mV; 0 V when silent'],
+ ['Unplug the USB-C, then flip the switch off'],
+ ['1, 2','F18','VBUS','After unplugging','both 0 V; point 5 stays about 4.8 V on battery'],
+ ['5','W18','P5V_OUT','Switch off','0 V'],
+];
+const col=v=>`var(${v})`, esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const hc=h=>LET.indexOf(h[0]), hr=h=>+h.slice(1);
+const disp=h=>h[0]+(NR+1-hr(h));   // printed numbers run bottom to top
+const X=(c,m)=>LEFT+BMX+(m?(NC-1)-c:c)*P + (m?RIGHT-LEFT:0)*0, Y=r=>TOPS+BMY+(r-1)*P;
+const bx0=m=>LEFT, bw=(NC-1)*P+2*BMX, bh=(NR-1)*P+2*BMY;
+// hole info
+const info={};
+const add=(h,net,w)=>{(info[h]??={net,what:[]}).what.push(w);};
+for(const [n,p] of Object.entries(D.parts)) for(const [h,net,lab] of p.pins){
+  const w=p.kind==='pb'?`PowerBoost ${lab} pad`:p.kind==='amp'?`amp ${lab} pad`:p.kind==='hdr'?`${n} pin ${lab}`:
+    p.kind==='diode'?`D1 ${lab==='K'?'cathode, the band end':'anode'}`:p.kind==='ecap'?`C4 ${lab==='+'?'long leg (+)':'striped leg (−)'} · 470 µF`:
+    p.kind==='cap'?`${n} leg · ${p.role}`:`${n} lead · 100 kΩ, ${p.role}${BODY[n]===h?' · body stands here':''}`;
+  add(h,net,w);
+}
+for(const [net,a,b] of D.jumpers) for(const h of [a,b]) add(h,net,'end of the red jumper on top');
+for(const [net,path] of D.wires) for(const h of path) if(!info[h]||!info[h].what.includes('tinned wire on the back')) add(h,net,'tinned wire on the back');
+
+function board(m){
+  const x0=bx0(m), y0=TOPS;
+  let s=`<rect x="${x0}" y="${y0}" width="${bw}" height="${bh}" rx="7" style="fill:${col('--board')};stroke:${col('--board-edge')};stroke-width:2"/>`;
+  for(const [cx,cy] of [[x0+17,y0+17],[x0+bw-17,y0+17],[x0+17,y0+bh-17],[x0+bw-17,y0+bh-17]])
+    s+=`<circle cx="${cx}" cy="${cy}" r="7" style="fill:${col('--bg')};stroke:${col('--board-edge')};stroke-width:2"/>`;
+  for(let c=0;c<NC;c++){const x=X(c,m);
+    s+=`<text x="${x}" y="${y0+BMY-14}" text-anchor="middle" font-size="10.5" style="fill:${col('--silk')}">${LET[c]}</text>`;
+    s+=`<text x="${x}" y="${y0+bh-BMY+22}" text-anchor="middle" font-size="10.5" style="fill:${col('--silk')}">${LET[c]}</text>`;}
+  for(let r=1;r<=NR;r++){const y=Y(r)+3.5;
+    s+=`<text x="${x0+BMX-28}" y="${y}" text-anchor="middle" font-size="10.5" style="fill:${col('--silk')}">${NR+1-r}</text>`;
+    s+=`<text x="${x0+bw-BMX+28}" y="${y}" text-anchor="middle" font-size="10.5" style="fill:${col('--silk')}">${NR+1-r}</text>`;}
+  for(let c=0;c<NC;c++)for(let r=1;r<=NR;r++)
+    s+=`<circle cx="${X(c,m)}" cy="${Y(r)}" r="7.6" style="fill:${col('--pad')}"/><circle cx="${X(c,m)}" cy="${Y(r)}" r="3.1" style="fill:${col('--pad-hole')}"/>`;
+  return s;
+}
+const ring=(x,y,net,r=9.6)=>`<circle class="net" data-net="${net}" cx="${x}" cy="${y}" r="${r}" style="fill:none;stroke:${col(NET[net].c)};stroke-width:2.6"/>`;
+function wires(m){
+  let s='';
+  for(const [net,path] of D.wires){
+    const pts=path.map(h=>`${X(hc(h),m)},${Y(hr(h))}`).join(' ');
+    s+=`<g class="net" data-net="${net}"><polyline points="${pts}" fill="none" style="stroke:${col(NET[net].c)}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+  }
+  return s;
+}
+const xy=(h,m)=>[X(hc(h),m),Y(hr(h))];
+function standingRes(n,p,m,ghost){
+  const a=p.pins[0][0], b=p.pins[1][0], body=BODY[n], other=body===a?b:a;
+  const [x1,y1]=xy(body,m),[x2,y2]=xy(other,m), cx=(x1+x2)/2, cy=(y1+y2)/2;
+  const ang=Math.atan2(y2-y1,x2-x1)*180/Math.PI, L=Math.hypot(x2-x1,y2-y1)+18, T=13;
+  if(ghost) return `<g transform="translate(${cx} ${cy}) rotate(${ang})"><rect x="${-L/2}" y="${-T/2}" width="${L}" height="${T}" rx="${T/2}" style="fill:none;stroke:${col('--silk')};stroke-width:1.2;stroke-dasharray:3 3;opacity:.8"/></g>`;
+  let s=`<g transform="translate(${cx} ${cy}) rotate(${ang})">`;
+  s+=`<rect x="${-L/2}" y="${-T/2}" width="${L}" height="${T}" rx="${T/2}" fill="#79a3d6" stroke="#2f5487" stroke-width="1.2"/>`;
+  const bands=[['#6b3e1f',.24],['#1b1b1b',.36],['#1b1b1b',.48],['#e07b1a',.60],['#6b3e1f',.80]];
+  for(const [c,f] of bands) s+=`<rect x="${-L/2+f*L-2}" y="${-T/2+.6}" width="4" height="${T-1.2}" fill="${c}"/>`;
+  s+=`<circle cx="${-L/2+T/2}" cy="0" r="4.2" fill="#e9eef6" stroke="#2f5487" stroke-width="1"/>`;
+  s+='</g>';
+  const vert=Math.abs(x2-x1)<1;
+  s+=`<text x="${vert?cx+14:cx}" y="${vert?cy+4:cy-12}" text-anchor="${vert?'start':'middle'}" font-size="10.5" font-weight="600" style="fill:${col('--ink')}">${n}</text>`;
+  return s;
+}
+function ceramic(n,p,m,ghost){
+  const [x1,y1]=xy(p.pins[0][0],m),[x2,y2]=xy(p.pins[1][0],m), cx=(x1+x2)/2, cy=(y1+y2)/2;
+  if(ghost) return `<rect x="${cx-13}" y="${cy-6}" width="26" height="12" rx="6" style="fill:none;stroke:${col('--silk')};stroke-width:1.2;stroke-dasharray:3 3;opacity:.8"/>`;
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#a7aeb3" stroke-width="2.2"/><rect x="${cx-13}" y="${cy-6.5}" width="26" height="13" rx="6.5" fill="#e6b53c" stroke="#94701a"/>`+
+    `<text x="${cx}" y="${cy-11}" text-anchor="middle" font-size="10.5" font-weight="600" style="fill:${col('--ink')}">${n}</text>`;
+}
+function ecap(p,m,ghost){
+  const [x1,y1]=xy(p.pins[0][0],m),[x2,y2]=xy(p.pins[1][0],m), cx=(x1+x2)/2, cy=(y1+y2)/2, R=38;
+  if(ghost) return `<circle cx="${cx}" cy="${cy}" r="${R}" style="fill:none;stroke:${col('--silk')};stroke-width:1.2;stroke-dasharray:4 4;opacity:.8"/><text x="${cx}" y="${cy+R+13}" text-anchor="middle" font-size="10" style="fill:${col('--silk')}">C4</text>`;
+  const sx=x2>x1?1:-1;
+  return `<g opacity=".9"><circle cx="${cx}" cy="${cy}" r="${R}" fill="#26355e" stroke="#121a30" stroke-width="1.5"/>`+
+    `<path d="M${cx+sx*R*0.55} ${cy-R*0.83} A ${R} ${R} 0 0 ${sx>0?1:0} ${cx+sx*R*0.55} ${cy+R*0.83} Z" fill="#c9d0de"/>`+
+    `<circle cx="${cx}" cy="${cy}" r="${R*0.55}" fill="none" stroke="#3f4f7c"/>`+
+    `<text x="${cx-sx*6}" y="${cy-4}" text-anchor="middle" font-size="11" font-weight="600" fill="#eef2fa">470 µF</text>`+
+    `<text x="${cx-sx*6}" y="${cy+11}" text-anchor="middle" font-size="9.5" fill="#b8c2da">C4 · + at ${disp(p.pins[0][0])}</text></g>`;
+}
+function diode(p,m,ghost){
+  const [x1,y1]=xy(p.pins[0][0],m),[x2,y2]=xy(p.pins[1][0],m), cx=(x1+x2)/2, cy=(y1+y2)/2, L=48, T=11.5;
+  const ang=Math.atan2(y2-y1,x2-x1)*180/Math.PI, vert=Math.abs(x2-x1)<1;
+  const lab=`<text x="${vert?cx+13:cx}" y="${vert?cy+4:cy-11}" text-anchor="${vert?'start':'middle'}" font-size="10.5" font-weight="600" style="fill:${col(ghost?'--silk':'--ink')}">D1</text>`;
+  if(ghost) return `<g transform="translate(${cx} ${cy}) rotate(${ang})"><rect x="${-L/2}" y="${-T/2}" width="${L}" height="${T}" rx="3" style="fill:none;stroke:${col('--silk')};stroke-width:1.2;stroke-dasharray:3 3;opacity:.8"/></g>`+lab;
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#a7aeb3" stroke-width="2.4"/><g transform="translate(${cx} ${cy}) rotate(${ang})"><rect x="${-L/2}" y="${-T/2}" width="${L}" height="${T}" rx="3" fill="#232323" stroke="#000"/>`+
+    `<rect x="${L/2-11}" y="${-T/2}" width="6" height="${T}" fill="#cfd3d6"/></g>`+lab;
+}
+function jumpers(m,ghost){
+  let s='';
+  for(const [net,a,b] of D.jumpers){
+    const [x1,y1]=xy(a,m),[x2,y2]=xy(b,m), mx=(x1+x2)/2, my=Math.min(y1,y2)-16;
+    if(ghost){ s+=`<path class="net" data-net="${net}" d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}" fill="none" stroke="#d63a2f" stroke-width="2" stroke-dasharray="5 4" opacity=".8"/><text x="${mx}" y="${my+4}" text-anchor="middle" font-size="10" style="fill:${col('--silk')}">red jumper on the other side</text>`; continue; }
+    s+=`<g class="net" data-net="${net}"><path d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}" fill="none" stroke="#7a1f19" stroke-width="7.5" stroke-linecap="round"/><path d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}" fill="none" stroke="#d63a2f" stroke-width="5.5" stroke-linecap="round"/>`+
+       `<circle cx="${x1}" cy="${y1}" r="3.2" fill="#c9ced2"/><circle cx="${x2}" cy="${y2}" r="3.2" fill="#c9ced2"/></g>`;
+    s+=`<text x="${mx}" y="${my-6}" text-anchor="middle" font-size="10.5" font-weight="600" style="fill:${col('--ink')}">red jumper, insulated</text>`;
+  }
+  return s;
+}
+function headers(m){
+  let s='';
+  const strip=(cells,missing=[])=>{
+    const xs=cells.map(h=>X(hc(h),m)), ys=cells.map(h=>Y(hr(h)));
+    const x=Math.min(...xs)-10.5, y=Math.min(...ys)-10.5, w=Math.max(...xs)-Math.min(...xs)+21, hh=Math.max(...ys)-Math.min(...ys)+21;
+    let t=`<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="2" fill="#262a2e" stroke="#000"/>`;
+    for(const c of cells) if(!missing.includes(c)) t+=`<rect x="${X(hc(c),m)-3.5}" y="${Y(hr(c))-3.5}" width="7" height="7" fill="#d4b25a"/>`;
+      else t+=`<circle cx="${X(hc(c),m)}" cy="${Y(hr(c))}" r="3" fill="#000"/>`;
+    return t;
+  };
+  for(const n of ['J1','J3']){ const cells=D.parts[n].pins.map(p=>p[0]);
+    s+=strip(cells,n==='J3'?['T18']:[]);
+    const [x,y]=xy(cells[0],m);
+    s+=`<text x="${x+(m?14:-14)}" y="${y-13}" text-anchor="${m?'start':'end'}" font-size="10.5" font-weight="600" style="fill:${col('--ink')}">${n}</text>`;
+  }
+  s+=strip(D.parts.PB.pins.map(p=>p[0]))+strip(D.parts.AMP.pins.map(p=>p[0]));
+  return s;
+}
+function modules(m){
+  const xa=(c)=>X(c,m), rect=(c1,c2,r1,r2,extra='')=>{const x=Math.min(xa(c1),xa(c2)), w=Math.abs(xa(c2)-xa(c1)); return `<rect x="${x}" y="${Y(r1)}" width="${w}" height="${Y(r2)-Y(r1)}" ${extra}/>`;};
+  let s='<g id="pbbody">';
+  // PowerBoost
+  s+=rect(-1.6,0.4,3.5,6.5,'rx="2" fill="#b5bbc1" stroke="#7d858b"');
+  s+=rect(-0.05,14.15,0.5,9.5,'rx="5" fill="#1d2330" stroke="#0b0e14" stroke-width="1.5"');
+  for(const r of [1.5,8.5]) s+=`<circle cx="${xa(0.95)}" cy="${Y(r)}" r="5.5" fill="#c9a24c" stroke="#8a6c2a"/><circle cx="${xa(0.95)}" cy="${Y(r)}" r="3" style="fill:${col('--board')}"/>`;
+  s+=rect(2.85,5.45,1.0,2.9,'rx="3" fill="#ece5d2" stroke="#b9ad8c"');
+  s+=rect(3.2,5.1,1.0,1.35,'fill="#b9ad8c"');
+  s+=`<text x="${xa(4.15)}" y="${Y(2.35)}" text-anchor="middle" font-size="10.5" font-weight="600" fill="#5a5038">LiPo</text>`;
+  s+=`<text x="${xa(8.6)}" y="${Y(4.6)}" text-anchor="middle" font-size="14" font-weight="600" fill="#f2f4f7" font-family="IBM Plex Sans, sans-serif">PowerBoost 1000C</text>`;
+  for(const [h,net,lab] of D.parts.PB.pins){ s+=`<circle cx="${X(hc(h),m)}" cy="${Y(9)}" r="6.5" fill="#c9a24c" stroke="#8a6c2a"/><text x="${X(hc(h),m)}" y="${Y(9)-13}" text-anchor="middle" font-size="9" fill="#e6e9ee">${lab}</text>`;}
+  // amp
+  s+=rect(15.5,22.5,2.5,10,'rx="5" fill="#1d2330" stroke="#0b0e14" stroke-width="1.5"');
+  s+=rect(17.6,20.4,2.55,5.2,'rx="2" fill="#2f6aa8" stroke="#1b3f66"');
+  for(const c of [18.3,19.7]) s+=`<circle cx="${xa(c)}" cy="${Y(4.3)}" r="7" fill="#c3c8cc" stroke="#7d858b"/><line x1="${xa(c)-4.5}" y1="${Y(4.3)}" x2="${xa(c)+4.5}" y2="${Y(4.3)}" stroke="#5c646a" stroke-width="2"/>`;
+  s+=`<text x="${xa(19)}" y="${Y(2.55)-5}" text-anchor="middle" font-size="9.5" style="fill:${col('--muted')}">speaker</text>`;
+  for(const c of [16.5,21.5]) s+=`<circle cx="${xa(c)}" cy="${Y(3.5)}" r="5.5" fill="#c9a24c" stroke="#8a6c2a"/><circle cx="${xa(c)}" cy="${Y(3.5)}" r="3" style="fill:${col('--board')}"/>`;
+  s+=`<text x="${xa(19)}" y="${Y(6.6)}" text-anchor="middle" font-size="13" font-weight="600" fill="#f2f4f7" font-family="IBM Plex Sans, sans-serif">MAX98357A</text>`;
+  for(const [h,net,lab] of D.parts.AMP.pins){ s+=`<circle cx="${X(hc(h),m)}" cy="${Y(9)}" r="6.5" fill="#c9a24c" stroke="#8a6c2a"/><text x="${X(hc(h),m)}" y="${Y(9)-13}" text-anchor="middle" font-size="8.5" fill="#e6e9ee">${lab}</text>`;}
+  return s+'</g>';
+}
+function ghostModules(m){
+  const r=(c1,c2,r1,r2,label)=>{const x=Math.min(X(c1,m),X(c2,m)), w=Math.abs(X(c2,m)-X(c1,m));
+    return `<rect x="${x}" y="${Y(r1)}" width="${w}" height="${Y(r2)-Y(r1)}" rx="5" style="fill:none;stroke:${col('--silk')};stroke-width:1.3;stroke-dasharray:6 4;opacity:.8"/><text x="${x+w/2}" y="${Y(r1)+14}" text-anchor="middle" font-size="10" style="fill:${col('--silk')}">${label}</text>`;};
+  return r(-0.05,14.15,0.5,9.5,'PowerBoost on the other side')+r(15.5,22.5,2.5,10,'amp on the other side');
+}
+function labels(m){
+  let s='';
+  for(const n of ['J1','J3']) for(const [h,net,lab] of D.parts[n].pins){
+    const [x,y]=xy(h,m), wc=WIRE[n][lab], [a,b]=DEST[n][lab], yy=TOPS+bh+40;
+    if(!wc){ if(!m) s+=`<text transform="translate(${x+4} ${yy}) rotate(90)" font-size="11" style="fill:${col('--muted')}">no pin</text>`; continue; }
+    s+=`<line class="net" data-net="${net}" x1="${x}" y1="${y}" x2="${x}" y2="${yy-4}" stroke="${wc==='white'||wc==='black'?'#777':WCOL[wc]}" stroke-width="6.5" stroke-linecap="round"/>`+
+       `<line class="net" data-net="${net}" x1="${x}" y1="${y}" x2="${x}" y2="${yy-4}" stroke="${WCOL[wc]}" stroke-width="4.5" stroke-linecap="round"/>`;
+    s+=`<text class="net" data-net="${net}" transform="translate(${x+4} ${yy+2}) rotate(90)" font-size="11">`+
+      (m?`<tspan style="fill:${col('--ink')}" font-weight="600">${n}-${lab}</tspan><tspan style="fill:${col('--muted')}"> ${wc}</tspan>`
+        :`<tspan style="fill:${col('--ink')}" font-weight="600">${esc(a)}</tspan><tspan style="fill:${col('--muted')}"> ${esc(b)} · ${wc}</tspan>`)+`</text>`;
+  }
+  return s;
+}
+function hits(m){let s='';for(let c=0;c<NC;c++)for(let r=1;r<=NR;r++)s+=`<circle class="hit" data-hole="${LET[c]+r}" cx="${X(c,m)}" cy="${Y(r)}" r="11.5" fill="transparent"/>`;return s;}
+function parts(m,ghost){
+  let s='';
+  for(const [n,p] of Object.entries(D.parts)){
+    if(p.kind==='rstand') s+=standingRes(n,p,m,ghost);
+    else if(p.kind==='cap') s+=ceramic(n,p,m,ghost);
+    else if(p.kind==='diode') s+=diode(p,m,ghost);
+  }
+  return s;
+}
+function tpMarks(m){
+  let s='<g id="tpmarks">';
+  const seen=new Set();
+  for(const r of TP){ if(r.length<5) continue; const [n,h]=r; if(seen.has(h)||h==='SPK') continue; seen.add(h);
+    const [x,y]=xy(h,m), edge=hr(h)===NR;
+    s+=`<circle cx="${x}" cy="${y}" r="12" fill="none" stroke="#f2c230" stroke-width="3"/>`;
+    const bx=edge?x:x+13, by=edge?TOPS+bh+18:y-15, w=n.length>1?21:16;
+    s+=`<rect x="${bx-w/2}" y="${by-8}" width="${w}" height="16" rx="8" fill="#f2c230" stroke="#7a5d0c"/><text x="${bx}" y="${by+4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#2a2105">${n.split(',')[0]}</text>`;
+  }
+  const [gx,gy]=xy('V18',m), gb=TOPS+bh+18;
+  s+=`<circle cx="${gx}" cy="${gy}" r="12" fill="none" stroke="#888" stroke-width="3"/><rect x="${gx-14}" y="${gb-8}" width="28" height="16" rx="8" fill="#1d1d1d" stroke="#888"/><text x="${gx}" y="${gb+3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">COM</text>`;
+  // the speaker terminals
+  const sx=X(19,m), sy=Y(4.3);
+  s+=`<rect x="${sx+38}" y="${sy-8}" width="22" height="16" rx="8" fill="#f2c230" stroke="#7a5d0c"/><text x="${sx+49}" y="${sy+4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#2a2105">14</text>`;
+  return s+'</g>';
+}
+function topView(){
+  let s=`<svg viewBox="0 0 ${WV} ${HV}" role="img" aria-label="Component side of the board">`+board(false);
+  s+=`<g id="ovl" opacity=".8">${wires(false)}</g>`;
+  s+=headers(false);
+  for(const [n,p] of Object.entries(D.parts)) if(!['pb','amp'].includes(p.kind)) for(const [h,net] of p.pins) if(net!=='NC') s+=ring(...xy(h,false),net);
+  s+=parts(false,false);
+  for(const k of ['PB','AMP']) for(const [h,net] of D.parts[k].pins) if(!['VS','GAIN'].includes(net)) s+=ring(...xy(h,false),net,10.2);
+  s+=ecap(D.parts.C4,false,false)+modules(false)+jumpers(false,false)+labels(false)+tpMarks(false)+hits(false);
+  return s+'</svg>';
+}
+function botView(){
+  let s=`<svg viewBox="0 0 ${WV} ${HV}" role="img" aria-label="Solder side of the board, mirrored">`+board(true);
+  s+=ghostModules(true)+parts(true,true)+ecap(D.parts.C4,true,true)+wires(true)+jumpers(true,true);
+  const joints=new Set();
+  for(const [n,p] of Object.entries(D.parts)) for(const [h,net] of p.pins) if(net!=='NC') joints.add(h+'|'+net);
+  for(const [net,path] of D.wires){ joints.add(path[0]+'|'+net); joints.add(path[path.length-1]+'|'+net); }
+  for(const [net,a,b] of D.jumpers){ joints.add(a+'|'+net); joints.add(b+'|'+net); }
+  for(const j of joints){ const [h,net]=j.split('|'); s+=`<circle class="net" data-net="${net}" cx="${X(hc(h),true)}" cy="${Y(hr(h))}" r="4" fill="#d2d6d9" stroke="#6f777d"/>`; }
+  s+=labels(true)+hits(true);
+  return s+'</svg>';
+}
+
+function gpioDiagram(){
+  const VW=900, VH=690, PX0=96, PX=33, PY=74, HX=690, HE=732, HY0=130, HR=24;
+  const ODD={1:'3V3',3:'BCM2',5:'BCM3',7:'BCM4 · I2C SDA',9:'GND',11:'BCM17 · HAT RST',13:'BCM27',15:'BCM22',17:'3V3',19:'BCM10 · HAT MOSI',21:'BCM9 · HAT MISO',23:'BCM11 · HAT SCK',25:'GND',27:'ID_SD',29:'BCM5 · I2C SCL',31:'BCM6',33:'BCM13',35:'BCM19',37:'BCM26',39:'GND'};
+  const EVEN={2:'5V',4:'5V',6:'GND',8:'BCM14',10:'BCM15',12:'BCM18',14:'GND',16:'BCM23',18:'BCM24 · HAT HRDY',20:'GND',22:'BCM25',24:'BCM8 · HAT CS',26:'BCM7',28:'ID_SC',30:'GND',32:'BCM12',34:'GND',36:'BCM16',38:'BCM20',40:'BCM21'};
+  const HAT=new Set([7,11,18,19,21,23,24,29]);
+  const BP=[['E18','GND'],['F18','USB+'],['G18','Mains'],['H18','Batt'],['I18','EN'],['J18','GND'],['K18','LBO'],
+            ['Q18','LRC'],['R18','BCLK'],['S18','DIN'],['T18',''],['U18','SD'],['V18','GND'],['W18','+5V']];
+  const bx=i=>PX0+i*PX+(i>=7?30:0);
+  const ROUTE={G18:13,H18:37,K18:22,Q18:35,R18:12,S18:40,U18:36,V18:6,W18:2};
+  const pinOf=h=>{for(const n of ['J1','J3']){const p=D.parts[n].pins.find(q=>q[0]===h); if(p) return [n,p];}};
+  const colOf=h=>{const [n,p]=pinOf(h); return WIRE[n][p[2]];}, netOf=h=>pinOf(h)[1][1];
+  const hy=pin=>HY0+Math.floor((pin-1)/2)*HR, hx=pin=>pin%2?HX:HE;
+  let s=`<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="Wires from the board to the GPIO header">`;
+  // the board's bottom edge
+  const bL=bx(0)-26, bR=bx(13)+26;
+  s+=`<text x="${bL}" y="${PY-58}" font-size="11" letter-spacing=".06em" style="fill:${col('--muted')}">THE BOARD'S BOTTOM EDGE, PARTS UP</text>`;
+  s+=`<rect x="${bL}" y="${PY-48}" width="${bR-bL}" height="66" rx="6" style="fill:${col('--board')};stroke:${col('--board-edge')};stroke-width:2"/>`;
+  s+=`<rect x="${bx(0)-12}" y="${PY-12}" width="${bx(6)-bx(0)+24}" height="24" rx="2" fill="#262a2e"/><rect x="${bx(7)-12}" y="${PY-12}" width="${bx(13)-bx(7)+24}" height="24" rx="2" fill="#262a2e"/>`;
+  BP.forEach(([h,lab],i)=>{const x=bx(i);
+    s+=`<text x="${x}" y="${PY-32}" text-anchor="middle" font-size="9.5" font-weight="600" style="fill:${col('--ink')}">${lab}</text>`;
+    s+=`<text x="${x}" y="${PY-20}" text-anchor="middle" font-size="9" style="fill:${col('--muted')}">${disp(h)}</text>`;
+    s+= h==='T18' ? `<circle cx="${x}" cy="${PY}" r="3" fill="#000"/>` : `<rect x="${x-4}" y="${PY-4}" width="8" height="8" fill="#d4b25a"/>`;
+  });
+  // the 40-pin header
+  s+=`<text x="${(HX+HE)/2}" y="${HY0-30}" text-anchor="middle" font-size="11" letter-spacing=".06em" style="fill:${col('--muted')}">GPIO HEADER ON THE SPLITTER</text>`;
+  s+=`<rect x="${HX-16}" y="${HY0-16}" width="${HE-HX+32}" height="${19*HR+32}" rx="6" fill="#262a2e"/>`;
+  const used=new Set(Object.values(ROUTE));
+  for(let p=1;p<=40;p++){
+    const x=hx(p), y=hy(p), u=used.has(p), hat=HAT.has(p);
+    const fill=hat?'#6d757b':u?'#d4b25a':'#8d7c4c';
+    s+= p===1 ? `<rect x="${x-7}" y="${y-7}" width="14" height="14" fill="${fill}"/>` : `<circle cx="${x}" cy="${y}" r="7" fill="${fill}"/>`;
+    const lab=(p%2?ODD:EVEN)[p], tx=p%2?HX-30:HE+30;
+    s+=`<text x="${tx}" y="${y+4}" text-anchor="${p%2?'end':'start'}" font-size="10.5" style="fill:${col(u?'--ink':'--muted')}" ${u?'font-weight="700"':''} opacity="${hat?.5:1}">${p%2?lab+'  '+p:p+'  '+lab}</text>`;
+  }
+  // off-board parts
+  const box=(x,y,w,t,terms)=>{let o=`<rect x="${x}" y="${y}" width="${w}" height="56" rx="6" style="fill:${col('--surface')};stroke:${col('--muted')};stroke-width:1.2"/><text x="${x+w/2}" y="${y+44}" text-anchor="middle" font-size="11" font-weight="600" style="fill:${col('--ink')}">${t}</text>`;
+    for(const [tx,tl] of terms) o+=`<circle cx="${tx}" cy="${y}" r="5" fill="#c3c8cc" stroke="#6f777d"/><text x="${tx}" y="${y+20}" text-anchor="middle" font-size="9.5" style="fill:${col('--muted')}">${tl}</text>`;
+    return o;};
+  const UY=612;
+  // wires: a darker edge under the colour so white and black read on both themes
+  const wire=(d,wc,net)=>{const edge=(wc==='white'||wc==='yellow')?'#6b6b6b':(wc==='black'?'#8a8a8a':'rgba(0,0,0,.35)');
+    return `<g class="net" data-net="${net}"><path d="${d}" fill="none" stroke="${edge}" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${WCOL[wc]}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g>`;};
+  for(const [h,i] of [['E18',0],['F18',1],['I18',4],['J18',5]]) s+=wire(`M${bx(i)} ${PY+6} V${UY-6}`,colOf(h),netOf(h));
+  for(const [h,pin] of Object.entries(ROUTE)){
+    const i=BP.findIndex(b=>b[0]===h), x=bx(i), y=hy(pin), lane=y-(pin%2?8:13), tx=hx(pin), r=10;
+    const d=`M${x} ${PY+6} V${lane-r} Q${x} ${lane} ${x+r} ${lane} H${tx-14} L${tx} ${y}`;
+    s+=wire(d,colOf(h),netOf(h));
+  }
+  s+=box(bx(0)-34,UY,bx(1)-bx(0)+68,'USB-C socket',[[bx(0),'−'],[bx(1),'+']]);
+  s+=box(bx(4)-30,UY,bx(5)-bx(4)+60,'Power switch',[[bx(4),''],[bx(5),'']]);
+  s+=`<text x="${(bx(4)+bx(5))/2}" y="${UY+20}" text-anchor="middle" font-size="9.5" style="fill:${col('--muted')}">either way round</text>`;
+  for(const pin of used) s+=`<circle cx="${hx(pin)}" cy="${hy(pin)}" r="2.6" fill="#fff" opacity=".9"/>`;
+  return s+'</svg>';
+}
+document.getElementById('gpio').innerHTML=gpioDiagram();
+document.getElementById('top').innerHTML=topView();
+document.getElementById('bot').innerHTML=botView();
+const svgs=[...document.querySelectorAll('.diag svg')], status=document.getElementById('status');
+let active=-1;
+const groupOf=net=>GROUPS.findIndex(g=>g[1].includes(net));
+function focus(i){ active=i; const nets=i<0?[]:GROUPS[i][1];
+  for(const s of svgs){ s.classList.toggle('focus',i>=0); s.querySelectorAll('.net').forEach(e=>e.classList.toggle('on',nets.includes(e.dataset.net))); }
+  document.querySelectorAll('.chip').forEach((b,k)=>b.setAttribute('aria-pressed',k===i)); }
+const chips=document.getElementById('chips');
+GROUPS.forEach(([name,nets,c],i)=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'; b.setAttribute('aria-pressed','false');
+  b.innerHTML=`<i style="background:${col(c)}"></i>${name}`;
+  b.onclick=()=>{focus(active===i?-1:i); if(active>=0) status.innerHTML=`<b>${name}</b> · ${[...new Set(nets.map(n=>NET[n].name))].join(' · ')}`;};
+  chips.appendChild(b); });
+function show(h){ const f=info[h]; status.innerHTML=f?`<b>${disp(h)}</b> · ${esc(NET[f.net].name)} · ${esc([...new Set(f.what)].join(', '))}`:`<b>${disp(h)}</b> · unused`; }
+for(const s of svgs){
+  s.addEventListener('pointerover',e=>{const h=e.target.dataset?.hole; if(h) show(h);});
+  s.addEventListener('click',e=>{const h=e.target.dataset?.hole; if(!h) return; const f=info[h]; show(h); const g=f?groupOf(f.net):-1; focus(g===active?-1:g);});
+}
+const ovl=document.getElementById('showwires'), shm=document.getElementById('showpb');
+function setVis(){ document.getElementById('ovl').style.display=ovl.checked?'':'none';
+  const pb=document.getElementById('pbbody'); pb.style.display=shm.checked?'':'none'; pb.style.opacity=ovl.checked?'.6':''; }
+ovl.addEventListener('change',setVis); shm.addEventListener('change',setVis); setVis();
+const stp=document.getElementById('showtp'); stp.addEventListener('change',()=>{document.getElementById('tpmarks').style.display=stp.checked?'':'none';});
+document.getElementById('tp').innerHTML=TP.map(r=>r.length<5?`<tr class="grp"><td colspan="4">${esc(r[0])}</td></tr>`:`<tr><td class="m"><span style="display:inline-block;min-width:22px;padding:0 6px;border-radius:8px;background:#f2c230;color:#2a2105;font-weight:700;text-align:center">${r[0]}</span></td><td class="m">${r[1]==='SPK'?'amp terminal':disp(r[1])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join('');
+const rows=[
+ ['J1 · bottom edge, PowerBoost side',[['1','E18','GND','USB-C breakout, GND','black'],['2','F18','VBUS','USB-C breakout, VBUS','red'],['3','G18','S_USB','Header pin 13 · BCM27 → GP27','green'],['4','H18','S_BAT','Header pin 37 · BCM26 → GP26','grey'],['5','I18','EN','Power switch','white'],['6','J18','GND','Power switch','black'],['7','K18','S_LBO','Header pin 22 · BCM25 → GP28','blue']]],
+ ['J3 · bottom edge, the amp and power',[['1','Q18','LRC','Header pin 35 · BCM19 → GP19','green'],['2','R18','BCLK','Header pin 12 · BCM18 → GP18','yellow'],['3','S18','DIN','Header pin 40 · BCM21 → GP21','blue'],['4','T18','NC','No pin: pulled out as a key',''],['5','U18','SD','Header pin 36 · BCM16 → GP16','white'],['6','V18','GND','Header pin 6 · GND','black'],['7','W18','P5V_OUT','Header pin 2 · 5V','red']]],
+ ['On the modules',[['JST','PowerBoost','VBAT','The 4400 mAh LiPo; check its polarity first','its own'],['+ −','amp terminal','GND','The speaker, on short twisted leads','red +, black −']]]];
+document.getElementById('conn').innerHTML=rows.map(([g,rs])=>`<tr class="grp"><td colspan="5">${g}</td></tr>`+
+  rs.map(([p,h,n,to,wc])=>`<tr><td class="m">${p}</td><td class="m">${/^[A-X]\d+$/.test(h)?disp(h):h}</td><td><span class="sw" style="background:${col(NET[n].c)}"></span>${esc(n==='GND'&&p==='+ −'?'Speaker':NET[n].name)}</td><td>${esc(to)}</td><td class="m">${WCOL[wc]?`<span class="sw" style="background:${WCOL[wc]};box-shadow:0 0 0 1px #777"></span>`:''}${esc(wc||'—')}</td></tr>`).join('')).join('');
+</script>
+</body>
+</html>

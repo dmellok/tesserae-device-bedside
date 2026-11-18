@@ -201,6 +201,7 @@ The old Remote tab (glass preview and virtual controller) is gone;
 | `tools/` | `flash.sh` (build + hands-free flash + log; asks the device for the bootloader over WiFi first), `gen_font.py` (TTF → 4-bit bitmap font), `gen_sample.py` (test card), `png2frame.py` (PNG → packed 4 bpp frame) |
 | `tesserae/hardware/waveshare_103_it8951_pico.json` | hardware catalog entry for the server (optional; see docs/tesserae.md) |
 | `docs/tesserae.md` | the protocol digest |
+| `docs/wiring-guide.html`, `docs/gpio-pinout.html`, `docs/amp-battery-wiring.html`, `docs/power-amp-board.html` | wiring: the controls, the pin map, the amp and battery to the Pi header, and the soldered power and amp board with its meter points |
 
 ## Hardware facts (verified on the bench)
 
@@ -301,7 +302,9 @@ with up to 64 KB of body per chunk, in order, 4 KB aligned;
 
 ## Speaker and battery backup
 
-Wired as in `docs/wiring-guide.html`; each has a switch in **Settings > Device**
+Wired as in `docs/wiring-guide.html`, with the header pins in
+`docs/amp-battery-wiring.html` and the soldered board (hole by hole, with meter
+points) in `docs/power-amp-board.html`; each has a switch in **Settings > Device**
 on the panel and in the web app's **Hardware** card, and in Home Assistant.
 
 - **Speaker** (MAX98357A): I2S from PIO on GP18 (BCLK), GP19 (LRCLK), GP21
