@@ -7,9 +7,14 @@
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
 
-#define PIN_BAT   26
-#define PIN_USB   27
-#define PIN_LBO   28
+/* ADC channels 0-2. The RP2350B's ADC is on GP40-47 (ADC_BASE_PIN). The Pico
+ * Plus 2 W ties GP26-28 to GP40-42 through 1 k on the same pads (the splitter's
+ * pins 37, 13 and 22), so both pins of each pair sit on the divider. Both must
+ * be hi-Z with no pulls: either one's reset pull-down drags the reading low. */
+#define PIN_BAT   (ADC_BASE_PIN + 0)
+#define PIN_USB   (ADC_BASE_PIN + 1)
+#define PIN_LBO   (ADC_BASE_PIN + 2)
+#define PIN_TWIN  26                   /* GP26-28: the digital pins sharing those pads */
 #define DIVIDER   2.0f                 /* 100 k / 100 k */
 #define MAINS_V   3.8f                 /* USB-C input above this: on mains (it sits at ~5 V or 0 V) */
 
@@ -22,6 +27,11 @@ void power_init(void)
 {
     adc_init();
     adc_gpio_init(PIN_BAT); adc_gpio_init(PIN_USB); adc_gpio_init(PIN_LBO);
+    for (uint pin = PIN_TWIN; pin < PIN_TWIN + 3; pin++) {
+        gpio_set_function(pin, GPIO_FUNC_NULL);
+        gpio_disable_pulls(pin);
+        gpio_set_input_enabled(pin, false);
+    }
 }
 
 static float read_v(int ch)
@@ -73,3 +83,8 @@ bool  power_low(void)        { return s_low; }
 int   power_percent(void)    { return s_pct < 0 ? 0 : s_pct; }
 float power_battery_v(void)  { return s_bat < 0 ? 0 : s_bat; }
 float power_usb_v(void)      { return s_usb < 0 ? 0 : s_usb; }
+
+int power_adc_pin_mv(int ch)
+{
+    return (int)(read_v(ch) / DIVIDER * 1000.0f);
+}

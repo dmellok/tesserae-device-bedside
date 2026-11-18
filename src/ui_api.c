@@ -371,8 +371,10 @@ size_t local_state_json(char *b, size_t cap)
       S.spk_gain, S.spk_eq[0], S.spk_eq[1], S.spk_eq[2], S.spk_eq[3], S.spk_eq[4], spk_preset_match(S.spk_eq),
       S.spk_soft, S.spk_hpf, S.spk_limit, S.test, (unsigned long)audio_speaker_dropouts());
     J("\"hw\":{\"speaker\":%d,\"spk_on\":%d,\"i2s_fills\":%lu,\"i2s_diag\":%lu,\"power_mon\":%d,\"on_battery\":%d,\"pct\":%d,\"bat_mv\":%d,\"usb_mv\":%d,"
-      "\"rec\":\"%s\"},",
+      "\"adc_mv\":[%d,%d,%d,%d,%d,%d,%d,%d],\"rec\":\"%s\"},",
       S.speaker, audio_speaker_playing(), (unsigned long)audio_speaker_fills(), (unsigned long)audio_i2s_diag(), S.power_mon, S.on_battery, S.batt_pct, (int)(power_battery_v() * 1000), (int)(power_usb_v() * 1000),
+      power_adc_pin_mv(0), power_adc_pin_mv(1), power_adc_pin_mv(2), power_adc_pin_mv(3),
+      power_adc_pin_mv(4), power_adc_pin_mv(5), power_adc_pin_mv(6), power_adc_pin_mv(7),
       S.rec);
     J("\"lights\":{\"on\":%d,\"bright\":%d,\"colour\":%d},", S.lights_on, S.bright, S.light_mode);
     J("\"ac\":{\"mode\":%d,\"sp\":%d.%d,\"fan\":%d,\"room\":%d.%d},", S.ac_mode, S.sp_x2 / 2, (S.sp_x2 % 2) * 5, S.fan, S.room_x10 / 10, S.room_x10 % 10);

@@ -235,14 +235,16 @@ static void boot_wait(void) { boot_service(); paint_pump(); }
 /* ---- config seeding ------------------------------------------------------------ */
 
 /* secrets.h is a first-boot seed and a development override: any value it
- * defines is applied (and re-saved if it changed) on every boot. The web UI
- * edits the stored copy; drop the define from secrets.h to stop overriding. */
+ * defines is applied (and re-saved if it changed) on every boot, except the
+ * WiFi, which only seeds a device with none stored, so a network entered on
+ * the setup page survives the next boot. The web UI edits the stored copy;
+ * drop a define from secrets.h to stop overriding. */
 static void config_seed(void)
 {
     bool had = config_load();
     config_t before = *config_get();
 #ifdef WIFI_SSID
-    config_set_wifi(WIFI_SSID, WIFI_PASS);
+    if (!config_has_wifi()) config_set_wifi(WIFI_SSID, WIFI_PASS);
 #endif
 #ifdef SERVER_URL
     if (strcmp(before.server_url, SERVER_URL) != 0) {
