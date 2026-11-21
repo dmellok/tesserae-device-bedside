@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bedside Dashboard</title>
-<meta name="description" content="An interactive 3D model of the Bedside Dashboard: a 10.3 inch e-paper panel in a four-part printed case. Rotate it and pull it apart.">
+<meta name="description" content="An interactive 3D model of the Bedside Dashboard: a 10.3 inch e-paper panel in a printed case, in two versions. Rotate it and pull it apart.">
 <meta name="theme-color" content="#0b0d12">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Bedside Dashboard">
@@ -114,11 +114,12 @@
   <div class="content">
   <button id="closeControls" type="button" aria-label="Close controls">&times;</button>
   <h1>Bedside Dashboard</h1>
-  <div class="sub">Every part of the build, in its four-piece case</div>
+  <div class="sub">Every part of the build, in two versions of its printed case</div>
   <div class="group"><label>Take it apart</label>
     <div class="row"><span>Explode</span><input id="explode" type="range" min="0" max="1" step="0.005" value="0" aria-label="Explode the case"></div>
     <div class="row"><span>Components</span><input id="parts" type="range" min="0" max="1" step="0.005" value="0" aria-label="Explode the components"></div>
   </div>
+  <div class="group"><label>Version</label><div class="seg" id="design"></div></div>
   <div class="group"><label>Case colour</label><div class="seg" id="finish"></div></div>
   <div class="group"><label>Case</label>
     <div class="seg" id="show"></div>

@@ -39,9 +39,11 @@ const fill = new THREE.DirectionalLight(0xbfd0ff, 0.75); fill.position.set(-420,
 const model = new THREE.Group();
 scene.add(model);
 const parts = [];              // { mesh, e1, e2, name }
-const state = { explode: 0, parts: 0, spin: 0, hidden: new Set() };
+const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2' };
 const shown = { explode: 0, parts: 0 };
 
+// Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
+const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth'];
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth'];
@@ -63,10 +65,18 @@ function setFinish(name) {
 }
 
 async function load() {
-  const [meta, bin] = await Promise.all([
+  const [meta, bin, meta1, bin1] = await Promise.all([
     fetch('./data/bedside.json').then((r) => r.json()),
     fetch('./data/bedside.bin').then((r) => r.arrayBuffer()),
+    fetch('./data/mk1.json').then((r) => r.json()),
+    fetch('./data/mk1.bin').then((r) => r.arrayBuffer()),
   ]);
+  addParts(meta1, bin1, () => 'mk1');
+  addParts(meta, bin, (name) => (SHELL.includes(name) ? 'mk2' : null));
+  await addScreen(meta);
+  document.getElementById('loading').remove();
+}
+function addParts(meta, bin, variantOf) {
   for (const p of meta.parts) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, p.pos, p.verts * 3), 3));
@@ -79,8 +89,10 @@ async function load() {
     mesh.userData.name = p.name;
     mesh.userData.base = colour.clone();
     model.add(mesh);
-    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2) });
+    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variant: variantOf(p.name) });
   }
+}
+async function addScreen(meta) {
   // The dashboard image, laid over the panel's active area
   const s = meta.screen;
   const quad = new THREE.BufferGeometry();
@@ -94,7 +106,6 @@ async function load() {
   screen.userData.name = 'E Ink ED103TC2 panel';
   model.add(screen);
   parts.push({ mesh: screen, name: screen.userData.name, e1: new THREE.Vector3(...s.e1), e2: new THREE.Vector3(...s.e2), screen: true });
-  document.getElementById('loading').remove();
 }
 
 // ---------- controls ----------
@@ -115,6 +126,21 @@ for (const name of Object.keys(FINISHES)) {
   b.type = 'button'; b.textContent = name; b.setAttribute('aria-pressed', String(name === 'Beige'));
   b.addEventListener('click', () => { setFinish(name); track('bedside_case_colour', { colour: name }); });
   $('finish').appendChild(b);
+}
+for (const [label, id] of Object.entries(DESIGNS)) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = label;
+  b.addEventListener('click', () => { setDesign(id); track('bedside_version', { version: label }); });
+  $('design').appendChild(b);
+}
+function setDesign(id) {
+  state.design = Object.values(DESIGNS).includes(id) ? id : 'mk2';
+  for (const b of $('design').children) b.setAttribute('aria-pressed', String(DESIGNS[b.textContent] === state.design));
+  for (const b of $('show').children) if (b.textContent === 'Plinth') b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth
+  try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }
+  applyVisibility();
+  pointerMoved = true;
+  if (hovered) { const h = hovered; hovered = null; setHover(h); }
 }
 for (const name of CASE_PARTS) {
   const b = document.createElement('button');
@@ -169,7 +195,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 function applyVisibility() {
   for (const p of parts) {
-    const hide = state.hidden.has(p.name);
+    const hide = state.hidden.has(p.name) || (p.variant && p.variant !== state.design) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
     p.mesh.visible = !hide;
   }
 }
@@ -193,6 +219,7 @@ $('reset').addEventListener('click', () => {
   setFinish('Beige');
   setLabels(false);
   setWire(false);
+  setDesign('mk2');
   for (const b of $('show').children) b.setAttribute('aria-pressed', 'true');
   applyVisibility();
   controls.target.copy(CENTRE);
@@ -222,7 +249,7 @@ function setHover(name) {
   }
   paintWire();
   if (!name) { tip.classList.remove('on'); return; }
-  const group = parts.filter((p) => p.name === name && !p.screen);
+  const group = parts.filter((p) => p.name === name && !p.screen && p.mesh.visible);
   const c = group.length ? '#' + group[0].mesh.material.color.getHexString() : '#ccc';
   tip.querySelector('.name').innerHTML = `<i style="background:${c}"></i>`;
   tip.querySelector('.name').append(name);
@@ -230,10 +257,11 @@ function setHover(name) {
   tip.classList.add('on');
 }
 const DETAILS = {
-  'Front bezel': 'Printed case, part 1 of 4. Holds the glass from the front.',
-  'Mid chassis and base': 'Printed case, part 2 of 4, in black. Everything mounts to this.',
-  'Rear shell': 'Printed case, part 3 of 4. The back of the frame; slides off once the plinth is off.',
-  'Plinth': 'Printed case, part 4 of 4, in black. Covers the battery, speaker and USB-C inlet.',
+  'Front bezel': 'Printed case. Holds the glass from the front.',
+  'Mid chassis and base': 'Printed case. Everything mounts to this.',
+  'Rear shell': 'Printed case. Slides off the back.',
+  'Accent stripe': 'Orange insert, matching the menu key.',
+  'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
   'Waveshare IT8951 driver HAT': 'Drives the e-paper panel over SPI.',
   'GPIO splitter': 'Doubles the 40-pin header: one for the HAT, one for wiring.',
@@ -258,7 +286,8 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const ANCHORS_MK1 = { 'Rear shell': [60, 84, 130] };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -268,10 +297,12 @@ function buildLabels() {
   for (const p of parts) {
     if (p.screen) continue;
     p.mesh.geometry.computeBoundingBox();
-    if (!seen.has(p.name)) seen.set(p.name, { box: new THREE.Box3(), part: p });
-    seen.get(p.name).box.union(p.mesh.geometry.boundingBox);
+    const id = p.name + '|' + (p.variant || '');       // each case version gets its own callouts
+    if (!seen.has(id)) seen.set(id, { box: new THREE.Box3(), part: p });
+    seen.get(id).box.union(p.mesh.geometry.boundingBox);
   }
-  for (const [name, { box, part }] of seen) {
+  for (const { box, part } of seen.values()) {
+    const name = part.name;
     const el = document.createElement('div');
     el.className = 'lab'; el.textContent = name;
     el.addEventListener('pointerenter', () => { labelHover = name; setHover(name); });
@@ -280,7 +311,8 @@ function buildLabels() {
     const path = document.createElementNS(SVGNS, 'path'), dot = document.createElementNS(SVGNS, 'circle');
     dot.setAttribute('r', '2.5');
     $('leaders').append(path, dot);
-    const anchor = ANCHORS[name] ? new THREE.Vector3(...ANCHORS[name]) : box.getCenter(new THREE.Vector3());
+    const fixed = (part.variant === 'mk1' && ANCHORS_MK1[name]) || ANCHORS[name];
+    const anchor = fixed ? new THREE.Vector3(...fixed) : box.getCenter(new THREE.Vector3());
     labels.push({ name, el, path, dot, anchor, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
   }
 }
@@ -301,7 +333,7 @@ function spread(col, yMin, yMax, step) {            // keep labels in anchor ord
 }
 function layoutLabels(e1) {
   const W = window.innerWidth, H = window.innerHeight, phone = W <= 640;
-  const inside = state.hidden.has('Rear shell') && state.hidden.has('Plinth') ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
+  const inside = state.hidden.has('Rear shell') && (state.design === 'mk1' || state.hidden.has('Plinth')) ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
   const live = [];
   for (const l of labels) {
     proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
@@ -393,6 +425,10 @@ load().then(() => {
   try { saved = localStorage.getItem('bedside-finish'); } catch (e) { /* storage blocked */ }
   const m = /(?:^#|&)case=(\w+)/i.exec(location.hash);
   const want = m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : saved;
+  let ver = null;
+  try { ver = localStorage.getItem('bedside-version'); } catch (e) { /* storage blocked */ }
+  const mk = /(?:^#|&)mk=([12])/.exec(location.hash);
+  setDesign(mk ? 'mk' + mk[1] : ver);
   setFinish(want || 'Beige');
   buildLabels();
   const lab = /(?:^#|&)labels=1/.test(location.hash);
