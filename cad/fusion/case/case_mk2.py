@@ -240,9 +240,8 @@ def run(_context: str):
     chamfer(comp, pick(body(), lambda a, b: near(a[2], WF) and near(b[2], WF) and all(15 < p[0] < 229 and 24 < p[1] < 186 for p in (a, b))), 2.0, 'screen bevel')
     chamfer(comp, pick(body(), lambda a, b: near(a[0], b[0]) and all(near(p[1], 196) and side(p[0]) for p in (a, b))), EC, 'bezel top corners')
     chamfer(comp, pick(body(), lambda a, b: near(a[2], WF) and near(b[2], WF) and not all(11 < p[0] < 233 and 20 < p[1] < 190 for p in (a, b))), EC, 'bezel front edge')
-    # a fake floppy drive on the chin: a 94 mm slot, a shallow finger scoop across its middle and an eject pinhole. Decorative only.
-    floppy = [obox(122, 7.5, WF - 1, 216, 11.5, WF + 3.0), cyl(F(157, 9.5, WF + 1.6 - 12), F(181, 9.5, WF + 1.6 - 12), 12.0), wcyl(222.5, 9.5, WF - 1, WF + 2.0, 0.6)]
-    cut_tools(comp, [U(floppy)], 'floppy slot')
+    # slats on the chin: the same 2 mm grooves as the top of the rear shell, in line with them, running off the bottom edge
+    cut_tools(comp, [U([obox(25 + 4.5*i, -10, WF - 1, 27 + 4.5*i, 14, WF + 1.0) for i in range(17)])], 'chin slats')
     # --- foot corners ---
     comp = made['Mid chassis']; mb = lambda: comp.bRepBodies.item(0)
     chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], 3) or near(p[0], 241)) and (near(p[3], 6) or near(p[3], 81)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
@@ -250,8 +249,6 @@ def run(_context: str):
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
     add_bodies(o.component, switch_bodies(), design)
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Floppy slot insert'      # a black strip glued into the back of the slot so it reads as dark
-    add_bodies(o.component, [('Floppy slot insert', obox(122.2, 7.7, WF + 2.0, 215.8, 11.3, WF + 3.0), BLACK)], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II case: fake floppy drive on the chin'))
+    print('save', case.save('MK II case: slats on the chin'))
