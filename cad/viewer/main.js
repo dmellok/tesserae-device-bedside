@@ -43,11 +43,10 @@ const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2',
 const shown = { explode: 0, parts: 0 };
 
 // Three versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
-// and MK II.I is MK II reworked for printing: split chassis, fit gaps, vented slats, a speaker grille and a deeper plinth.
+// and MK II.I is MK II reworked for printing: split chassis, fit gaps, vented slats, a speaker grille, a braced frame plate and the battery moved clear of the GPIO plug.
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21' };
 const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
-const PLINTH_WIRES = new Set(['USB-C inlet wires', 'Power switch wires']);
 const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean nothing on MK I
 const isScrew = (name) => /screws/i.test(name);
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
@@ -573,7 +572,7 @@ const DETAILS = {
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
 const OUTSIDE = new Set(['Base tray', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
-const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Plinth': [200, 96, 36], 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
+const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -738,11 +737,11 @@ function frame() {
   buildSpread += ((build && build.dir !== 0 ? 1 : 0) - buildSpread) * (1 - Math.exp(-dt * 2));
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
-    if (p.name === 'USB-C power inlet' && state.design !== 'mk21') p.mesh.position.y -= 12;     // MK II.I's plinth is 12 mm deeper, and the inlet is exported in that place
-    if (PLINTH_WIRES.has(p.name)) {
-      // these run from the power board (y 34) to the back of the plinth (y 84 on MK II.I), so on the shallower versions they are squeezed to end 12 mm sooner
-      const k = state.design === 'mk21' ? 1 : 0.76;
-      p.mesh.scale.y = k; p.mesh.position.y += 34 * (1 - k);
+    // MK II.I has the battery 12 mm nearer the speaker, and it is exported there. The older versions put it back, and stretch its lead from the PowerBoost end (x 75) to match.
+    if (p.name === 'LiPo battery, 4400 mAh' && state.design !== 'mk21') p.mesh.position.x += 12;
+    if (p.name === 'Battery lead') {
+      const k = state.design === 'mk21' ? 1 : 1.255;
+      p.mesh.scale.x = k; p.mesh.position.x += 75 * (1 - k);
     }
     if (build) placeBuild(p);
   }

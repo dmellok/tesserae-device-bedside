@@ -1,5 +1,6 @@
 BEIGE = (222, 211, 186)
-YR, WF, WB, T = 96.0, -3.0, 6.0, 2.5       # rear wall outer Y (12 mm deeper than MK II), bezel front plane, bezel back plane, wall
+YR, WF, WB, T = 84.0, -3.0, 6.0, 2.5       # rear wall outer Y (the same depth as MK II), bezel front plane, bezel back plane, wall
+BX = -12.0                                 # the battery sits this far towards the speaker, to leave room for the Dupont plug and its wires
 G, CH = 0.25, 7.0                          # gap left between printed parts that slide together; chamfer around the back of the frame
 def obox(u0, v0, w0, u1, v1, w1):
     c = F((u0+u1)/2, (v0+v1)/2, (w0+w1)/2)
@@ -52,10 +53,11 @@ def mounts():
     for y, z in ((70.21, 54.51), (27.79, 12.09)): tcut.append(cyl((14, y, z), (19, y, z), 2.2))
     tcut.append(NUT_RELIEF())
     # Battery: a raised pad with low walls and two tunnels for cable ties
-    tadd += [box(78.7, 44.7, 3, 134.9, 73.4, 7),
-            box(85, 44.7, 7, 99, 46.7, 21), box(115, 44.7, 7, 129, 46.7, 21), box(85, 71.3, 7, 99, 73.3, 21), box(115, 71.3, 7, 129, 73.3, 21),
-            box(78.7, 52, 7, 80.7, 66, 21), box(133.3, 52, 7, 134.9, 66, 21)]
-    tcut += [box(91, 44, 4.2, 97, 74, 5.8), box(117, 44, 4.2, 123, 74, 5.8)]
+    bx = lambda x0, y0, z0, x1, y1, z1: box(x0 + BX, y0, z0, x1 + BX, y1, z1)
+    tadd += [bx(78.7, 44.7, 3, 134.9, 73.4, 7),
+            bx(85, 44.7, 7, 99, 46.7, 21), bx(115, 44.7, 7, 129, 46.7, 21), bx(85, 71.3, 7, 99, 73.3, 21), bx(115, 71.3, 7, 129, 73.3, 21),
+            bx(78.7, 52, 7, 80.7, 66, 21), bx(133.3, 52, 7, 134.9, 66, 21)]
+    tcut += [bx(91, 44, 4.2, 97, 74, 5.8), bx(117, 44, 4.2, 123, 74, 5.8)]
     # USB-C inlet: a pedestal behind the battery that carries the breakout, with the port surround as part of the chassis
     tadd += [box(109, 73.3, 3, 134.6, YR - 3, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 58)]
     # Power switch: the same pedestal carried along to the left, with a 6.3 mm hole for the toggle's bushing. It stays on the chassis when the plinth comes off.
@@ -74,7 +76,7 @@ def mounts():
     for x0, n in ((24, 8), (145, 12)):
         for i in range(n):
             xs = x0 + 7*i; y0 = max([22.0] + [y + 7 for x, y in HS if abs(xs + 1.25 - x) < 7])      # a slot beside a heel screw starts behind it
-            tcut.append(box(xs, y0, -3, xs + 2.5, 62, 3.5))
+            tcut.append(box(xs, y0, -3, xs + 2.5, 43 if x0 == 24 and xs + 2.5 > 77.7 + BX else 62, 3.5))      # and one the battery pad would cover stops in front of it
     tadd += [cyl((x, y, -2), (x, y, 0.5), 6.0) for x in (14, 230) for y in (12, 76)]      # feet as far apart as the base allows, against tipping when the knob is pressed
     return add, cut, tadd, tcut
 def gusset(x, ytip, ztop):
@@ -231,6 +233,8 @@ def run(_context: str):
     USB = ((con.minPoint.x + con.maxPoint.x)/2/MM, con.maxPoint.z/MM - 1.63, 9.44, 3.76)      # shell is 8.94 x 3.26 with 1.25 mm corners
     put(g('5880 Rotary')[0], (V_, W_, neg(U_)), ENC_REF, F(227, 137.3, 6))
     put(g('4090 USB C')[0], ((1,0,0), (0,1,0), (0,0,1)), ('min', 'max', 'min'), (111.8, YR - 0.5, 42))
+    bat = g('LiPo')[0]; m = bat.transform2; tr = m.translation
+    tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
     for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
@@ -293,4 +297,4 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II.I case: frame plate foot fused to the plate, gussets and a second row of tray screws'))
+    print('save', case.save('MK II.I case: plinth back to 84 mm deep, battery 12 mm towards the speaker'))

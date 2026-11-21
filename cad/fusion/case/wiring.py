@@ -75,16 +75,16 @@ def run(_context: str):
     # --- USB-C inlet and power switch, in the plinth ---
     def down(h, k): uh = hole(h); return [F(uh, 58.6, 17.6), F(uh, 58.6, 24.5), F(uh, 57.3 - k/2, 30.6), F(uh + 1, 51.5 - k, 35.0), F(uh + 2, 46.5 - k, 40.5)]
     for h, col, xp, name in (('F', RED, 113.5, 'USB-C VBUS'), ('E', BLK, 116.04, 'USB-C GND')):
-        items.append((name, tube(name, down(h, 0 if h == 'F' else 1.6) + [(xp - 14, 68, 51.5), (xp - 2, 79.5, 50.5), (xp, 84.05, 47.5), (xp, 84.05, 42.3)], R), col))
+        items.append((name, tube(name, down(h, 0 if h == 'F' else 1.6) + [(xp - 14, 61, 51.5), (xp - 3, 68.5, 50.5), (xp, 72.05, 47.5), (xp, 72.05, 42.3)], R), col))
     for h, col, z, name in (('I', WHT, 50.0, 'Switch EN'), ('J', BLK, 54.7, 'Switch GND')):
-        items.append((name, tube(name, down(h, 0 if h == 'I' else 1.6) + [(92.5, 66, z + 1.5), (96.1, 75, z + 0.6), (96.1, 79.0, z), (96.1, 81.5, z)], R), col))
+        items.append((name, tube(name, down(h, 0 if h == 'I' else 1.6) + [(93.0, 58, z + 1.5), (96.1, 64, z + 0.6), (96.1, 67.0, z), (96.1, 69.5, z)], R), col))
     # --- speaker, on a twisted pair from the amp's terminal block ---
     for ue, col, tag, k, name in ((110.25, RED, (37.5, 70.9, 17.0), 0.0, 'Speaker +'), (113.75, BLK, (37.5, 65.3, 11.4), 1.5, 'Speaker -')):
         pts = [F(ue, 22.5, 27.0), F(ue, 17.0, 27.0), F(ue - 3, 11.5, 28.5 + k), (ue - 12, 36.5 + k, 10.0), (70, 40 + k, 9.5), (58, 44 + k, 9.5), (48, 56 + k, 9.5), (41.5, tag[1] - 1.5, tag[2] - 3.5), tag]
         items.append((name, tube(name, pts, R), col))
     # --- battery lead to the PowerBoost's JST socket ---
     for uj, col, z0, k, name in ((73.3, RED, 22.0, 0.0, 'Battery +'), (75.3, BLK, 26.0, 1.5, 'Battery -')):
-        pts = [(131.0, 59, z0), (134.5, 59.5, z0 + 1), (136.6, 62 + k/2, 31), (136.2, 62 + k/2, 39.5), (131.5, 60 + k, 42.9), (110, 56 + k, 42.6), (86, 52 + k, 42.6), (79.5, 48.5, 42.2), (77.0, 45.3, 36.0),
+        pts = [(119.0, 59, z0), (122.5, 59.5, z0 + 1), (124.6, 61.5 + k, 31), (124.2, 61.5 + k, 39.5), (119.5, 60 + k, 42.9), (104, 56 + k, 42.6), (86, 52 + k, 42.6), (79.5 + k, 48.5, 42.2), (77.0 + k, 45.3, 36.0),
                (uj + 1.5, 38.0, 22.0), F(uj, 7.0, 29.0), F(uj, 9.5, 26.1), F(uj, 16.0, 26.1)]
         items.append((name, tube(name, pts, 0.7), col))
     items.append(('Battery plug, JST-PH', fbox(71.3, 10.8, 23.9, 77.3, 14.4, 28.3), (236, 236, 230)))
