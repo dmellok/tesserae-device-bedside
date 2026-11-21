@@ -8,6 +8,8 @@ def wcyl(u, v, w0, w1, r): return cyl(F(u, v, w0), F(u, v, w1), r)
 BZ = [(6.5, 20), (6.5, 100), (6.5, 180), (237.5, 20), (237.5, 100), (237.5, 180)]   # bezel screws (u, v)
 POSTS = [(9.5, 22), (9.5, YR - 9), (234.5, 22), (234.5, YR - 9)]
 FS = [(44, 12.4), (100, 12.4), (144, 12.4), (200, 12.4)]                           # frame plate to base tray screws (X, Y)                            # shell screws (X, Y)
+GUS = [(28.75, 36.0, 46.0), (49.75, 30.0, 36.0), (134.0, 36.0, 46.0), (149.75, 36.0, 46.0), (219.75, 36.0, 46.0)]   # gussets behind the frame plate (X, how far back the heel reaches, how far up the plate), in lanes clear of the speaker, the boards and the wiring
+HS = [(x, y - 4.2) for x, y, z in GUS]                                             # a second row of tray screws, one under the heel of each gusset
 KV, KW = 150.0, 18.7                                                               # knob centre in the frame
 def bezel():
     b = INTER(obox(0, -40, WF, 244, 196, WB), box(-10, -60, 10, 260, 200, 300))
@@ -70,18 +72,28 @@ def mounts():
     for u, v in BACK: add.append(wcyl(u, v, 7.5, WSO - T, 4.0)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 2.0))
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
     for x0, n in ((24, 8), (145, 12)):
-        tcut += [box(x0 + 7*i, 22, -3, x0 + 7*i + 2.5, 62, 3.5) for i in range(n)]
+        for i in range(n):
+            xs = x0 + 7*i; y0 = max([22.0] + [y + 7 for x, y in HS if abs(xs + 1.25 - x) < 7])      # a slot beside a heel screw starts behind it
+            tcut.append(box(xs, y0, -3, xs + 2.5, 62, 3.5))
     tadd += [cyl((x, y, -2), (x, y, 0.5), 6.0) for x in (14, 230) for y in (12, 76)]      # feet as far apart as the base allows, against tipping when the knob is pressed
     return add, cut, tadd, tcut
+def gusset(x, ytip, ztop):
+    # a triangular rib from a heel on the tray floor up the back of the plate, with a boss at the heel for a screw from below
+    ytop = 7.75 + (ztop - 10)*S/C                                                             # the plate's back face at that height
+    rib = INTER(box(x - 2, 5, 3, x + 2, ytip, ztop), obox(-10, -60, 6.05, 260, 300, 80))
+    rib = SUB(rib, [halfspace((x, ytip, 10.0), (0, ztop - 10.0, ytip - ytop - 3))])
+    return [rib, cyl((x, ytip - 4.2, 3), (x, ytip - 4.2, 10), 4.2)]
 def plate():
     # black: the leaning plate everything hangs off. Prints flat on its front face with every post pointing straight up.
     p = INTER(obox(2.7, -40, 6.05, 241.3, 193, 8.0), box(-10, -60, 10, 260, 200, 300))
-    foot = INTER(box(5.8, 8.8, 3, 238.2, 16, 12), obox(-10, -60, 6.05, 260, 300, 60))        # sits on the tray floor behind its front wall, which locates it
+    # the foot: a beam the full width that sits on the tray floor behind its front wall and runs 10 mm up the back of the plate, so the two are one piece
+    foot = U([INTER(box(5.8, 5, 3, 238.2, 16, 20), obox(-10, -60, 6.05, 260, 300, 80))] + [b for g in GUS for b in gusset(*g)])
+    foot = SUB(foot, [box(0, 0, 0, 244, 8.8, 10)])                                            # the tray's front wall, which locates it
     add, cut, _, _ = mounts()
     m = U([p, foot] + add)
     cuts = [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
     cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ]
-    cuts += [cyl((x, y, 2.9), (x, y, 10), 2.0) for x, y in FS]                                 # heat-set inserts for the tray screws
+    cuts += [cyl((x, y, 2.9), (x, y, 10), 2.0) for x, y in FS + HS]                                 # heat-set inserts for the tray screws
     return SUB(m, cuts + cut)
 def tray():
     # black: the flat base. Prints as it stands.
@@ -90,7 +102,7 @@ def tray():
     _, _, tadd, tcut = mounts()
     m = U([t] + posts + tadd)
     cuts = [cyl((x, y, -1), (x, y, 11), 1.7) for x, y in POSTS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in POSTS]
-    cuts += [cyl((x, y, -1), (x, y, 3.5), 1.7) for x, y in FS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in FS]
+    cuts += [cyl((x, y, -1), (x, y, 3.5), 1.7) for x, y in FS + HS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in FS + HS]
     return SUB(m, cuts + tcut)
 def halfspace(p, n):
     L = math.sqrt(sum(v*v for v in n)); n = [v/L for v in n]
@@ -197,7 +209,7 @@ def screws():
     add('Speaker', [U([screw((19.5, y, z), (-1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 with a nut behind the baffle
     add('Back', [screw(F(u, v, WSO), nW, 8.0, 1.5, 2.8, 1.8) for u, v in BACK])                         # M3 x 8 through the back of the rear shell into the chassis posts
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36, 129.6)])
-    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in FS])                     # M3 x 8 up through the tray into the frame plate's foot    # M2.5 x 8 down through the breakout
+    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in FS + HS])                # M3 x 8 up through the tray into the frame plate's foot and the gusset heels    # M2.5 x 8 down through the breakout
     return out
 def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
@@ -228,7 +240,7 @@ def run(_context: str):
         o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
         add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
-        print('%-12s volume %.0f cm3' % (n, b.volume))
+        print('%-12s volume %.0f cm3, %d lump(s)' % (n, b.volume, b.lumps.count))
     def uvw(p):
         y, z = p.y/MM, p.z/MM - 12
         return (p.x/MM, y*S + z*C, y*C - z*S, y, p.z/MM)          # u, v, w, Y, Z
@@ -281,4 +293,4 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II.I case: split chassis, fit gaps, vented slats, speaker grille, deeper plinth'))
+    print('save', case.save('MK II.I case: frame plate foot fused to the plate, gussets and a second row of tray screws'))

@@ -526,9 +526,9 @@ function setHover(name) {
 const DETAILS = {
   'Front bezel': 'Printed case. Holds the glass from the front.',
   'Mid chassis and base': 'Printed case. Everything mounts to this.',
-  'Frame plate': 'Printed case, in black. The boards, keys and encoder mount to this; it screws to the base tray.',
+  'Frame plate': 'Printed case, in black. The boards, keys and encoder mount to this. A beam along its foot and five gussets up its back screw to the base tray.',
   'Base tray': 'Printed case, in black. Carries the battery, speaker, USB-C inlet and power switch.',
-  'Frame screws, M3 x 8': 'Four, up through the base tray into the frame plate.',
+  'Frame screws, M3 x 8': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
