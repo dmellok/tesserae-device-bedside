@@ -237,11 +237,11 @@ def run(_context: str):
     tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
     for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Floppy slot insert'):
-        for o in g(n): o.deleteMe()
+        for o in g('MK II.I ' + n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
     for n, fn in (('Front bezel', bezel), ('Base tray', tray), ('Frame plate', plate), ('Rear shell', shell), ('Plinth', plinth), ('Access cover', cover)):
-        o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
+        o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II.I ' + n
         add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
         print('%-12s volume %.0f cm3, %d lump(s)' % (n, b.volume, b.lumps.count))
@@ -293,8 +293,9 @@ def run(_context: str):
     chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], 3) or near(p[0], 241)) and (near(p[3], 6) or near(p[3], YR - 3)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
     for n in made:
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II.I Power switch'
     add_bodies(o.component, switch_bodies(), design)
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II.I Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II.I case: plinth back to 84 mm deep, battery 12 mm towards the speaker'))
+    for o in g('MK II.I '): o.isLightBulbOn = False
+    print('save', case.save('MK II.I case kept alongside as hidden components'))

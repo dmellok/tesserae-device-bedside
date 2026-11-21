@@ -42,10 +42,12 @@ const parts = [];              // { mesh, e1, e2, name }
 const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2', bg: 'Auto' };
 const shown = { explode: 0, parts: 0 };
 
-// Three versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
+// Four versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
 // and MK II.I is MK II reworked for printing: split chassis, fit gaps, vented slats, a speaker grille, a braced frame plate and the battery moved clear of the GPIO plug.
-const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21' };
-const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1' };
+// MK III is MK II.I with the plinth and base tray 9 mm narrower on each side, so the frame overhangs them and reads as floating.
+const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21', 'MK III': 'mk3' };
+const SPLIT = new Set(['mk21', 'mk3']);          // the versions with a separate base tray and frame plate, and the battery nearer the speaker
+const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1', mk3: '3' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
 const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean nothing on MK I
 const isScrew = (name) => /screws/i.test(name);
@@ -94,13 +96,14 @@ function setFinish(name, save = true) {
 
 async function load() {
   const get = (stem) => [fetch(`./data/${stem}.json`).then((r) => r.json()), fetch(`./data/${stem}.bin`).then((r) => r.arrayBuffer())];
-  const [meta, bin, meta1, bin1, meta2, bin2] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2')]);
-  // bedside.* holds the components plus the newest case; mk1.* and mk2.* hold the earlier cases. Each case part says which versions it belongs to.
+  const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
+  // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
   const own = (name) => SHELL.includes(name) || name === 'Power switch' || isScrew(name);
-  const wires = (name) => (name === 'Power switch wires' ? ['mk2', 'mk21'] : null);      // MK I has no switch
+  const wires = (name) => (name === 'Power switch wires' ? ['mk2', 'mk21', 'mk3'] : null);      // MK I has no switch
   addParts(meta1, bin1, () => ['mk1']);
   addParts(meta2, bin2, (name) => (isScrew(name) && !name.startsWith('Back screws') ? ['mk1', 'mk2'] : ['mk2']));    // MK I borrows MK II's screws
-  addParts(meta, bin, (name) => (own(name) ? ['mk21'] : wires(name)));
+  addParts(meta21, bin21, () => ['mk21']);
+  addParts(meta, bin, (name) => (own(name) ? ['mk3'] : wires(name)));
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
@@ -505,7 +508,7 @@ $('apart').addEventListener('click', () => {
   startBuild(-1, false); track('bedside_build', { way: 'apart' });
 });
 
-// What comes away with MK II.I's base tray when the case is exploded: the parts fixed to it, and the screws that come up through it.
+// What comes away with the base tray of MK II.I and MK III when the case is exploded: the parts fixed to it, and the screws that come up through it.
 const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4 x 8', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
   'Base screws, M3 x 12', 'Frame screws, M3 x 8']);
 const TRAY_DROP = 70;
@@ -550,8 +553,8 @@ const DETAILS = {
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
-  'Base screws, M3 x 12': 'Four, up through the base into the shell and plinth posts.',
-  'Back screws, M3 x 8': 'Four, through the back of the rear shell into chassis posts.',
+  'Base screws, M3 x 12': 'Up through the base into the shell and plinth posts.',
+  'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
   'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
   'Power board screws, M2 x 6': 'Four, one per corner.',
   'Flex adapter screws, M2 x 5': 'Four, one per corner.',
@@ -590,7 +593,7 @@ const DETAILS = {
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
 const OUTSIDE = new Set(['Base tray', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
-const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
+const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] }, mk3: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -755,11 +758,11 @@ function frame() {
   buildSpread += ((build && build.dir !== 0 ? 1 : 0) - buildSpread) * (1 - Math.exp(-dt * 2));
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
-    if (state.design === 'mk21' && ON_TRAY.has(p.name)) p.mesh.position.z -= TRAY_DROP * e1;      // MK II.I's base tray is its own part, so it drops away from the frame plate with everything fixed to it
-    // MK II.I has the battery 12 mm nearer the speaker, and it is exported there. The older versions put it back, and stretch its lead from the PowerBoost end (x 75) to match.
-    if (p.name === 'LiPo battery, 4400 mAh' && state.design !== 'mk21') p.mesh.position.x += 12;
+    if (SPLIT.has(state.design) && ON_TRAY.has(p.name)) p.mesh.position.z -= TRAY_DROP * e1;      // from MK II.I on the base tray is its own part, so it drops away from the frame plate with everything fixed to it
+    // From MK II.I on the battery is 12 mm nearer the speaker, and it is exported there. The older versions put it back, and stretch its lead from the PowerBoost end (x 75) to match.
+    if (p.name === 'LiPo battery, 4400 mAh' && !SPLIT.has(state.design)) p.mesh.position.x += 12;
     if (p.name === 'Battery lead') {
-      const k = state.design === 'mk21' ? 1 : 1.255;
+      const k = SPLIT.has(state.design) ? 1 : 1.255;
       p.mesh.scale.x = k; p.mesh.position.x += 75 * (1 - k);
     }
     if (build) placeBuild(p);

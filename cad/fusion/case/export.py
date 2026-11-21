@@ -5,7 +5,7 @@ W = (0, C, -S); V = (0, S, C)
 def mul(v, k): return [round(x*k, 3) for x in v]
 Z3 = [0, 0, 0]
 ONLY = None
-KEPT = {'mk1': 'MK I ', 'mk2': 'MK II '}          # earlier case versions, parked in the design as hidden components with these prefixes
+KEPT = {'mk1': 'MK I ', 'mk2': 'MK II ', 'mk21': 'MK II.I '}          # earlier case versions, parked in the design as hidden components with these prefixes
 def kept(top):
     for k, pre in KEPT.items():
         if top.startswith(pre): return k, top[len(pre):]
