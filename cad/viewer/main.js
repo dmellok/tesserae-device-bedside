@@ -42,12 +42,15 @@ const parts = [];              // { mesh, e1, e2, name }
 const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2', bg: 'Auto' };
 const shown = { explode: 0, parts: 0 };
 
-// Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
-const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2' };
+// Three versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
+// and MK II.I is MK II reworked for printing: split chassis, fit gaps, vented slats, a speaker grille and a deeper plinth.
+const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21' };
+const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
-const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch', 'Back screws, M3 x 8', 'Floppy slot insert'];
+const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean nothing on MK I
+const isScrew = (name) => /screws/i.test(name);
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
-const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth', 'Access cover'];
+const SHELL = ['Front bezel', 'Mid chassis and base', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Access cover'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
 // Backdrops are plain CSS behind the transparent canvas (see html[data-bg] in index.html). Auto picks Night for the beige case and Studio for the black one.
 const BACKDROPS = { Auto: null, Night: { light: false, theme: '#0b0d12' }, Studio: { light: true, theme: '#f4f5f7' }, Paper: { light: true, theme: '#fbf8f2' },
@@ -90,14 +93,13 @@ function setFinish(name, save = true) {
 }
 
 async function load() {
-  const [meta, bin, meta1, bin1] = await Promise.all([
-    fetch('./data/bedside.json').then((r) => r.json()),
-    fetch('./data/bedside.bin').then((r) => r.arrayBuffer()),
-    fetch('./data/mk1.json').then((r) => r.json()),
-    fetch('./data/mk1.bin').then((r) => r.arrayBuffer()),
-  ]);
-  addParts(meta1, bin1, () => 'mk1');
-  addParts(meta, bin, (name) => (SHELL.includes(name) || MK2_ONLY.includes(name) ? 'mk2' : null));
+  const get = (stem) => [fetch(`./data/${stem}.json`).then((r) => r.json()), fetch(`./data/${stem}.bin`).then((r) => r.arrayBuffer())];
+  const [meta, bin, meta1, bin1, meta2, bin2] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2')]);
+  // bedside.* holds the components plus the newest case; mk1.* and mk2.* hold the earlier cases. Each case part says which versions it belongs to.
+  const own = (name) => SHELL.includes(name) || name === 'Power switch' || isScrew(name);
+  addParts(meta1, bin1, () => ['mk1']);
+  addParts(meta2, bin2, (name) => (isScrew(name) && !name.startsWith('Back screws') ? ['mk1', 'mk2'] : ['mk2']));    // MK I borrows MK II's screws
+  addParts(meta, bin, (name) => (own(name) ? ['mk21'] : null));
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
@@ -114,7 +116,7 @@ function addParts(meta, bin, variantOf) {
     mesh.userData.name = p.name;
     mesh.userData.base = colour.clone();
     model.add(mesh);
-    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variant: variantOf(p.name) });
+    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name) });
   }
 }
 async function addScreen(meta) {
@@ -167,7 +169,7 @@ for (const [label, id] of Object.entries(DESIGNS)) {
 function setDesign(id) {
   state.design = Object.values(DESIGNS).includes(id) ? id : 'mk2';
   for (const b of $('design').children) b.setAttribute('aria-pressed', String(DESIGNS[b.textContent] === state.design));
-  for (const b of $('show').children) if (MK2_ONLY.includes(b.textContent)) b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth or access cover
+  for (const b of $('show').children) if (NOT_MK1.includes(b.textContent)) b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth or access cover
   try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }
   applyVisibility();
   pointerMoved = true;
@@ -242,7 +244,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 function applyVisibility() {
   for (const p of parts) {
-    const hide = state.hidden.has(p.name) || (p.variant && p.variant !== state.design) || ((p.name === 'Accent stripe' || p.name === 'Floppy slot insert') && state.hidden.has('Front bezel'));
+    const hide = state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
     p.mesh.visible = !hide;
   }
 }
@@ -281,7 +283,7 @@ $('reset').addEventListener('click', () => {
 const SLUGS = { 'Front bezel': 'bezel', 'Rear shell': 'shell', Plinth: 'plinth', 'Access cover': 'cover' };
 function shareURL() {
   const q = new URLSearchParams();
-  q.set('mk', state.design === 'mk1' ? '1' : '2');
+  q.set('mk', MK_HASH[state.design]);
   q.set('case', state.finish.toLowerCase());
   q.set('bg', state.bg.toLowerCase());
   if (state.explode > 0) q.set('x', state.explode.toFixed(2));
@@ -400,9 +402,11 @@ function setHover(name) {
 const DETAILS = {
   'Front bezel': 'Printed case. Holds the glass from the front.',
   'Mid chassis and base': 'Printed case. Everything mounts to this.',
+  'Frame plate': 'Printed case, in black. The boards, keys and encoder mount to this; it screws to the base tray.',
+  'Base tray': 'Printed case, in black. Carries the battery, speaker, USB-C inlet and power switch.',
+  'Frame screws, M3 x 8': 'Four, up through the base tray into the frame plate.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
-  'Floppy slot insert': 'A black strip behind the fake floppy slot. Nothing goes in.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
   'Base screws, M3 x 12': 'Four, up through the base into the shell and plinth posts.',
@@ -439,8 +443,8 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Floppy slot insert', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
-const ANCHORS_MK1 = { 'Rear shell': [60, 84, 130] };
+const OUTSIDE = new Set(['Base tray', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Plinth': [200, 96, 36], 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -452,7 +456,7 @@ const CATS = ['Case', 'Boards', 'Parts', 'Screws'], CATS_DEFAULT = ['Case', 'Boa
 const cats = new Set(CATS_DEFAULT);
 function catOf(name) {
   if (/screws/i.test(name)) return 'Screws';
-  if (SHELL.includes(name) || name === 'Accent stripe' || name === 'Floppy slot insert') return 'Case';
+  if (SHELL.includes(name) || name === 'Accent stripe') return 'Case';
   return BOARDS.has(name) ? 'Boards' : 'Parts';
 }
 function setCats(list) {
@@ -471,7 +475,7 @@ function buildLabels() {
   for (const p of parts) {
     if (p.screen) continue;
     p.mesh.geometry.computeBoundingBox();
-    const id = p.name + '|' + (p.variant || '');       // each case version gets its own callouts
+    const id = p.name + '|' + (p.variants || []).join();       // each case version gets its own callouts
     if (!seen.has(id)) seen.set(id, { box: new THREE.Box3(), part: p });
     seen.get(id).box.union(p.mesh.geometry.boundingBox);
   }
@@ -485,7 +489,7 @@ function buildLabels() {
     const path = document.createElementNS(SVGNS, 'path'), dot = document.createElementNS(SVGNS, 'circle');
     dot.setAttribute('r', '2.5');
     $('leaders').append(path, dot);
-    const fixed = (part.variant === 'mk1' && ANCHORS_MK1[name]) || ANCHORS[name];
+    const fixed = (part.variants && (ANCHORS_BY[part.variants[0]] || {})[name]) || ANCHORS[name];
     // a set of screws has no useful centre, so its callout points at the first screw
     const anchor = fixed ? new THREE.Vector3(...fixed) : /screws/i.test(name) ? new THREE.Vector3().fromBufferAttribute(part.mesh.geometry.attributes.position, 0) : box.getCenter(new THREE.Vector3());
     labels.push({ name, cat: catOf(name), el, path, dot, anchor, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
@@ -599,7 +603,10 @@ function frame() {
   shown.parts += (state.parts - shown.parts) * k;
   const e1 = shown.explode * shown.explode * (3 - 2 * shown.explode);     // ease the ends of each slider
   const e2 = shown.parts * shown.parts * (3 - 2 * shown.parts);
-  for (const p of parts) p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
+  for (const p of parts) {
+    p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
+    if (p.name === 'USB-C power inlet' && state.design !== 'mk21') p.mesh.position.y -= 12;     // MK II.I's plinth is 12 mm deeper, and the inlet is exported in that place
+  }
   // pull the camera back as the model spreads out, keeping whatever zoom the viewer chose
   const fit = 1 + 0.55 * e1 + 0.12 * e2;
   if (Math.abs(fit - lastFit) > 1e-5) {
@@ -646,8 +653,8 @@ function frame() {
 load().then(() => {
   const q = new URLSearchParams(location.hash.slice(1));
   const stored = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
-  const mk = q.get('mk');
-  setDesign(mk === '1' || mk === '2' ? 'mk' + mk : stored('bedside-version'));
+  const mk = Object.keys(MK_HASH).find((k) => MK_HASH[k] === q.get('mk'));
+  setDesign(mk || stored('bedside-version'));
   const fin = q.get('case');
   setFinish(fin ? fin[0].toUpperCase() + fin.slice(1).toLowerCase() : (stored('bedside-finish') || 'Beige'));
   setBackdrop(q.get('bg') || stored('bedside-backdrop'));

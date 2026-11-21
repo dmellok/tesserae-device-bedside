@@ -5,7 +5,8 @@ files below joined in order, then run through Fusion's scripting interface.
 
     import math; USB = None
     common.py  geom.py  frame.py  case_mk1.py   (MK I: the chamfered wedge, kept as hidden "MK I ..." components)
-    common.py  geom.py  frame.py  case_mk2.py   (MK II: leaning slab, slatted hump and black plinth; the visible case)
-    common.py  export.py                        (writes cad/viewer/data; set ONLY = 'mk1' to write the MK I case parts)
+    common.py  geom.py  frame.py  case_mk2.py   (MK II: leaning slab, slatted hump and black plinth, kept as hidden "MK II ..." components)
+    common.py  geom.py  frame.py  case_mk21.py  (MK II.I: MK II with a split base tray and frame plate, deeper plinth, speaker grille; the visible case)
+    common.py  export.py                        (writes cad/viewer/data; set ONLY = 'mk1' or 'mk2' to write a kept version's case parts)
 
-Both versions fit the same component layout, so either can be rebuilt without moving anything.
+All three versions fit the same component layout, except that MK II.I moves the USB-C inlet 12 mm back with its deeper plinth.

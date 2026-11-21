@@ -1,0 +1,284 @@
+BEIGE = (222, 211, 186)
+YR, WF, WB, T = 96.0, -3.0, 6.0, 2.5       # rear wall outer Y (12 mm deeper than MK II), bezel front plane, bezel back plane, wall
+G, CH = 0.25, 7.0                          # gap left between printed parts that slide together; chamfer around the back of the frame
+def obox(u0, v0, w0, u1, v1, w1):
+    c = F((u0+u1)/2, (v0+v1)/2, (w0+w1)/2)
+    return tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*c), adsk.core.Vector3D.create(*U_), adsk.core.Vector3D.create(*V_), abs(u1-u0)*MM, abs(v1-v0)*MM, abs(w1-w0)*MM))
+def wcyl(u, v, w0, w1, r): return cyl(F(u, v, w0), F(u, v, w1), r)
+BZ = [(6.5, 20), (6.5, 100), (6.5, 180), (237.5, 20), (237.5, 100), (237.5, 180)]   # bezel screws (u, v)
+POSTS = [(9.5, 22), (9.5, YR - 9), (234.5, 22), (234.5, YR - 9)]
+FS = [(44, 12.4), (100, 12.4), (144, 12.4), (200, 12.4)]                           # frame plate to base tray screws (X, Y)                            # shell screws (X, Y)
+KV, KW = 150.0, 18.7                                                               # knob centre in the frame
+def bezel():
+    b = INTER(obox(0, -40, WF, 244, 196, WB), box(-10, -60, 10, 260, 200, 300))
+    cuts = [obox(16.42, 25.87, -10, 227.58, 184.62, 10),            # window
+            obox(13.25, 12.6, 3.0, 230.75, 187.8, 7),                # glass pocket, open to the back
+            obox(50, 11.2, 3.0, 195, 13, 7)]                         # flex wrap relief
+    cuts += [wcyl(u, v, 0.5, 6.5, 2.0) for u, v in BZ]               # M3 heat-set holes from the back
+    return SUB(b, cuts)
+def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
+BACK = [(16, 178), (228, 178), (16, 105), (228, 105)]                              # rear shell screws through the back (u, v)
+def NUT_RELIEF(): return cyl((11.2, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
+def mounts():
+    add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
+    # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
+    for u, v, screw in ((161.5, 73.57, False), (161.5, 15.56, False), (210.72, 73.57, True), (210.72, 15.56, True)):
+        add.append(wcyl(u, v, 7.5, 28.5, 2.75))
+        if screw: cut.append(wcyl(u, v, 19, 28.6, 1.05))
+        else: add.append(wcyl(u, v, 28.5, 30.6, 1.15))
+    # Power and amp protoboard: four corner posts, M2 from behind
+    for u in (60.5, 125.5):
+        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); cut.append(wcyl(u, v, 11, 18.1, 0.8))
+    # E-paper flex adapter: four short posts, M2
+    for u in (165.5, 195.5):
+        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut.append(wcyl(u, v, 9, 14.6, 0.8))
+    # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
+    for u0 in (161.85, 199.95):
+        fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, 174.5, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
+        add.append(fin)
+        add += [cyl(F(u0, 172, w), F(u0, 177.9, w), 2.0) for w in (9.54, 26.05)]      # bosses up to the board, clear of the sockets and parts under it
+        for w in (9.54, 26.05): cut.append(cyl(F(u0, 169, w), F(u0, 178.2, w), 1.05))
+    # Encoder: a bracket the threaded bushing bolts through, with a rib above and below
+    ky, kz = F(0, KV, KW)[1:]
+    add += [obox(238.1, 133, 6.05, 241.3, 167, 27.5), obox(226, 131, 7.5, 241.3, 133.2, 22), obox(226, 166.8, 7.5, 241.3, 169, 22)]
+    cut.append(cyl((237.5, ky, kz), (241.6, ky, kz), 3.65))
+    # Speaker: a baffle wall standing on the floor and tied into the plate, M4 through the two lugs
+    tadd.append(INTER(box(15, 16.4, 3, 18, YR - 5.5, 61), obox(-10, -60, 8.4, 260, 300, 200)))
+    # a short duct from the baffle to the side wall so the sound goes straight out of the grille; open below so the shell's front post can slide past
+    tadd.append(SUB(cyl((3.0, 49, 33.3), (15, 49, 33.3), 25.5), [cyl((2, 49, 33.3), (16, 49, 33.3), 23.5), box(0, 0, 0, 20, 120, 23.5)]))
+    tcut.append(cyl((14, 49, 33.3), (19, 49, 33.3), 23.0))
+    for y, z in ((70.21, 54.51), (27.79, 12.09)): tcut.append(cyl((14, y, z), (19, y, z), 2.2))
+    tcut.append(NUT_RELIEF())
+    # Battery: a raised pad with low walls and two tunnels for cable ties
+    tadd += [box(78.7, 44.7, 3, 134.9, 73.4, 7),
+            box(85, 44.7, 7, 99, 46.7, 21), box(115, 44.7, 7, 129, 46.7, 21), box(85, 71.3, 7, 99, 73.3, 21), box(115, 71.3, 7, 129, 73.3, 21),
+            box(78.7, 52, 7, 80.7, 66, 21), box(133.3, 52, 7, 134.9, 66, 21)]
+    tcut += [box(91, 44, 4.2, 97, 74, 5.8), box(117, 44, 4.2, 123, 74, 5.8)]
+    # USB-C inlet: a pedestal behind the battery that carries the breakout, with the port surround as part of the chassis
+    tadd += [box(109, 73.3, 3, 134.6, YR - 3, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 58)]
+    # Power switch: the same pedestal carried along to the left, with a 6.3 mm hole for the toggle's bushing. It stays on the chassis when the plinth comes off.
+    tadd += [box(88, 73.3, 3, 109, YR - 3, 10), box(88, 73.3, 10, 109, YR, 42), box(88, YR - T, 42, 109.1, YR, 58)]
+    tcut += [cyl((SWX, YR - T - 1, SWZ), (SWX, YR + 1, SWZ), 3.15)]
+    ux, uz, uw, uh = USB
+    r = 1.5; x0, x1, z0, z1, y0, y1 = ux - uw/2, ux + uw/2, uz - uh/2, uz + uh/2, YR - T - 1, YR + 1
+    tcut += [box(111.2, YR - T - 0.1, 42, 132.8, YR - 0.4, 46.0)]       # relief for the board's edge and its two screw heads
+    tcut += [box(x0 + r, y0, z0, x1 - r, y1, z1), box(x0, y0, z0 + r, x1, y1, z1 - r)] + [cyl((x, y0, z), (x, y1, z), r) for x in (x0 + r, x1 - r) for z in (z0 + r, z1 - r)]
+    for x in (114.36, 129.6): tcut.append(cyl((x, YR - 3.06, 33), (x, YR - 3.06, 42.1), 1.05))
+    # Cable-tie anchors on the back of the plate, above the boards
+    for u in (70, 122, 175): add.append(obox(u - 5, 93, 7.5, u + 5, 97, 12.5)); cut.append(obox(u - 3, 92, 8.0, u + 3, 98, 10.5))
+    # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back into heat-set inserts
+    for u, v in BACK: add.append(wcyl(u, v, 7.5, WSO - T, 4.0)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 2.0))
+    # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
+    for x0, n in ((24, 8), (145, 12)):
+        tcut += [box(x0 + 7*i, 22, -3, x0 + 7*i + 2.5, 62, 3.5) for i in range(n)]
+    tadd += [cyl((x, y, -2), (x, y, 0.5), 6.0) for x in (14, 230) for y in (12, 76)]      # feet as far apart as the base allows, against tipping when the knob is pressed
+    return add, cut, tadd, tcut
+def plate():
+    # black: the leaning plate everything hangs off. Prints flat on its front face with every post pointing straight up.
+    p = INTER(obox(2.7, -40, 6.05, 241.3, 193, 8.0), box(-10, -60, 10, 260, 200, 300))
+    foot = INTER(box(5.8, 8.8, 3, 238.2, 16, 12), obox(-10, -60, 6.05, 260, 300, 60))        # sits on the tray floor behind its front wall, which locates it
+    add, cut, _, _ = mounts()
+    m = U([p, foot] + add)
+    cuts = [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
+    cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ]
+    cuts += [cyl((x, y, 2.9), (x, y, 10), 2.0) for x, y in FS]                                 # heat-set inserts for the tray screws
+    return SUB(m, cuts + cut)
+def tray():
+    # black: the flat base. Prints as it stands.
+    t = SUB(box(3, 6, 0, 241, YR - 3, 10), [box(5.5, 8.5, 3, 238.5, YR - 5.5, 11)])
+    posts = [cyl((x, y, 3), (x, y, 10), 4.0) for x, y in POSTS]
+    _, _, tadd, tcut = mounts()
+    m = U([t] + posts + tadd)
+    cuts = [cyl((x, y, -1), (x, y, 11), 1.7) for x, y in POSTS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in POSTS]
+    cuts += [cyl((x, y, -1), (x, y, 3.5), 1.7) for x, y in FS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in FS]
+    return SUB(m, cuts + tcut)
+def halfspace(p, n):
+    L = math.sqrt(sum(v*v for v in n)); n = [v/L for v in n]
+    t = (1, 0, 0) if abs(n[0]) < 0.9 else (0, 1, 0)
+    w = (n[1]*t[2] - n[2]*t[1], n[2]*t[0] - n[0]*t[2], n[0]*t[1] - n[1]*t[0])
+    Lw = math.sqrt(sum(v*v for v in w)); w = [v/Lw for v in w]
+    c = [p[i] + n[i]*600 for i in range(3)]
+    return tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*c), adsk.core.Vector3D.create(*n), adsk.core.Vector3D.create(*w), 1200*MM, 1200*MM, 1200*MM))
+WSO, ZP, ZB, WBT, BU0, BU1, EC = 35.5, 64.0, 80.0, 61.0, 128.5, 194.5, 1.5   # slab back plane, plinth top, buttress top and back plane, buttress sides, edge chamfer
+BLACK = (38, 39, 42)
+SWX, SWZ = 98.5, 50.0                      # power toggle: bushing axis, through the rear of the chassis beside the USB-C inlet
+def cham(e, n1, n2, d=None):
+    # removal volume for a chamfer d wide along the edge through e, between faces with outward normals n1 and n2
+    d = EC if d is None else d
+    return halfspace(tuple(e[i] - d*n1[i] for i in range(3)), tuple(n1[i] + n2[i] for i in range(3)))
+XL, XR, ZU, YB = (-1, 0, 0), (1, 0, 0), (0, 0, 1), (0, 1, 0)
+def chamo(e, n1, n2, d, off):
+    # as cham(), for a surface offset inwards by off
+    n = tuple(n1[i] + n2[i] for i in range(3)); L = math.sqrt(sum(x*x for x in n))
+    return halfspace(tuple(e[i] - d*n1[i] - off*n[i]/L for i in range(3)), n)
+def above_plinth(): return box(-10, -80, ZP, 260, 300, 320)
+def side_chamfers(off):
+    back = F(0, 0, WSO)
+    return [INTER(chamo((0, back[1], back[2]), XL, W_, CH, off), above_plinth()), INTER(chamo((244, back[1], back[2]), XR, W_, CH, off), above_plinth())]
+def slab(off):
+    # the leaning frame: parallel front and back, the full width, with a deep chamfer round the back edge so it reads thinner than it is
+    s = INTER(box(off, -80, 10 + (-1 if off else G), 244 - off, 200, 320), obox(-50, -300, WB + (-1 if off else G), 300, 196 - off, WSO - off))
+    top = F(0, 196, 0)
+    return SUB(s, [chamo((0, top[1], top[2]), XL, V_, EC, off), chamo((244, top[1], top[2]), XR, V_, EC, off), chamo(F(0, 196, WSO), V_, W_, CH, off)] + side_chamfers(off))
+def grille(side):
+    # removal slots through a side wall over the speaker cone. They lean with the frame, and the bar between two of them sits on the seam between shell and plinth.
+    x0, x1 = (-1, T + 0.5) if side < 0 else (244 - T - 0.5, 245)
+    out = []
+    for wc in (26.5, 32.5, 38.5, 44.5, 50.5, 56.5, 62.5):
+        h = math.sqrt(max(0.0, 22.0**2 - (wc - 41.8)**2))
+        if h >= 6: out.append(INTER(obox(-5, 33.3 - h, wc - 1.25, 250, 33.3 + h, wc + 1.25), box(x0, -80, 13, x1, 200, 60)))
+    return out
+def buttress(off):
+    # the block on the back of the frame that covers the display driver stack
+    s = INTER(box(BU0 + off, -80, 10 - (1 if off else 0), BU1 - off, 200, ZB - off), obox(-50, -300, WB - (1 if off else 0), 300, 500, WBT - off))
+    if off: return s
+    yb = (WBT + (ZB - 12)*S)/C; back = F(0, 0, WBT)
+    s = SUB(s, [cham((0, yb, ZB), ZU, W_), cham((BU0, 0, ZB), XL, ZU), cham((BU1, 0, ZB), XR, ZU), cham((BU0, back[1], back[2]), XL, W_), cham((BU1, back[1], back[2]), XR, W_)])
+    return INTER(s, box(-10, -80, ZP, 260, 200, 320))
+def plinth_solid(off):
+    s = INTER(box(off, -80, 10 + (-1 if off else G), 244 - off, YR - off, ZP - off), obox(-50, -300, (WB - 1) if off else WSO + G, 300, 500, 400))
+    if off: return s
+    return SUB(s, [cham((0, YR, ZP), YB, ZU), cham((0, 0, ZP), XL, ZU), cham((244, 0, ZP), XR, ZU), cham((0, YR, 0), XL, YB), cham((244, YR, 0), XR, YB)])
+def cavity(): return U([slab(T), buttress(T), plinth_solid(T)])
+def post(x, y):
+    return [cyl((x, y, 10), (x, y, 22), 4.0), box((T - 0.5 if x < 122 else x), y - 1.5, 10, (x if x < 122 else 244 - T + 0.5), y + 1.5, 22)]
+def shelves():
+    back = F(0, 0, WSO); band = lambda: box(0.6, -80, ZP - T, 243.4, 300, ZP)
+    inside = lambda: obox(-50, -300, WB + 2, 300, 500, WSO)
+    return [INTER(INTER(chamo((x, back[1], back[2]), n, W_, CH, 0), band()), inside()) for x, n in ((0, XL), (244, XR))]
+def shell():
+    # beige: the back and sides of the frame, with an opening where the access cover sits. Slides off backwards once the plinth is off.
+    s = SUB(slab(0), [cavity()])
+    # where the side chamfers stop on top of the plinth they would leave a hole into the case, so close each with a small shelf
+    s = U([s] + shelves())
+    front = [p for p in POSTS if p[1] < 40]
+    s = U([s] + [b for x, y in front for b in post(x, y)])
+    cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in front]
+    cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - 1, WSO + 1, 1.7) for u, v in BACK]                       # key channel, open to the front
+    # slats on the top left, mirroring the key block. Across the top they are 1 mm grooves; down the back they go right through, as the high outlet for the floor vents
+    cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
+    cuts += [obox(25 + 4.5*i, 166, WSO - T - 1, 27 + 4.5*i, 187, WSO + 1) for i in range(17)]
+    cuts += grille(-1) + grille(1)
+    ky, kz = F(0, KV, KW)[1:]
+    cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
+    return SUB(s, cuts)
+def cover():
+    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two sprung tabs click behind the edges of the opening in the frame.
+    c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
+    add = []
+    for sgn, uin, ztop in ((-1, BU0 + T, 77.2), (1, BU1 - T, 75.5)):          # the right tab stops short of the HAT's 13-pin header
+        zbox = lambda: box(-10, -80, 68.5, 260, 200, ztop)
+        u0 = uin - sgn*0.3                                                   # tab face next to the opening's edge
+        add.append(INTER(obox(min(u0, u0 - sgn*2.0), -300, 30.6, max(u0, u0 - sgn*2.0), 500, WBT - T + 0.5), zbox()))
+        barb = INTER(obox(min(u0, u0 + sgn*1.0), -300, 30.6, max(u0, u0 + sgn*1.0), 500, 32.7), zbox())
+        a, b = F(0, 0, 30.6), F(0, 0, 32.7)
+        add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn*1.3, -W_[1], -W_[2])), halfspace((u0, b[1], b[2]), (sgn*0.8, W_[1], W_[2]))]))
+    return U([c] + add)
+def switch_bodies():
+    x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
+    red, metal = (200, 38, 44), (192, 192, 197)
+    lever = U([cyl((SWX, yw + 8, SWZ), (SWX, YR + 17, SWZ + 2.6), 1.5), sphere((SWX, YR + 17, SWZ + 2.6), 1.5)])
+    pins = U([box(x - 0.4, yw - 13.5, z - 1.0, x + 0.4, yw - 9.5, z + 1.0) for x in (SWX - 2.4, SWX + 2.4) for z in (SWZ - 4.7, SWZ, SWZ + 4.7)])
+    return [('Body', box(x0, yw - 9.5, z0, x1, yw - 2.0, z1), red), ('Frame', box(x0, yw - 2.0, z0, x1, yw, z1), metal),
+            ('Bushing', cyl((SWX, yw, SWZ), (SWX, yw + 9, SWZ), 3.0), metal), ('Nut', cyl((SWX, YR, SWZ), (SWX, YR + 2, SWZ), 4.6), metal),
+            ('Lever', lever, metal), ('Terminals', pins, metal)]
+def screw(p, d, length, r, rh, hh):
+    # p: the point under the head, d: unit direction the thread runs in
+    return U([cyl(vadd(p, d, -hh), p, rh), cyl(p, vadd(p, d, length), r)])
+def screws():
+    zinc = (186, 189, 195); out = []; nW = neg(W_)
+    def add(kind, bodies): out.extend(('%s screw %d' % (kind, i + 1), b, zinc) for i, b in enumerate(bodies))
+    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel's inserts
+    add('Shell', [screw((x, y, 2.0), (0, 0, 1), 12.0, 1.5, 2.75, 1.7) for x, y in POSTS])             # M3 x 12 up through the base into the shell and plinth posts
+    add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
+    add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
+    add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
+    add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
+    add('Speaker', [U([screw((19.5, y, z), (-1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 with a nut behind the baffle
+    add('Back', [screw(F(u, v, WSO), nW, 8.0, 1.5, 2.8, 1.8) for u, v in BACK])                         # M3 x 8 through the back of the rear shell into the chassis posts
+    add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36, 129.6)])
+    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in FS])                     # M3 x 8 up through the tray into the frame plate's foot    # M2.5 x 8 down through the breakout
+    return out
+def plinth():
+    # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
+    s = SUB(plinth_solid(0), [cavity()])
+    rear = [p for p in POSTS if p[1] > 40]
+    s = U([s] + [b for x, y in rear for b in post(x, y)])
+    cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in rear]
+    cuts += [box(87.7, YR - T - 1, 9, 134.9, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
+    cuts += grille(-1) + grille(1)                                                           # the speaker fires out of the left one; the right one matches it
+    return SUB(s, cuts)
+def run(_context: str):
+    case = doc_named('Bedside case'); case.activate()
+    design = adsk.fusion.Design.cast(app.activeProduct); rc = design.rootComponent
+    g = lambda n: [o for o in rc.occurrences if o.name.startswith(n)]
+    global USB
+    e = g('5880 Rotary')[0]; l, h = local_bbox(e, False); ec = [(a + b)/2/MM for a, b in zip(l, h)]
+    ENC_REF = (ec[0] - 12.7, ec[1] - 12.7, ec[2] + 13)
+    con = [k for k in g('4090 USB C')[0].childOccurrences if 'USB_C' in k.name][0].boundingBox
+    USB = ((con.minPoint.x + con.maxPoint.x)/2/MM, con.maxPoint.z/MM - 1.63, 9.44, 3.76)      # shell is 8.94 x 3.26 with 1.25 mm corners
+    put(g('5880 Rotary')[0], (V_, W_, neg(U_)), ENC_REF, F(227, 137.3, 6))
+    put(g('4090 USB C')[0], ((1,0,0), (0,1,0), (0,0,1)), ('min', 'max', 'min'), (111.8, YR - 0.5, 42))
+    if design.snapshots.hasPendingSnapshot: design.snapshots.add()
+    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Floppy slot insert'):
+        for o in g(n): o.deleteMe()
+    made = {}
+    COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
+    for n, fn in (('Front bezel', bezel), ('Base tray', tray), ('Frame plate', plate), ('Rear shell', shell), ('Plinth', plinth), ('Access cover', cover)):
+        o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
+        add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
+        b = o.component.bRepBodies.item(0)
+        print('%-12s volume %.0f cm3' % (n, b.volume))
+    def uvw(p):
+        y, z = p.y/MM, p.z/MM - 12
+        return (p.x/MM, y*S + z*C, y*C - z*S, y, p.z/MM)          # u, v, w, Y, Z
+    def pick(body, pred):
+        col = adsk.core.ObjectCollection.create()
+        for e in body.edges:
+            if e.startVertex is None or e.endVertex is None: continue
+            a, b = uvw(e.startVertex.geometry), uvw(e.endVertex.geometry)
+            if pred(a, b): col.add(e)
+        return col
+    def near(x, t, tol=0.02): return abs(x - t) < tol
+    def side(u): return near(u, 0) or near(u, 244)
+    def fillet(comp, edges, r, label):
+        if edges.count == 0: print(label, ': no edges'); return
+        try:
+            fi = comp.features.filletFeatures.createInput()
+            fi.isRollingBallCorner = True
+            fi.edgeSetInputs.addConstantRadiusEdgeSet(edges, adsk.core.ValueInput.createByReal(r*MM), True)
+            comp.features.filletFeatures.add(fi); print(label, ': r', r, 'on', edges.count, 'edges')
+        except Exception as ex: print(label, 'FAILED:', str(ex)[:120])
+    def chamfer(comp, edges, d, label):
+        if edges.count == 0: print(label, ': no edges'); return
+        try:
+            ci = comp.features.chamferFeatures.createInput2()
+            ci.chamferEdgeSets.addEqualDistanceChamferEdgeSet(edges, adsk.core.ValueInput.createByReal(d*MM), False)
+            comp.features.chamferFeatures.add(ci); print(label, ':', d, 'mm on', edges.count, 'edges')
+        except Exception as ex: print(label, 'FAILED:', str(ex)[:120])
+    def cut_tools(comp, tools, label):
+        try:
+            n0 = comp.bRepBodies.count
+            bf = comp.features.baseFeatures.add(); bf.startEdit()
+            for t in tools: comp.bRepBodies.add(t, bf)
+            bf.finishEdit()
+            tc = adsk.core.ObjectCollection.create()
+            for i in range(n0, comp.bRepBodies.count): tc.add(comp.bRepBodies.item(i))
+            cin = comp.features.combineFeatures.createInput(comp.bRepBodies.item(0), tc); cin.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+            comp.features.combineFeatures.add(cin); print(label, 'cut,', len(tools), 'tools')
+        except Exception as ex: print(label, 'FAILED:', str(ex)[:120])
+    # --- front bezel ---
+    comp = made['Front bezel']; body = lambda: comp.bRepBodies.item(0)
+    chamfer(comp, pick(body(), lambda a, b: near(a[2], WF) and near(b[2], WF) and all(15 < p[0] < 229 and 24 < p[1] < 186 for p in (a, b))), 2.0, 'screen bevel')
+    chamfer(comp, pick(body(), lambda a, b: near(a[0], b[0]) and all(near(p[1], 196) and side(p[0]) for p in (a, b))), EC, 'bezel top corners')
+    chamfer(comp, pick(body(), lambda a, b: near(a[2], WF) and near(b[2], WF) and not all(11 < p[0] < 233 and 20 < p[1] < 190 for p in (a, b))), EC, 'bezel front edge')
+    # --- foot corners ---
+    comp = made['Base tray']; mb = lambda: comp.bRepBodies.item(0)
+    chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], 3) or near(p[0], 241)) and (near(p[3], 6) or near(p[3], YR - 3)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
+    for n in made:
+        for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
+    add_bodies(o.component, switch_bodies(), design)
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
+    add_bodies(o.component, screws(), design)
+    print('save', case.save('MK II.I case: split chassis, fit gaps, vented slats, speaker grille, deeper plinth'))

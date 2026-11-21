@@ -189,11 +189,11 @@ def run(_context: str):
     put(g('4090 USB C')[0], ((1,0,0), (0,1,0), (0,0,1)), ('min', 'max', 'min'), (111.8, YR - 0.5, 42))
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
     for n in ('Front bezel', 'Mid chassis', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Floppy slot insert'):
-        for o in g(n): o.deleteMe()
+        for o in g(n) + g('MK II ' + n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Mid chassis': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
     for n, fn in (('Front bezel', bezel), ('Mid chassis', mid), ('Rear shell', shell), ('Plinth', plinth), ('Access cover', cover)):
-        o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
+        o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II ' + n
         add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
         print('%-12s volume %.0f cm3' % (n, b.volume))
@@ -247,8 +247,9 @@ def run(_context: str):
     chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], 3) or near(p[0], 241)) and (near(p[3], 6) or near(p[3], 81)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
     for n in made:
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II Power switch'
     add_bodies(o.component, switch_bodies(), design)
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'MK II Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II case: slats on the chin'))
+    for o in g('MK II '): o.isLightBulbOn = False
+    print('save', case.save('MK II case kept alongside as hidden components'))
