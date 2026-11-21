@@ -11,4 +11,8 @@ files below joined in order, then run through Fusion's scripting interface.
     common.py  geom.py  wiring.py               (every cable, as the top-level component "Wiring"; colours from docs/power-amp-board.html)
     common.py  export.py                        (writes cad/viewer/data; set ONLY = 'mk1', 'mk2' or 'mk21' to write a kept version's case parts)
 
+After Fusion has been restarted, a fresh export gives the components coarser meshes and some different colours. `merge_case.py` takes only the case's own parts from a new export and keeps the components from the previous one.
+
+MK III has no heat-set inserts: its M3 screws thread into 2.5 mm holes. The older versions still have 4 mm insert holes.
+
 All four versions fit the same component layout, except that MK II.I and MK III have the battery 12 mm nearer the speaker (the viewer puts it back for the older two).

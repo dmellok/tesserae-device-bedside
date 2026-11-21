@@ -18,7 +18,7 @@ def bezel():
     cuts = [obox(16.42, 25.87, -10, 227.58, 184.62, 10),            # window
             obox(13.25, 12.6, 3.0, 230.75, 187.8, 7),                # glass pocket, open to the back
             obox(50, 11.2, 3.0, 195, 13, 7)]                         # flex wrap relief
-    cuts += [wcyl(u, v, 0.5, 6.5, 2.0) for u, v in BZ]               # M3 heat-set holes from the back
+    cuts += [wcyl(u, v, 0.5, 6.5, 1.25) for u, v in BZ]              # 2.5 mm holes from the back: the M3 screws cut their own thread in the plastic
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
@@ -72,8 +72,8 @@ def mounts():
     for x in (114.36, 129.6): tcut.append(cyl((x, YR - 3.06, 33), (x, YR - 3.06, 42.1), 1.05))
     # Cable-tie anchors on the back of the plate, above the boards
     for u in (70, 122, 175): add.append(obox(u - 5, 93, 7.5, u + 5, 97, 12.5)); cut.append(obox(u - 3, 92, 8.0, u + 3, 98, 10.5))
-    # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back into heat-set inserts
-    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T, r)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 2.0))
+    # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back, threading into the post ends
+    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T, r)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 1.25))
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
     for x0, n in ((24, 8), (145, 12)):
         for i in range(n):
@@ -98,7 +98,7 @@ def plate():
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
     cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
     cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ]
-    cuts += [cyl((x, y, 2.9), (x, y, 10), 2.0) for x, y in FS + HS]                                 # heat-set inserts for the tray screws
+    cuts += [cyl((x, y, 2.9), (x, y, 10), 1.25) for x, y in FS + HS]                                 # 2.5 mm holes the tray screws thread into
     return SUB(m, cuts + cut)
 def tray():
     # black: the flat base. Prints as it stands.
@@ -204,7 +204,7 @@ def screw(p, d, length, r, rh, hh):
 def screws():
     zinc = (186, 189, 195); out = []; nW = neg(W_)
     def add(kind, bodies): out.extend(('%s screw %d' % (kind, i + 1), b, zinc) for i, b in enumerate(bodies))
-    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel's inserts
+    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel
     add('Shell', [screw((x, y, 2.0), (0, 0, 1), 12.0, 1.5, 2.75, 1.7) for x, y in POSTS])             # M3 x 12 up through the base into the shell and plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
@@ -220,7 +220,7 @@ def plinth():
     s = SUB(plinth_solid(0), [cavity()])
     rear = [p for p in POSTS if p[1] > 40]
     s = U([s] + [b for x, y in rear for b in post(x, y)])
-    cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in rear]
+    cuts = [cyl((x, y, 9), (x, y, 17), 1.25) for x, y in rear]
     cuts += [box(87.7, YR - T - 1, 9, 134.9, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
     cuts += grille(-1, PI) + grille(1, PI)                                                   # the speaker fires out of the left one; the right one matches it
     return SUB(s, cuts)
@@ -299,4 +299,4 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK III case: MK II.I with the plinth and tray 9 mm narrower each side so the frame floats'))
+    print('save', case.save('MK III case: M3 screws thread straight into 2.5 mm holes, no heat-set inserts'))
