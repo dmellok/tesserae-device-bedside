@@ -5,8 +5,9 @@ W = (0, C, -S); V = (0, S, C)
 def mul(v, k): return [round(x*k, 3) for x in v]
 Z3 = [0, 0, 0]
 ONLY = None
-SCREWS = {'Bezel': (Z3, mul(W, 26)), 'Shell': ([0, 0, -45], Z3), 'Back': ([0, 205, 0], Z3), 'HAT': (Z3, mul(W, 12)), 'Board': (Z3, mul(W, 9)), 'Adapter': (Z3, [0, 36, 0]),
-          'Key': (Z3, mul(V, 9)), 'Speaker': (Z3, [28, 0, 0]), 'USB': (Z3, [0, 70, 42])}
+SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base screws, M3 x 12', [0, 0, -45], Z3), 'Back': ('Back screws, M3 x 8', [0, 205, 0], Z3),
+          'HAT': ('Driver HAT screws, M2.5 x 8', Z3, mul(W, 12)), 'Board': ('Power board screws, M2 x 6', Z3, mul(W, 9)), 'Adapter': ('Flex adapter screws, M2 x 5', Z3, [0, 36, 0]),
+          'Key': ('Key module screws, M2.5 x 8', Z3, mul(V, 9)), 'Speaker': ('Speaker screws and nuts, M4 x 8', Z3, [28, 0, 0]), 'USB': ('USB-C inlet screws, M2.5 x 8', Z3, [0, 70, 42])}
 def classify(path, bname=''):
     top = path[0][5:] if path[0].startswith('MK I ') else path[0]; sub = path[1] if len(path) > 1 else ''
     if top.startswith('Front bezel'): return 'Front bezel', mul(W, -110), Z3
@@ -15,7 +16,7 @@ def classify(path, bname=''):
     if top.startswith('Mid chassis'): return 'Mid chassis and base', Z3, Z3
     if top.startswith('Rear shell'): return 'Rear shell', [0, 170, 0], Z3
     if top.startswith('Plinth'): return 'Plinth', [0, 250, 0], Z3
-    if top.startswith('Screws'): return ('Screws',) + tuple(SCREWS[bname.split()[0]])
+    if top.startswith('Screws'): return SCREWS[bname.split()[0]]
     if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
     if top.startswith('Power switch'): return 'Power switch', Z3, [0, 60, 0]
     if top.startswith('Keycaps'): return 'Keycaps', mul(V, 35), mul(V, 14)

@@ -45,7 +45,7 @@ const shown = { explode: 0, parts: 0 };
 // Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
-const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch'];
+const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch', 'Back screws, M3 x 8'];
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth', 'Access cover'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
@@ -248,6 +248,7 @@ $('reset').addEventListener('click', () => {
   state.hidden.clear();
   setFinish('Beige');
   setLabels(false);
+  setCats(CATS_DEFAULT);
   setWire(false);
   setDesign('mk2');
   setBackdrop('Auto');
@@ -270,7 +271,7 @@ function shareURL() {
   if (state.spin > 0) q.set('spin', state.spin.toFixed(1));
   if (state.hidden.size) q.set('hide', [...state.hidden].map((n) => SLUGS[n]).filter(Boolean).join('_'));
   if (wire) q.set('wire', '1');
-  if (labelsOn) q.set('labels', '1');
+  if (labelsOn) { q.set('labels', '1'); if ([...cats].sort().join() !== [...CATS_DEFAULT].sort().join()) q.set('lab', [...cats].join('_').toLowerCase()); }
   const eye = camera.position.clone().sub(controls.target).divideScalar(lastFit).add(controls.target);   // without the explode pull-back, which is re-applied on load
   q.set('cam', [...eye.toArray(), ...controls.target.toArray()].map(Math.round).join('_'));
   return location.origin + location.pathname + '#' + q.toString();
@@ -280,6 +281,7 @@ function applyURL(q) {
     const v = parseFloat(q.get(key)), el = ranges[id];
     if (Number.isFinite(v)) { state[id] = Math.min(parseFloat(el.max), Math.max(0, v)); el.value = state[id]; }
   }
+  if (q.has('lab')) setCats(CATS.filter((c) => q.get('lab').split('_').includes(c.toLowerCase())));
   for (const slug of (q.get('hide') || '').split('_')) {
     const name = Object.keys(SLUGS).find((n) => SLUGS[n] === slug);
     if (!name) continue;
@@ -337,7 +339,15 @@ const DETAILS = {
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
-  'Screws': 'M3 for the case, M2 and M2.5 for the boards, M4 for the speaker.',
+  'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
+  'Base screws, M3 x 12': 'Four, up through the base into the shell and plinth posts.',
+  'Back screws, M3 x 8': 'Four, through the back of the rear shell into chassis posts.',
+  'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
+  'Power board screws, M2 x 6': 'Four, one per corner.',
+  'Flex adapter screws, M2 x 5': 'Four, one per corner.',
+  'Key module screws, M2.5 x 8': 'Four, down through the NeoKey into the fins.',
+  'Speaker screws and nuts, M4 x 8': 'Two, through the lugs and the baffle.',
+  'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
@@ -370,10 +380,31 @@ const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
 let labelsOn = false, labelHover = null;
+// Callouts can be filtered by kind. Screws start switched off: nine more labels is a lot.
+const BOARDS = new Set(['Waveshare IT8951 driver HAT', 'GPIO splitter', 'Pimoroni Pico Plus 2 W', 'Hard Stuff Pico to Pi HAT', 'Pico sockets and headers', 'Power and amp protoboard',
+  'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'E-paper flex adapter', 'Adafruit NeoKey 1x4 QT', 'Adafruit I2C rotary encoder', 'USB-C power inlet']);
+const CATS = ['Case', 'Boards', 'Parts', 'Screws'], CATS_DEFAULT = ['Case', 'Boards', 'Parts'];
+const cats = new Set(CATS_DEFAULT);
+function catOf(name) {
+  if (/screws/i.test(name)) return 'Screws';
+  if (SHELL.includes(name) || name === 'Accent stripe') return 'Case';
+  return BOARDS.has(name) ? 'Boards' : 'Parts';
+}
+function setCats(list) {
+  cats.clear();
+  for (const c of list) if (CATS.includes(c)) cats.add(c);
+  for (const b of $('labelCats').children) b.setAttribute('aria-pressed', String(cats.has(b.textContent)));
+}
+for (const c of CATS) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = c; b.setAttribute('aria-pressed', String(cats.has(c)));
+  b.addEventListener('click', () => { setCats(cats.has(c) ? [...cats].filter((x) => x !== c) : [...cats, c]); track('bedside_label_kind', { kind: c, on: cats.has(c) }); });
+  $('labelCats').appendChild(b);
+}
 function buildLabels() {
   const seen = new Map();
   for (const p of parts) {
-    if (p.screen || p.name === 'Screws') continue;       // screws are scattered all over, so one callout would point at nothing
+    if (p.screen) continue;
     p.mesh.geometry.computeBoundingBox();
     const id = p.name + '|' + (p.variant || '');       // each case version gets its own callouts
     if (!seen.has(id)) seen.set(id, { box: new THREE.Box3(), part: p });
@@ -390,8 +421,9 @@ function buildLabels() {
     dot.setAttribute('r', '2.5');
     $('leaders').append(path, dot);
     const fixed = (part.variant === 'mk1' && ANCHORS_MK1[name]) || ANCHORS[name];
-    const anchor = fixed ? new THREE.Vector3(...fixed) : box.getCenter(new THREE.Vector3());
-    labels.push({ name, el, path, dot, anchor, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
+    // a set of screws has no useful centre, so its callout points at the first screw
+    const anchor = fixed ? new THREE.Vector3(...fixed) : /screws/i.test(name) ? new THREE.Vector3().fromBufferAttribute(part.mesh.geometry.attributes.position, 0) : box.getCenter(new THREE.Vector3());
+    labels.push({ name, cat: catOf(name), el, path, dot, anchor, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
   }
 }
 function setLabels(on) {
@@ -403,40 +435,74 @@ $('labelsToggle').addEventListener('click', () => { setLabels(!labelsOn); track(
 
 const proj = new THREE.Vector3();
 function spread(col, yMin, yMax, step) {            // keep labels in anchor order, at least one step apart, inside the band
-  col.sort((a, b) => a.sy - b.sy);
+  col.sort((a, b) => a.ty - b.ty);
   let y = yMin;
-  for (const l of col) { l.y = Math.max(l.sy, y); y = l.y + step; }
+  for (const l of col) { l.y = Math.max(l.ty, y); y = l.y + step; }
   y = yMax;
   for (let i = col.length - 1; i >= 0; i--) { col[i].y = Math.min(col[i].y, y); y = col[i].y - step; }
 }
+function screenBounds(W, H) {                        // the model's outline on screen, from the corners of every visible part's box
+  const b = { x0: 1e9, x1: -1e9, y0: 1e9, y1: -1e9 };
+  for (const p of parts) {
+    const g = p.mesh.geometry.boundingBox;
+    if (!p.mesh.visible || !g) continue;
+    for (let i = 0; i < 8; i++) {
+      proj.set(i & 1 ? g.max.x : g.min.x, i & 2 ? g.max.y : g.min.y, i & 4 ? g.max.z : g.min.z).add(p.mesh.position).project(camera);
+      const x = (proj.x * 0.5 + 0.5) * W, y = (-proj.y * 0.5 + 0.5) * H;
+      b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x); b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y);
+    }
+  }
+  return b;
+}
 function layoutLabels(e1) {
   const W = window.innerWidth, H = window.innerHeight, phone = W <= 640;
-  const inside = state.hidden.has('Rear shell') && (state.design === 'mk1' || state.hidden.has('Plinth')) ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
+  const open = state.hidden.has('Rear shell') && (state.design === 'mk1' || state.hidden.has('Plinth'));
+  const inside = open ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
   const live = [];
   for (const l of labels) {
     proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
     l.sx = (proj.x * 0.5 + 0.5) * W; l.sy = (-proj.y * 0.5 + 0.5) * H;
-    l.alpha = !l.part.mesh.visible || proj.z > 1 ? 0 : (OUTSIDE.has(l.name) ? 1 : inside);
+    const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws');
+    l.alpha = !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
     if (l.alpha > 0.02) { if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; } live.push(l); }
     else { l.el.style.opacity = 0; l.path.style.opacity = 0; l.dot.style.opacity = 0; }
   }
+  if (!live.length) return;
   live.sort((a, b) => a.sx - b.sx);
   const half = Math.ceil(live.length / 2), left = live.slice(0, half), right = live.slice(half);
-  const step = phone ? 21 : 29;
-  const yMax = H - (phone ? $('controls').offsetHeight + 26 : 28);
-  // On a wide screen the left column sits above the controls panel when it fits there, and beside the panel when it doesn't
-  const panelTop = $('controls').getBoundingClientRect().top - 16;
-  const above = !phone && left.length * step <= panelTop - 86;
-  spread(left, phone ? 20 : 86, above ? panelTop : yMax, step);
-  spread(right, phone ? 20 : 96, yMax, step);
-  const xl = phone ? 8 : (above ? 16 : 330), xr = W - (phone ? 8 : 16);
+  const step = phone ? 21 : 29, edge = 8, gap = phone ? 16 : 56;
+  const wl = Math.max(...left.map((l) => l.w)), wr = Math.max(0, ...right.map((l) => l.w));
+  // Each column stands just off the model's outline, not at the edge of the window, and only falls back to the edge when there is no room
+  const b = screenBounds(W, H);
+  let xl = Math.max(edge + wl, b.x0 - gap), xr = Math.min(W - edge - wr, b.x1 + gap);
+  const yTop = phone ? 20 : 60, yBottom = H - (phone ? $('controls').offsetHeight + 26 : 28);
+  const band = (n) => {                                // a band around the model's height, grown evenly if the labels need more
+    const need = n * step, mid = (b.y0 + b.y1) / 2, halfBand = Math.max((b.y1 - b.y0) / 2 + 40, need / 2);
+    return [Math.max(yTop, mid - halfBand), Math.min(yBottom, mid + halfBand)];
+  };
+  let [l0, l1] = band(left.length);
+  const [r0, r1] = band(right.length);
+  if (!phone) {                                        // keep the left column off the controls panel: above it if it fits, otherwise beside it
+    const panelBox = $('controls').getBoundingClientRect();
+    if (xl - wl < panelBox.right + 12 && l1 > panelBox.top - 14) {
+      if (left.length * step <= panelBox.top - 14 - yTop) { l1 = panelBox.top - 14; l0 = Math.min(l0, l1 - left.length * step); }
+      else xl = Math.max(xl, panelBox.right + 12 + wl);
+    }
+  }
+  // aim each label a little above or below its part, so every leader gets a level run and then a slanted one
+  const midY = (b.y0 + b.y1) / 2;
+  for (const l of live) l.ty = l.sy + (l.sy < midY ? -34 : 34);
+  spread(left, l0, l1, step);
+  spread(right, r0, r1, step);
   for (const [col, isLeft] of [[left, true], [right, false]]) {
     for (const l of col) {
-      const x = isLeft ? xl : xr - l.w, edge = isLeft ? xl + l.w : xr - l.w, elbow = edge + (isLeft ? 12 : -12);
-      l.el.style.transform = `translate(${x.toFixed(1)}px, ${(l.y - l.h / 2).toFixed(1)}px)`;
+      // leader: level out of the label, then one 45 degree run into the part
+      const start = isLeft ? xl + 4 : xr - 4, rise = Math.abs(l.sy - l.y);
+      const elbow = isLeft ? Math.max(start + 14, l.sx - rise) : Math.min(start - 14, l.sx + rise);
+      l.el.style.transform = `translate(${(isLeft ? xl - l.w : xr).toFixed(1)}px, ${(l.y - l.h / 2).toFixed(1)}px)`;
       l.el.style.opacity = l.alpha;
       l.el.classList.toggle('hot', hovered === l.name);
-      l.path.setAttribute('d', `M${edge.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}L${l.sx.toFixed(1)} ${l.sy.toFixed(1)}`);
+      l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}L${l.sx.toFixed(1)} ${l.sy.toFixed(1)}`);
       l.path.style.opacity = l.alpha * 0.85;
       l.dot.setAttribute('cx', l.sx.toFixed(1)); l.dot.setAttribute('cy', l.sy.toFixed(1));
       l.dot.style.opacity = l.alpha;
@@ -445,12 +511,15 @@ function layoutLabels(e1) {
 }
 
 // ---------- frame loop ----------
+// On a wide screen the open controls panel covers the left of the window, so the model is centred in what is left over
+let viewShift = 0, shiftApplied = null;
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.fov = w < h ? 46 : 32;         // portrait phones need a wider view to fit the model
   camera.updateProjectionMatrix();
+  shiftApplied = null;                 // the view offset is tied to the window size, so put it back on the next frame
 }
 window.addEventListener('resize', resize);
 resize();
@@ -485,6 +554,14 @@ function frame() {
     camera.position.copy(controls.target).add(tmp);
   }
   controls.update();
+
+  const wantShift = !phone.matches && panel.classList.contains('open') ? 154 : 0;
+  viewShift += (wantShift - viewShift) * k;
+  if (shiftApplied === null || Math.abs(viewShift - shiftApplied) > 0.4) {
+    shiftApplied = Math.abs(wantShift - viewShift) < 0.4 ? wantShift : viewShift;
+    camera.setViewOffset(window.innerWidth, window.innerHeight, -shiftApplied, 0, window.innerWidth, window.innerHeight);
+    camera.updateProjectionMatrix();
+  }
 
   if (labelsOn) layoutLabels(e1);
 

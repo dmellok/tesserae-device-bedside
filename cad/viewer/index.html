@@ -59,7 +59,8 @@
   #leaders circle { fill:var(--accent); }
   #labels .lab { position:fixed; left:0; top:0; padding:3px 8px; border-radius:7px; background:var(--panel); border:1px solid var(--line); font-size:11.5px; line-height:1.4; white-space:nowrap; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); will-change:transform, opacity; cursor:default; }
   #labels .lab.hot { border-color:var(--accent); }
-  body:not(.labels) #leaders, body:not(.labels) #labels { display:none; }
+  body:not(.labels) #leaders, body:not(.labels) #labels, body:not(.labels) #labelCats { display:none; }
+  #labelCats button { font-size:11px; padding:3px 8px; }
   /* Light backdrop, used with the black case */
   html.light { --bg0:#c9cdd3; --bg1:#f4f5f7; --ink:#15171c; --dim:#59606e; --line:rgba(0,0,0,.12); --panel:rgba(255,255,255,.72); }
   html.light .seg button { background:rgba(0,0,0,.035); }
@@ -135,6 +136,7 @@
   <div class="group"><label>View</label>
     <div class="seg" id="views"></div>
     <div class="seg" style="margin-top:4px"><button id="labelsToggle" type="button" aria-pressed="false">Labels</button></div>
+    <div class="seg" id="labelCats" style="margin-top:4px" aria-label="Which labels to show"></div>
     <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
   </div>
   <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button></div></div>
