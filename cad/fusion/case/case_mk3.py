@@ -61,9 +61,9 @@ def mounts():
             bx(78.7, 52, 7, 80.7, 66, 21), bx(133.3, 52, 7, 134.9, 66, 21)]
     tcut += [bx(91, 44, 4.2, 97, 74, 5.8), bx(117, 44, 4.2, 123, 74, 5.8)]
     # USB-C inlet: a pedestal behind the battery that carries the breakout, with the port surround as part of the chassis
-    tadd += [box(109, 73.3, 3, 134.6, YR - 3, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 58)]
+    tadd += [box(109, 73.3, 3, 134.6, YR, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 58)]
     # Power switch: the same pedestal carried along to the left, with a 6.3 mm hole for the toggle's bushing. It stays on the chassis when the plinth comes off.
-    tadd += [box(88, 73.3, 3, 109, YR - 3, 10), box(88, 73.3, 10, 109, YR, 42), box(88, YR - T, 42, 109.1, YR, 58)]
+    tadd += [box(88, 73.3, 3, 109, YR, 10), box(88, 73.3, 10, 109, YR, 42), box(88, YR - T, 42, 109.1, YR, 58)]
     tcut += [cyl((SWX, YR - T - 1, SWZ), (SWX, YR + 1, SWZ), 3.15)]
     ux, uz, uw, uh = USB
     r = 1.5; x0, x1, z0, z1, y0, y1 = ux - uw/2, ux + uw/2, uz - uh/2, uz + uh/2, YR - T - 1, YR + 1
@@ -102,7 +102,7 @@ def plate():
     return SUB(m, cuts + cut)
 def tray():
     # black: the flat base. Prints as it stands.
-    t = SUB(box(PI, 6, 0, 244 - PI, YR - 3, 10), [box(PI + T, 8.5, 3, 244 - PI - T, YR - 5.5, 11)])
+    t = SUB(box(PI, 6, 0, 244 - PI, YR, 10), [box(PI + T, 8.5, 3, 244 - PI - T, YR - T, 11)])      # as deep as the plinth, so the plinth's rear wall sits on the tray's with no overhang
     posts = [cyl((x, y, 3), (x, y, 10), 4.0) for x, y in POSTS]
     _, _, tadd, tcut = mounts()
     m = U([t] + posts + tadd)
@@ -292,11 +292,12 @@ def run(_context: str):
     chamfer(comp, pick(body(), lambda a, b: near(a[2], WF) and near(b[2], WF) and not all(11 < p[0] < 233 and 20 < p[1] < 190 for p in (a, b))), EC, 'bezel front edge')
     # --- foot corners ---
     comp = made['Base tray']; mb = lambda: comp.bRepBodies.item(0)
-    chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], PI) or near(p[0], 244 - PI)) and (near(p[3], 6) or near(p[3], YR - 3)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
+    chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], PI) or near(p[0], 244 - PI)) and near(p[3], 6) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners, front')
+    chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], PI) or near(p[0], 244 - PI)) and near(p[3], YR) for p in (a, b)) and abs(a[4] - b[4]) > 5), EC, 'foot corners, rear')      # the same as the plinth's above them
     for n in made:
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK III case: M3 screws thread straight into 2.5 mm holes, no heat-set inserts'))
+    print('save', case.save('MK III case: base tray as deep as the plinth'))
