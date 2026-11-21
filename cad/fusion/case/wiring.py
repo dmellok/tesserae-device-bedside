@@ -74,10 +74,10 @@ def run(_context: str):
     tie(3, (128.15, 33.5, 24.85), (133.15, 35.9, 29.85))
     # --- USB-C inlet and power switch, in the plinth ---
     def down(h, k): uh = hole(h); return [F(uh, 58.6, 17.6), F(uh, 58.6, 24.5), F(uh, 57.3 - k/2, 30.6), F(uh + 1, 51.5 - k, 35.0), F(uh + 2, 46.5 - k, 40.5)]
-    for h, col, xp, name in (('F', RED, 113.5, 'USB-C VBUS'), ('E', BLK, 116.04, 'USB-C GND')):
+    for h, col, xp, name in (('F', RED, 107.4, 'USB-C VBUS'), ('E', BLK, 109.94, 'USB-C GND')):
         items.append((name, tube(name, down(h, 0 if h == 'F' else 1.6) + [(xp - 14, 61, 51.5), (xp - 3, 68.5, 50.5), (xp, 72.05, 47.5), (xp, 72.05, 42.3)], R), col))
     for h, col, z, name in (('I', WHT, 50.0, 'Switch EN'), ('J', BLK, 54.7, 'Switch GND')):
-        items.append((name, tube(name, down(h, 0 if h == 'I' else 1.6) + [(93.0, 58, z + 1.5), (96.1, 64, z + 0.6), (96.1, 67.0, z), (96.1, 69.5, z)], R), col))
+        items.append((name, tube(name, down(h, 0 if h == 'I' else 1.6) + [(88.5, 58, z + 1.5), (90.0, 64, z + 0.6), (90.0, 67.0, z), (90.0, 69.5, z)], R), col))
     # --- speaker, on a twisted pair from the amp's terminal block ---
     for ue, col, tag, k, name in ((110.25, RED, (37.5, 70.9, 17.0), 0.0, 'Speaker +'), (113.75, BLK, (37.5, 65.3, 11.4), 1.5, 'Speaker -')):
         pts = [F(ue, 22.5, 27.0), F(ue, 17.0, 27.0), F(ue - 3, 11.5, 28.5 + k), (ue - 12, 36.5 + k, 10.0), (70, 40 + k, 9.5), (58, 44 + k, 9.5), (48, 56 + k, 9.5), (41.5, tag[1] - 1.5, tag[2] - 3.5), tag]

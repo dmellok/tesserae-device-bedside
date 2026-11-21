@@ -44,7 +44,8 @@ const shown = { explode: 0, parts: 0 };
 
 // Four versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
 // and MK II.I is MK II reworked for printing: split chassis, fit gaps, vented slats, a speaker grille, a braced frame plate and the battery moved clear of the GPIO plug.
-// MK III is MK II.I with the plinth and base tray 9 mm narrower on each side, so the frame overhangs them and reads as floating.
+// MK III is MK II.I with the plinth and base tray 9 mm narrower on each side, so the frame overhangs them and reads as floating,
+// no heat-set inserts, and the USB-C and switch panel lined up with the hump.
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21', 'MK III': 'mk3' };
 const SPLIT = new Set(['mk21', 'mk3']);          // the versions with a separate base tray and frame plate, and the battery nearer the speaker
 const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1', mk3: '3' };
@@ -107,8 +108,8 @@ async function load() {
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
-// These two sets differ in length between versions, so the viewer names them without one.
-const SCREW_NAMES = { 'Speaker screws and nuts, M4 x 8': 'Speaker screws and nuts, M4', 'Frame screws, M3 x 8': 'Frame screws, M3' };
+// These sets differ in length between versions, so the viewer names them without one.
+const SCREW_NAMES = { 'Base screws, M3 x 12': 'Base screws, M3', 'Speaker screws and nuts, M4 x 8': 'Speaker screws and nuts, M4', 'Frame screws, M3 x 8': 'Frame screws, M3' };
 function addParts(meta, bin, variantOf) {
   for (const p of meta.parts) {
     p.name = SCREW_NAMES[p.name] || p.name;
@@ -250,7 +251,7 @@ $('closeControls').addEventListener('click', () => { setOpen(false); track('beds
 canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false); });
 
 // With the electronics hidden, what is left is what gets printed or screwed together: the case, its own screws, the keycaps and the knob.
-const CASE_SCREWS = /^(Bezel|Base|Back|Frame) screws/;
+const CASE_SCREWS = /^(Bezel|Base|Back|Frame|Shell corner) screws/;
 const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || CASE_SCREWS.test(p.name));
 let elec = true;
 function setElec(on) {
@@ -412,9 +413,9 @@ const BUILD = [
   ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
   ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
   ['Wiring', ['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables'], [0, 60, 30]],
-  ['Rear shell', ['Rear shell', 'Back screws, M3 x 8'], [0, 210, 30]],
+  ['Rear shell', ['Rear shell', 'Back screws, M3 x 8', 'Shell corner screws, M3 x 8'], [0, 210, 30]],
   ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
-  ['Plinth', ['Plinth', 'Base screws, M3 x 12'], [0, 230, 0]],
+  ['Plinth', ['Plinth', 'Base screws, M3'], [0, 230, 0]],
   ['Access cover', ['Access cover'], [0, 130, 110]],
 ];
 const BUILD_FROM = { Knob: [110, 0, 0] };                 // parts that arrive from somewhere other than their module
@@ -513,8 +514,9 @@ $('apart').addEventListener('click', () => {
 
 // What comes away with the base tray of MK II.I and MK III when the case is exploded: the parts fixed to it, and the screws that come up through it.
 const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
-  'Base screws, M3 x 12', 'Frame screws, M3']);
+  'Base screws, M3', 'Frame screws, M3']);
 const TRAY_DROP = 70;
+const PANEL_PARTS = new Set(['USB-C power inlet', 'USB-C inlet wires', 'Power switch wires']);
 
 // ---------- hover ----------
 const ray = new THREE.Raycaster();
@@ -556,7 +558,8 @@ const DETAILS = {
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
-  'Base screws, M3 x 12': 'Up through the base into the shell and plinth posts.',
+  'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
+  'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',
   'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
   'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
   'Power board screws, M2 x 6': 'Four, one per corner.',
@@ -762,6 +765,8 @@ function frame() {
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
     if (SPLIT.has(state.design) && ON_TRAY.has(p.name)) p.mesh.position.z -= TRAY_DROP * e1;      // from MK II.I on the base tray is its own part, so it drops away from the frame plate with everything fixed to it
+    // MK III has the USB-C inlet and power switch 6.1 mm nearer the speaker, to line the panel up with the hump; the inlet and both sets of wires are exported there.
+    if (state.design !== 'mk3' && PANEL_PARTS.has(p.name)) p.mesh.position.x += 6.1;
     // From MK II.I on the battery is 12 mm nearer the speaker, and it is exported there. The older versions put it back, and stretch its lead from the PowerBoost end (x 75) to match.
     if (p.name === 'LiPo battery, 4400 mAh' && !SPLIT.has(state.design)) p.mesh.position.x += 12;
     if (p.name === 'Battery lead') {
