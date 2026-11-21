@@ -505,6 +505,11 @@ $('apart').addEventListener('click', () => {
   startBuild(-1, false); track('bedside_build', { way: 'apart' });
 });
 
+// What comes away with MK II.I's base tray when the case is exploded: the parts fixed to it, and the screws that come up through it.
+const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4 x 8', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
+  'Base screws, M3 x 12', 'Frame screws, M3 x 8']);
+const TRAY_DROP = 70;
+
 // ---------- hover ----------
 const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2(2, 2);
@@ -750,6 +755,7 @@ function frame() {
   buildSpread += ((build && build.dir !== 0 ? 1 : 0) - buildSpread) * (1 - Math.exp(-dt * 2));
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
+    if (state.design === 'mk21' && ON_TRAY.has(p.name)) p.mesh.position.z -= TRAY_DROP * e1;      // MK II.I's base tray is its own part, so it drops away from the frame plate with everything fixed to it
     // MK II.I has the battery 12 mm nearer the speaker, and it is exported there. The older versions put it back, and stretch its lead from the PowerBoost end (x 75) to match.
     if (p.name === 'LiPo battery, 4400 mAh' && state.design !== 'mk21') p.mesh.position.x += 12;
     if (p.name === 'Battery lead') {
