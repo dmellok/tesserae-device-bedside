@@ -44,9 +44,10 @@ const shown = { explode: 0, parts: 0 };
 
 // Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2' };
-const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth'];
+const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
+const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch'];
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
-const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth'];
+const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth', 'Access cover'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
 function setFinish(name) {
   const f = FINISHES[name] || FINISHES.Beige;
@@ -72,7 +73,7 @@ async function load() {
     fetch('./data/mk1.bin').then((r) => r.arrayBuffer()),
   ]);
   addParts(meta1, bin1, () => 'mk1');
-  addParts(meta, bin, (name) => (SHELL.includes(name) ? 'mk2' : null));
+  addParts(meta, bin, (name) => (SHELL.includes(name) || MK2_ONLY.includes(name) ? 'mk2' : null));
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
@@ -136,7 +137,7 @@ for (const [label, id] of Object.entries(DESIGNS)) {
 function setDesign(id) {
   state.design = Object.values(DESIGNS).includes(id) ? id : 'mk2';
   for (const b of $('design').children) b.setAttribute('aria-pressed', String(DESIGNS[b.textContent] === state.design));
-  for (const b of $('show').children) if (b.textContent === 'Plinth') b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth
+  for (const b of $('show').children) if (MK2_ONLY.includes(b.textContent)) b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth or access cover
   try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }
   applyVisibility();
   pointerMoved = true;
@@ -261,6 +262,8 @@ const DETAILS = {
   'Mid chassis and base': 'Printed case. Everything mounts to this.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
+  'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
+  'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
   'Waveshare IT8951 driver HAT': 'Drives the e-paper panel over SPI.',
@@ -286,7 +289,7 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
 const ANCHORS_MK1 = { 'Rear shell': [60, 84, 130] };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];

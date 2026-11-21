@@ -13,6 +13,8 @@ def classify(path):
     if top.startswith('Mid chassis'): return 'Mid chassis and base', Z3, Z3
     if top.startswith('Rear shell'): return 'Rear shell', [0, 170, 0], Z3
     if top.startswith('Plinth'): return 'Plinth', [0, 250, 0], Z3
+    if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
+    if top.startswith('Power switch'): return 'Power switch', Z3, [0, 60, 0]
     if top.startswith('Keycaps'): return 'Keycaps', mul(V, 35), mul(V, 14)
     if top.startswith('Key module'):
         return ('Cherry MX Brown switches', Z3, mul(V, 14)) if sub.startswith('Cherry') else ('Adafruit NeoKey 1x4 QT', Z3, Z3)

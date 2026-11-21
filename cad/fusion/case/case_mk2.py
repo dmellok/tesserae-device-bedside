@@ -48,7 +48,10 @@ def mounts():
             box(78.7, 52, 7, 80.7, 66, 21), box(133.3, 52, 7, 134.9, 66, 21)]
     cut += [box(91, 44, 4.2, 97, 74, 5.8), box(117, 44, 4.2, 123, 74, 5.8)]
     # USB-C inlet: a pedestal behind the battery that carries the breakout, with the port surround as part of the chassis
-    add += [box(109, 73.3, 3, 134.6, 81, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 50.6)]
+    add += [box(109, 73.3, 3, 134.6, 81, 10), box(109, 73.3, 10, 134.6, YR, 42), box(109, YR - T, 42, 134.6, YR, 58)]
+    # Power switch: the same pedestal carried along to the left, with a 6.3 mm hole for the toggle's bushing. It stays on the chassis when the plinth comes off.
+    add += [box(88, 73.3, 3, 109, 81, 10), box(88, 73.3, 10, 109, YR, 42), box(88, YR - T, 42, 109.1, YR, 58)]
+    cut += [cyl((SWX, YR - T - 1, SWZ), (SWX, YR + 1, SWZ), 3.15)]
     ux, uz, uw, uh = USB
     r = 1.5; x0, x1, z0, z1, y0, y1 = ux - uw/2, ux + uw/2, uz - uh/2, uz + uh/2, YR - T - 1, YR + 1
     cut += [box(111.2, YR - T - 0.1, 42, 132.8, YR - 0.4, 44.0)]
@@ -77,8 +80,9 @@ def halfspace(p, n):
     Lw = math.sqrt(sum(v*v for v in w)); w = [v/Lw for v in w]
     c = [p[i] + n[i]*600 for i in range(3)]
     return tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*c), adsk.core.Vector3D.create(*n), adsk.core.Vector3D.create(*w), 1200*MM, 1200*MM, 1200*MM))
-WSO, ZP, ZB, WBT, BU0, BU1, EC = 35.5, 64.0, 80.0, 61.0, 130.5, 192.5, 1.5   # slab back plane, plinth top, buttress top and back plane, buttress sides, edge chamfer
+WSO, ZP, ZB, WBT, BU0, BU1, EC = 35.5, 64.0, 80.0, 61.0, 128.5, 194.5, 1.5   # slab back plane, plinth top, buttress top and back plane, buttress sides, edge chamfer
 BLACK = (38, 39, 42)
+SWX, SWZ = 98.5, 50.0                      # power toggle: bushing axis, through the rear of the chassis beside the USB-C inlet
 def cham(e, n1, n2, d=None):
     # removal volume for a chamfer d wide along the edge through e, between faces with outward normals n1 and n2
     d = EC if d is None else d
@@ -105,25 +109,47 @@ def cavity(): return U([slab(T), buttress(T), plinth_solid(T)])
 def post(x, y):
     return [cyl((x, y, 10), (x, y, 22), 4.0), box((T - 0.5 if x < 122 else x), y - 1.5, 10, (x if x < 122 else 244 - T + 0.5), y + 1.5, 22)]
 def shell():
-    # beige: the back and sides of the frame, plus the buttress. Slides off backwards once the plinth is off.
-    s = SUB(U([slab(0), buttress(0)]), [cavity()])
+    # beige: the back and sides of the frame, with an opening where the access cover sits. Slides off backwards once the plinth is off.
+    s = SUB(slab(0), [cavity()])
     front = [p for p in POSTS if p[1] < 40]
     s = U([s] + [b for x, y in front for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in front]
     cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6)]                                     # key channel, open to the front
-    # slats: 1 mm grooves that wrap over the top and down both sides of the hump
-    slats = SUB(U([obox(-50, -300, w0, 300, 500, w0 + 2) for w0 in (40.5, 45, 49.5, 54)]), [buttress(1.0)])
-    cuts += [INTER(slats, box(BU0 - 1, -80, ZP + 3, BU1 + 1, 200, ZB + 1))]
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
+def cover():
+    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two sprung tabs click behind the edges of the opening in the frame.
+    c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO, 300, 500, 400))
+    cuts = []
+    # slats: 1 mm grooves that wrap over the top and down both sides of the hump
+    slats = SUB(U([obox(-50, -300, w0, 300, 500, w0 + 2) for w0 in (40.5, 45, 49.5, 54)]), [buttress(1.0)])
+    cuts += [INTER(slats, box(BU0 - 1, -80, ZP + 3, BU1 + 1, 200, ZB + 1))]
+    c = SUB(c, cuts)
+    add = []
+    for sgn, uin, ztop in ((-1, BU0 + T, 77.2), (1, BU1 - T, 75.5)):          # the right tab stops short of the HAT's 13-pin header
+        zbox = lambda: box(-10, -80, 68.5, 260, 200, ztop)
+        u0 = uin - sgn*0.3                                                   # tab face next to the opening's edge
+        add.append(INTER(obox(min(u0, u0 - sgn*2.0), -300, 30.6, max(u0, u0 - sgn*2.0), 500, WBT - T + 0.5), zbox()))
+        barb = INTER(obox(min(u0, u0 + sgn*1.0), -300, 30.6, max(u0, u0 + sgn*1.0), 500, 32.7), zbox())
+        a, b = F(0, 0, 30.6), F(0, 0, 32.7)
+        add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn*1.3, -W_[1], -W_[2])), halfspace((u0, b[1], b[2]), (sgn*0.8, W_[1], W_[2]))]))
+    return U([c] + add)
+def switch_bodies():
+    x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
+    red, metal = (200, 38, 44), (192, 192, 197)
+    lever = U([cyl((SWX, yw + 8, SWZ), (SWX, YR + 17, SWZ + 2.6), 1.5), sphere((SWX, YR + 17, SWZ + 2.6), 1.5)])
+    pins = U([box(x - 0.4, yw - 13.5, z - 1.0, x + 0.4, yw - 9.5, z + 1.0) for x in (SWX - 2.4, SWX + 2.4) for z in (SWZ - 4.7, SWZ, SWZ + 4.7)])
+    return [('Body', box(x0, yw - 9.5, z0, x1, yw - 2.0, z1), red), ('Frame', box(x0, yw - 2.0, z0, x1, yw, z1), metal),
+            ('Bushing', cyl((SWX, yw, SWZ), (SWX, yw + 9, SWZ), 3.0), metal), ('Nut', cyl((SWX, YR, SWZ), (SWX, YR + 2, SWZ), 4.6), metal),
+            ('Lever', lever, metal), ('Terminals', pins, metal)]
 def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
     s = SUB(plinth_solid(0), [cavity()])
     rear = [p for p in POSTS if p[1] > 40]
     s = U([s] + [b for x, y in rear for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in rear]
-    cuts += [box(108.7, YR - T - 1, 9, 134.9, YR + 1, 50.9)]                                   # notch that drops over the chassis's USB-C pedestal
+    cuts += [box(87.7, YR - T - 1, 9, 134.9, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
     for z in range(28, 53, 6):
         cuts += [box(-1, 52, z, T + 0.5, 72, z + 2), box(244 - T - 0.5, 52, z, 245, 72, z + 2)]   # five vent slots each side; the speaker fires out of the left set
     return SUB(s, cuts)
@@ -139,11 +165,11 @@ def run(_context: str):
     put(g('5880 Rotary')[0], (V_, W_, neg(U_)), ENC_REF, F(227, 137.3, 6))
     put(g('4090 USB C')[0], ((1,0,0), (0,1,0), (0,0,1)), ('min', 'max', 'min'), (111.8, YR - 0.5, 42))
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Rear shell', 'Plinth', 'Accent stripe'):
+    for n in ('Front bezel', 'Mid chassis', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch'):
         for o in g(n): o.deleteMe()
     made = {}
-    COL = {'Front bezel': BEIGE, 'Mid chassis': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK}
-    for n, fn in (('Front bezel', bezel), ('Mid chassis', mid), ('Rear shell', shell), ('Plinth', plinth)):
+    COL = {'Front bezel': BEIGE, 'Mid chassis': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
+    for n, fn in (('Front bezel', bezel), ('Mid chassis', mid), ('Rear shell', shell), ('Plinth', plinth), ('Access cover', cover)):
         o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
         add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
@@ -197,4 +223,6 @@ def run(_context: str):
     chamfer(comp, pick(mb(), lambda a, b: all((near(p[0], 3) or near(p[0], 241)) and (near(p[3], 6) or near(p[3], 81)) for p in (a, b)) and abs(a[4] - b[4]) > 5), 3.0, 'foot corners')
     for n in made:
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
-    print('save', case.save('MK II case: smaller slatted hump'))
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
+    add_bodies(o.component, switch_bodies(), design)
+    print('save', case.save('MK II case: snap-on access cover and a power switch on the chassis'))
