@@ -39,7 +39,7 @@ const fill = new THREE.DirectionalLight(0xbfd0ff, 0.75); fill.position.set(-420,
 const model = new THREE.Group();
 scene.add(model);
 const parts = [];              // { mesh, e1, e2, name }
-const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2' };
+const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2', bg: 'Auto' };
 const shown = { explode: 0, parts: 0 };
 
 // Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
@@ -49,6 +49,25 @@ const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch'];
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth', 'Access cover'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
+// Backdrops are plain CSS behind the transparent canvas (see html[data-bg] in index.html). Auto picks Night for the beige case and Studio for the black one.
+const BACKDROPS = { Auto: null, Night: { light: false, theme: '#0b0d12' }, Studio: { light: true, theme: '#f4f5f7' }, Paper: { light: true, theme: '#fbf8f2' },
+  Sky: { light: true, theme: '#bfe0f6' }, Blueprint: { light: false, theme: '#16407c' }, Dusk: { light: false, theme: '#4a2459' } };
+let lightBackdrop = false;
+function applyBackdrop() {
+  const name = state.bg === 'Auto' ? ((FINISHES[state.finish] || FINISHES.Beige).light ? 'Studio' : 'Night') : state.bg;
+  const b = BACKDROPS[name];
+  lightBackdrop = b.light;
+  document.documentElement.dataset.bg = name.toLowerCase();
+  document.documentElement.classList.toggle('light', b.light);
+  document.querySelector('meta[name=theme-color]').content = b.theme;
+  paintWire();
+}
+function setBackdrop(name) {
+  state.bg = Object.keys(BACKDROPS).find((k) => k.toLowerCase() === String(name || '').toLowerCase()) || 'Auto';
+  for (const b of $('backdrop').children) b.setAttribute('aria-pressed', String(b.textContent === state.bg));
+  try { localStorage.setItem('bedside-backdrop', state.bg); } catch (e) { /* storage blocked */ }
+  applyBackdrop();
+}
 function setFinish(name) {
   const f = FINISHES[name] || FINISHES.Beige;
   state.finish = FINISHES[name] ? name : 'Beige';
@@ -57,9 +76,7 @@ function setFinish(name) {
     p.mesh.material.color.copy(f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base);
     p.mesh.material.roughness = f.colour ? 0.62 : 0.72;
   }
-  paintWire();
-  document.documentElement.classList.toggle('light', f.light);
-  document.querySelector('meta[name=theme-color]').content = f.light ? '#f4f5f7' : '#0b0d12';
+  applyBackdrop();
   for (const b of $('finish').children) b.setAttribute('aria-pressed', String(b.textContent === state.finish));
   try { localStorage.setItem('bedside-finish', state.finish); } catch (e) { /* storage blocked */ }
   if (hovered) { const h = hovered; hovered = null; setHover(h); }
@@ -84,7 +101,7 @@ function addParts(meta, bin, variantOf) {
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bin, p.nrm, p.verts * 3), 3));
     geo.setIndex(new THREE.BufferAttribute(new Uint32Array(bin, p.idx, p.tris * 3), 1));
     const colour = new THREE.Color().setRGB(p.color[0] / 255, p.color[1] / 255, p.color[2] / 255, THREE.SRGBColorSpace);
-    const metal = /gold|pin|knob|shield|usb|steel/i.test(p.name) ? 0.35 : 0.04;
+    const metal = /gold|pin|knob|shield|usb|steel|screw/i.test(p.name) ? 0.35 : 0.04;
     const mat = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.72, metalness: metal, transparent: p.opacity < 1, opacity: p.opacity, depthWrite: p.opacity >= 1 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData.name = p.name;
@@ -128,6 +145,12 @@ for (const name of Object.keys(FINISHES)) {
   b.addEventListener('click', () => { setFinish(name); track('bedside_case_colour', { colour: name }); });
   $('finish').appendChild(b);
 }
+for (const name of Object.keys(BACKDROPS)) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = name; b.setAttribute('aria-pressed', String(name === 'Auto'));
+  b.addEventListener('click', () => { setBackdrop(name); track('bedside_backdrop', { backdrop: name }); });
+  $('backdrop').appendChild(b);
+}
 for (const [label, id] of Object.entries(DESIGNS)) {
   const b = document.createElement('button');
   b.type = 'button'; b.textContent = label;
@@ -161,7 +184,13 @@ let wire = false;
 const HOT = new THREE.Color('#e2783c');
 function paintWire() {
   const f = FINISHES[state.finish] || FINISHES.Beige;
-  for (const p of parts) if (p.lines) p.lines.material.color.copy(hovered === p.name ? HOT : (f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base));
+  for (const p of parts) {
+    if (!p.lines) continue;
+    const c = p.lines.material.color.copy(f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base);
+    const lum = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;                 // keep the lines readable against the backdrop
+    if (lightBackdrop && lum > 0.25) c.multiplyScalar(0.5); else if (!lightBackdrop && lum < 0.1) c.set('#9aa0ad');
+    if (hovered === p.name) c.copy(HOT);
+  }
 }
 function setWire(on) {
   wire = on;
@@ -221,10 +250,55 @@ $('reset').addEventListener('click', () => {
   setLabels(false);
   setWire(false);
   setDesign('mk2');
+  setBackdrop('Auto');
   for (const b of $('show').children) b.setAttribute('aria-pressed', 'true');
   applyVisibility();
   controls.target.copy(CENTRE);
   flight = { from: camera.position.clone(), to: new THREE.Vector3(...VIEWS.Front).add(CENTRE), t: 0 };
+});
+
+// ---------- share ----------
+// Everything on screen goes into the link's hash: version, colours, sliders, hidden parts, wireframe, labels and the camera.
+const SLUGS = { 'Front bezel': 'bezel', 'Rear shell': 'shell', Plinth: 'plinth', 'Access cover': 'cover' };
+function shareURL() {
+  const q = new URLSearchParams();
+  q.set('mk', state.design === 'mk1' ? '1' : '2');
+  q.set('case', state.finish.toLowerCase());
+  q.set('bg', state.bg.toLowerCase());
+  if (state.explode > 0) q.set('x', state.explode.toFixed(2));
+  if (state.parts > 0) q.set('c', state.parts.toFixed(2));
+  if (state.spin > 0) q.set('spin', state.spin.toFixed(1));
+  if (state.hidden.size) q.set('hide', [...state.hidden].map((n) => SLUGS[n]).filter(Boolean).join('_'));
+  if (wire) q.set('wire', '1');
+  if (labelsOn) q.set('labels', '1');
+  const eye = camera.position.clone().sub(controls.target).divideScalar(lastFit).add(controls.target);   // without the explode pull-back, which is re-applied on load
+  q.set('cam', [...eye.toArray(), ...controls.target.toArray()].map(Math.round).join('_'));
+  return location.origin + location.pathname + '#' + q.toString();
+}
+function applyURL(q) {
+  for (const [key, id] of [['x', 'explode'], ['c', 'parts'], ['spin', 'spin']]) {
+    const v = parseFloat(q.get(key)), el = ranges[id];
+    if (Number.isFinite(v)) { state[id] = Math.min(parseFloat(el.max), Math.max(0, v)); el.value = state[id]; }
+  }
+  for (const slug of (q.get('hide') || '').split('_')) {
+    const name = Object.keys(SLUGS).find((n) => SLUGS[n] === slug);
+    if (!name) continue;
+    state.hidden.add(name);
+    for (const b of $('show').children) if (b.textContent === name) b.setAttribute('aria-pressed', 'false');
+  }
+  const cam = (q.get('cam') || '').split('_').map(Number);
+  if (cam.length === 6 && cam.every(Number.isFinite)) {
+    camera.position.set(cam[0], cam[1], cam[2]); controls.target.set(cam[3], cam[4], cam[5]); controls.update();
+  }
+}
+$('share').addEventListener('click', async () => {
+  const url = shareURL(), btn = $('share');
+  history.replaceState(null, '', url);
+  let ok = false;
+  try { await navigator.clipboard.writeText(url); ok = true; } catch (e) { /* clipboard blocked: the link is still in the address bar */ }
+  btn.textContent = ok ? 'Link copied' : 'Link is in the address bar';
+  setTimeout(() => { btn.textContent = 'Copy link'; }, 2000);
+  track('bedside_share');
 });
 
 // ---------- hover ----------
@@ -263,6 +337,7 @@ const DETAILS = {
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
+  'Screws': 'M3 for the case, M2 and M2.5 for the boards, M4 for the speaker.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
@@ -298,7 +373,7 @@ let labelsOn = false, labelHover = null;
 function buildLabels() {
   const seen = new Map();
   for (const p of parts) {
-    if (p.screen) continue;
+    if (p.screen || p.name === 'Screws') continue;       // screws are scattered all over, so one callout would point at nothing
     p.mesh.geometry.computeBoundingBox();
     const id = p.name + '|' + (p.variant || '');       // each case version gets its own callouts
     if (!seen.has(id)) seen.set(id, { box: new THREE.Box3(), part: p });
@@ -424,20 +499,18 @@ function frame() {
 }
 
 load().then(() => {
-  let saved = null;
-  try { saved = localStorage.getItem('bedside-finish'); } catch (e) { /* storage blocked */ }
-  const m = /(?:^#|&)case=(\w+)/i.exec(location.hash);
-  const want = m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : saved;
-  let ver = null;
-  try { ver = localStorage.getItem('bedside-version'); } catch (e) { /* storage blocked */ }
-  const mk = /(?:^#|&)mk=([12])/.exec(location.hash);
-  setDesign(mk ? 'mk' + mk[1] : ver);
-  setFinish(want || 'Beige');
+  const q = new URLSearchParams(location.hash.slice(1));
+  const stored = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const mk = q.get('mk');
+  setDesign(mk === '1' || mk === '2' ? 'mk' + mk : stored('bedside-version'));
+  const fin = q.get('case');
+  setFinish(fin ? fin[0].toUpperCase() + fin.slice(1).toLowerCase() : (stored('bedside-finish') || 'Beige'));
+  setBackdrop(q.get('bg') || stored('bedside-backdrop'));
   buildLabels();
-  const lab = /(?:^#|&)labels=1/.test(location.hash);
   try { localStorage.removeItem('bedside-labels'); } catch (e) { /* storage blocked */ }   // labels are never remembered: off unless the link asks for them
-  setLabels(lab);
-  if (/(?:^#|&)wire=1/.test(location.hash)) setWire(true);
+  setLabels(q.get('labels') === '1');
+  if (q.get('wire') === '1') setWire(true);
+  applyURL(q);
   applyVisibility(); frame();
 }).catch((err) => {
   const el = document.getElementById('loading');

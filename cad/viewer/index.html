@@ -16,10 +16,10 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://turtle.gg/bedside/preview.png">
 <style>
-  :root { --bg0:#0b0d12; --bg1:#161a24; --ink:#e9ecf3; --dim:#8a92a6; --line:rgba(255,255,255,.09); --panel:rgba(18,21,30,.72); --accent:#e2783c; }
+  :root { --overlay:none; --bg0:#0b0d12; --bg1:#161a24; --ink:#e9ecf3; --dim:#8a92a6; --line:rgba(255,255,255,.09); --panel:rgba(18,21,30,.72); --accent:#e2783c; }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg0); color:var(--ink); font:13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; overflow:hidden; }
-  body { background:radial-gradient(ellipse at 50% 42%, var(--bg1) 0%, var(--bg0) 68%); }
+  body { background:var(--overlay), radial-gradient(ellipse at 50% 42%, var(--bg1) 0%, var(--bg0) 68%); }
   canvas#scene { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
   canvas#scene:active { cursor:grabbing; }
   .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:14px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
@@ -65,6 +65,12 @@
   html.light .seg button { background:rgba(0,0,0,.035); }
   html.light .seg button:hover { background:rgba(0,0,0,.08); }
   html.light .seg button[aria-pressed="true"] { background:rgba(226,120,60,.22); border-color:rgba(226,120,60,.75); }
+  /* Backdrops. Night and Studio are the plain dark and light sets above; the rest change the colours or lay a gradient or grid over them. */
+  html[data-bg=paper] { --bg0:#e2dacb; --bg1:#fbf8f2; --panel:rgba(252,249,243,.74); }
+  html[data-bg=sky] { --overlay:linear-gradient(180deg, #8ec5f0 0%, #d7ecfa 58%, #f3efe6 100%); --panel:rgba(255,255,255,.66); }
+  html[data-bg=blueprint] { --bg0:#0a2146; --bg1:#16407c; --panel:rgba(10,28,60,.72); --dim:#9db4d6;
+    --overlay:linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px; }
+  html[data-bg=dusk] { --overlay:linear-gradient(180deg, #141433 0%, #4a2459 52%, #c9663f 88%, #f0a35e 100%); --panel:rgba(30,20,48,.7); --dim:#b9a9c9; }
   @media (max-width:640px) {
     #note { display:none; }
     #controls { left:10px; bottom:calc(10px + env(safe-area-inset-bottom)); }
@@ -121,6 +127,7 @@
   </div>
   <div class="group"><label>Version</label><div class="seg" id="design"></div></div>
   <div class="group"><label>Case colour</label><div class="seg" id="finish"></div></div>
+  <div class="group"><label>Backdrop</label><div class="seg" id="backdrop"></div></div>
   <div class="group"><label>Case</label>
     <div class="seg" id="show"></div>
     <div class="seg" style="margin-top:4px"><button id="wireToggle" type="button" aria-pressed="false">Wireframe</button></div>
@@ -130,7 +137,7 @@
     <div class="seg" style="margin-top:4px"><button id="labelsToggle" type="button" aria-pressed="false">Labels</button></div>
     <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
   </div>
-  <div class="group"><div class="seg"><button id="reset" type="button">Reset</button></div></div>
+  <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button></div></div>
   </div>
 </div>
 <script>

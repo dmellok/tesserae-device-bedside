@@ -15,6 +15,7 @@ def bezel():
     cuts += [wcyl(u, v, 0.5, 6.5, 2.0) for u, v in BZ]               # M3 heat-set holes from the back
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
+def NUT_RELIEF(): return cyl((11.2, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def mounts():
     add, cut = [], []
     # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
@@ -42,6 +43,7 @@ def mounts():
     add.append(INTER(box(15, 6, 3, 18, 78.5, 61), obox(-10, -60, 7.5, 260, 300, 200)))
     cut.append(cyl((14, 49, 33.3), (19, 49, 33.3), 23.0))
     for y, z in ((70.21, 54.51), (27.79, 12.09)): cut.append(cyl((14, y, z), (19, y, z), 2.2))
+    cut.append(NUT_RELIEF())
     # Battery: a raised pad with low walls and two tunnels for cable ties
     add += [box(78.7, 44.7, 3, 134.9, 73.4, 7),
             box(85, 44.7, 7, 99, 46.7, 21), box(115, 44.7, 7, 129, 46.7, 21), box(85, 71.3, 7, 99, 73.3, 21), box(115, 71.3, 7, 129, 73.3, 21),
@@ -54,7 +56,7 @@ def mounts():
     cut += [cyl((SWX, YR - T - 1, SWZ), (SWX, YR + 1, SWZ), 3.15)]
     ux, uz, uw, uh = USB
     r = 1.5; x0, x1, z0, z1, y0, y1 = ux - uw/2, ux + uw/2, uz - uh/2, uz + uh/2, YR - T - 1, YR + 1
-    cut += [box(111.2, YR - T - 0.1, 42, 132.8, YR - 0.4, 44.0)]
+    cut += [box(111.2, YR - T - 0.1, 42, 132.8, YR - 0.4, 46.0)]       # relief for the board's edge and its two screw heads
     cut += [box(x0 + r, y0, z0, x1 - r, y1, z1), box(x0, y0, z0 + r, x1, y1, z1 - r)] + [cyl((x, y0, z), (x, y1, z), r) for x in (x0 + r, x1 - r) for z in (z0 + r, z1 - r)]
     for x in (114.36, 129.6): cut.append(cyl((x, 80.94, 33), (x, 80.94, 42.1), 1.05))
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
@@ -114,7 +116,7 @@ def shell():
     front = [p for p in POSTS if p[1] < 40]
     s = U([s] + [b for x, y in front for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in front]
-    cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6)]                                     # key channel, open to the front
+    cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()]                       # key channel, open to the front
     # slats on the top left, mirroring the key block: 1 mm grooves that run back across the top and 30 mm down the back
     cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
     ky, kz = F(0, KV, KW)[1:]
@@ -145,6 +147,21 @@ def switch_bodies():
     return [('Body', box(x0, yw - 9.5, z0, x1, yw - 2.0, z1), red), ('Frame', box(x0, yw - 2.0, z0, x1, yw, z1), metal),
             ('Bushing', cyl((SWX, yw, SWZ), (SWX, yw + 9, SWZ), 3.0), metal), ('Nut', cyl((SWX, YR, SWZ), (SWX, YR + 2, SWZ), 4.6), metal),
             ('Lever', lever, metal), ('Terminals', pins, metal)]
+def screw(p, d, length, r, rh, hh):
+    # p: the point under the head, d: unit direction the thread runs in
+    return U([cyl(vadd(p, d, -hh), p, rh), cyl(p, vadd(p, d, length), r)])
+def screws():
+    zinc = (186, 189, 195); out = []; nW = neg(W_)
+    def add(kind, bodies): out.extend(('%s screw %d' % (kind, i + 1), b, zinc) for i, b in enumerate(bodies))
+    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel's inserts
+    add('Shell', [screw((x, y, 2.0), (0, 0, 1), 12.0, 1.5, 2.75, 1.7) for x, y in POSTS])             # M3 x 12 up through the base into the shell and plinth posts
+    add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
+    add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
+    add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
+    add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
+    add('Speaker', [U([screw((19.5, y, z), (-1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 with a nut behind the baffle
+    add('USB', [screw((x, 80.94, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36, 129.6)])    # M2.5 x 8 down through the breakout
+    return out
 def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
     s = SUB(plinth_solid(0), [cavity()])
@@ -167,7 +184,7 @@ def run(_context: str):
     put(g('5880 Rotary')[0], (V_, W_, neg(U_)), ENC_REF, F(227, 137.3, 6))
     put(g('4090 USB C')[0], ((1,0,0), (0,1,0), (0,0,1)), ('min', 'max', 'min'), (111.8, YR - 0.5, 42))
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch'):
+    for n in ('Front bezel', 'Mid chassis', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws'):
         for o in g(n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Mid chassis': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
@@ -227,4 +244,6 @@ def run(_context: str):
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
     add_bodies(o.component, switch_bodies(), design)
-    print('save', case.save('MK II case: slats on the top left'))
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
+    add_bodies(o.component, screws(), design)
+    print('save', case.save('MK II case: screws drawn in'))

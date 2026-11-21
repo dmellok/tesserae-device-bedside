@@ -5,7 +5,9 @@ W = (0, C, -S); V = (0, S, C)
 def mul(v, k): return [round(x*k, 3) for x in v]
 Z3 = [0, 0, 0]
 ONLY = None
-def classify(path):
+SCREWS = {'Bezel': (Z3, mul(W, 26)), 'Shell': ([0, 0, -45], Z3), 'HAT': (Z3, mul(W, 12)), 'Board': (Z3, mul(W, 9)), 'Adapter': (Z3, [0, 36, 0]),
+          'Key': (Z3, mul(V, 9)), 'Speaker': (Z3, [28, 0, 0]), 'USB': (Z3, [0, 70, 42])}
+def classify(path, bname=''):
     top = path[0][5:] if path[0].startswith('MK I ') else path[0]; sub = path[1] if len(path) > 1 else ''
     if top.startswith('Front bezel'): return 'Front bezel', mul(W, -110), Z3
     if top.startswith('Accent stripe'): return 'Accent stripe', mul(W, -110), mul(W, -12)
@@ -13,6 +15,7 @@ def classify(path):
     if top.startswith('Mid chassis'): return 'Mid chassis and base', Z3, Z3
     if top.startswith('Rear shell'): return 'Rear shell', [0, 170, 0], Z3
     if top.startswith('Plinth'): return 'Plinth', [0, 250, 0], Z3
+    if top.startswith('Screws'): return ('Screws',) + tuple(SCREWS[bname.split()[0]])
     if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
     if top.startswith('Power switch'): return 'Power switch', Z3, [0, 60, 0]
     if top.startswith('Keycaps'): return 'Keycaps', mul(V, 35), mul(V, 14)
@@ -62,15 +65,15 @@ def run(_context: str):
             if m is None or m.triangleCount == 0:
                 calc = body.meshManager.createMeshCalculator(); calc.setQuality(adsk.fusion.TriangleMeshQualityOptions.NormalQualityTriangleMesh); m = calc.calculate()
             if m is None or m.triangleCount == 0: nomesh += 1; continue
-            label, e1, e2 = classify(path)
+            label, e1, e2 = classify(path, body.name)
             rgb, op, an = colour(body); names[an] = names.get(an, 0) + 1
-            key = (label, rgb, op)
+            key = (label, rgb, op, tuple(e1), tuple(e2))
             g = groups.setdefault(key, {'e1': e1, 'e2': e2, 'pos': array.array('f'), 'nrm': array.array('f'), 'idx': array.array('I')})
             base = len(g['pos'])//3
             g['pos'].extend(m.nodeCoordinatesAsFloat); g['nrm'].extend(m.normalVectorsAsFloat)
             g['idx'].extend([i + base for i in m.nodeIndices]); nb += 1
     parts = []; blob = bytearray()
-    for (label, rgb, op), g in groups.items():
+    for (label, rgb, op, _e1, _e2), g in groups.items():
         pos = array.array('f', [x*10 for x in g['pos']])
         e = {'name': label, 'color': list(rgb), 'opacity': op, 'e1': g['e1'], 'e2': g['e2'], 'verts': len(pos)//3, 'tris': len(g['idx'])//3}
         e['pos'] = len(blob); blob += pos.tobytes()
