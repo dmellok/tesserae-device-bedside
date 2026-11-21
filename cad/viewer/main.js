@@ -45,7 +45,7 @@ const shown = { explode: 0, parts: 0 };
 // Two versions of the case share one set of components. MK I is the chamfered wedge; MK II is the leaning slab on a black plinth.
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
-const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch', 'Back screws, M3 x 8'];
+const MK2_ONLY = ['Plinth', 'Access cover', 'Power switch', 'Back screws, M3 x 8', 'Floppy slot insert'];
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth', 'Access cover'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
@@ -242,7 +242,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 function applyVisibility() {
   for (const p of parts) {
-    const hide = state.hidden.has(p.name) || (p.variant && p.variant !== state.design) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
+    const hide = state.hidden.has(p.name) || (p.variant && p.variant !== state.design) || ((p.name === 'Accent stripe' || p.name === 'Floppy slot insert') && state.hidden.has('Front bezel'));
     p.mesh.visible = !hide;
   }
 }
@@ -402,6 +402,7 @@ const DETAILS = {
   'Mid chassis and base': 'Printed case. Everything mounts to this.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
+  'Floppy slot insert': 'A black strip behind the fake floppy slot. Nothing goes in.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
   'Base screws, M3 x 12': 'Four, up through the base into the shell and plinth posts.',
@@ -438,7 +439,7 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const OUTSIDE = new Set(['Floppy slot insert', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
 const ANCHORS_MK1 = { 'Rear shell': [60, 84, 130] };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
@@ -451,7 +452,7 @@ const CATS = ['Case', 'Boards', 'Parts', 'Screws'], CATS_DEFAULT = ['Case', 'Boa
 const cats = new Set(CATS_DEFAULT);
 function catOf(name) {
   if (/screws/i.test(name)) return 'Screws';
-  if (SHELL.includes(name) || name === 'Accent stripe') return 'Case';
+  if (SHELL.includes(name) || name === 'Accent stripe' || name === 'Floppy slot insert') return 'Case';
   return BOARDS.has(name) ? 'Boards' : 'Parts';
 }
 function setCats(list) {

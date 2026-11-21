@@ -11,6 +11,7 @@ SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base scr
 def classify(path, bname=''):
     top = path[0][5:] if path[0].startswith('MK I ') else path[0]; sub = path[1] if len(path) > 1 else ''
     if top.startswith('Front bezel'): return 'Front bezel', mul(W, -110), Z3
+    if top.startswith('Floppy slot insert'): return 'Floppy slot insert', mul(W, -110), mul(W, 14)
     if top.startswith('Accent stripe'): return 'Accent stripe', mul(W, -110), mul(W, -12)
     if top.startswith('E Ink'): return 'E Ink ED103TC2 panel', mul(W, -55), Z3
     if top.startswith('Mid chassis'): return 'Mid chassis and base', Z3, Z3
