@@ -40,7 +40,7 @@ def mounts():
         for w in (9.54, 26.05): cut.append(cyl(F(u0, 169, w), F(u0, 178.2, w), 1.05))
     # Encoder: a bracket the threaded bushing bolts through, with a rib above and below
     ky, kz = F(0, KV, KW)[1:]
-    add += [obox(238.1, 133, 6.05, 241.3, 167, 27.5), obox(226, 131, 7.5, 241.3, 133.2, 22), obox(226, 166.8, 7.5, 241.3, 169, 22)]
+    add += [obox(238.1, 133, 6.05, 241.3, 167, 27.5), obox(232.2, 131, 7.5, 241.3, 133.2, 22), obox(232.2, 166.8, 7.5, 241.3, 169, 22)]      # the ribs stop short of the board: its two STEMMA QT sockets open up and down, and the plugs need the room
     cut.append(cyl((237.5, ky, kz), (241.6, ky, kz), 3.65))
     # Speaker: a baffle wall standing on the floor and tied into the plate, M4 through the two lugs
     tadd.append(INTER(box(15, 16.4, 3, 18, YR - 5.5, 61), obox(-10, -60, 8.4, 260, 300, 200)))

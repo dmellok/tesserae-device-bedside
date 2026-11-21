@@ -27,6 +27,10 @@ def classify(path, bname=''):
     if top.startswith('Screws'): return SCREWS[bname.split()[0]]
     if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
     if top.startswith('Power switch'): return 'Power switch', Z3, [0, 60, 0]
+    if top.startswith('Wiring'):
+        for pre, label in (('GPIO', 'Wires to the GPIO header'), ('Dupont', 'Wires to the GPIO header'), ('USB', 'USB-C inlet wires'), ('Switch', 'Power switch wires'),
+                           ('Speaker', 'Speaker leads'), ('Battery', 'Battery lead'), ('STEMMA', 'STEMMA QT cables')):
+            if bname.startswith(pre): return label, Z3, Z3
     if top.startswith('Keycaps'): return 'Keycaps', mul(V, 35), mul(V, 14)
     if top.startswith('Key module'):
         return ('Cherry MX Brown switches', Z3, mul(V, 14)) if sub.startswith('Cherry') else ('Adafruit NeoKey 1x4 QT', Z3, Z3)
@@ -35,7 +39,6 @@ def classify(path, bname=''):
     if top.startswith('Display driver stack'):
         if sub.startswith('Waveshare'): return 'Waveshare IT8951 driver HAT', Z3, Z3
         if sub.startswith('GPIO splitter'): return 'GPIO splitter', Z3, [0, 28, 0]
-        if sub.startswith('Dupont'): return 'Wire harness to the power board', Z3, [-18, 28, 0]
         if sub.startswith('Pimoroni'): return 'Pimoroni Pico Plus 2 W', Z3, [0, 50, 0]
         if sub.startswith('Pico sockets'): return 'Pico sockets and headers', Z3, [0, 68, 0]
         return 'Hard Stuff Pico to Pi HAT', Z3, [0, 95, 0]
@@ -71,6 +74,8 @@ def run(_context: str):
             if not mk1 and not body.isVisible: continue
             try: m = body.meshManager.displayMeshes.bestMesh
             except RuntimeError: m = None          # hidden bodies have no display mesh
+            if path[0].startswith('Wiring') and not body.name.startswith(('Dupont', 'Battery plug', 'STEMMA QT plug')):
+                calc = body.meshManager.createMeshCalculator(); calc.surfaceTolerance = 0.006; m = calc.calculate()      # wires are thin: a coarse mesh keeps the download small
             if m is None or m.triangleCount == 0:
                 calc = body.meshManager.createMeshCalculator(); calc.setQuality(adsk.fusion.TriangleMeshQualityOptions.NormalQualityTriangleMesh); m = calc.calculate()
             if m is None or m.triangleCount == 0: nomesh += 1; continue

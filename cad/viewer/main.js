@@ -47,6 +47,7 @@ const shown = { explode: 0, parts: 0 };
 const DESIGNS = { 'MK I': 'mk1', 'MK II': 'mk2', 'MK II.I': 'mk21' };
 const MK_HASH = { mk1: '1', mk2: '2', mk21: '2.1' };
 const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth', 'Access cover'];
+const PLINTH_WIRES = new Set(['USB-C inlet wires', 'Power switch wires']);
 const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean nothing on MK I
 const isScrew = (name) => /screws/i.test(name);
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
@@ -97,9 +98,10 @@ async function load() {
   const [meta, bin, meta1, bin1, meta2, bin2] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2')]);
   // bedside.* holds the components plus the newest case; mk1.* and mk2.* hold the earlier cases. Each case part says which versions it belongs to.
   const own = (name) => SHELL.includes(name) || name === 'Power switch' || isScrew(name);
+  const wires = (name) => (name === 'Power switch wires' ? ['mk2', 'mk21'] : null);      // MK I has no switch
   addParts(meta1, bin1, () => ['mk1']);
   addParts(meta2, bin2, (name) => (isScrew(name) && !name.startsWith('Back screws') ? ['mk1', 'mk2'] : ['mk2']));    // MK I borrows MK II's screws
-  addParts(meta, bin, (name) => (own(name) ? ['mk21'] : null));
+  addParts(meta, bin, (name) => (own(name) ? ['mk21'] : wires(name)));
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
@@ -425,7 +427,12 @@ const DETAILS = {
   'Pimoroni Pico Plus 2 W': 'RP2350B, 16 MB flash, 8 MB PSRAM, Wi-Fi.',
   'Hard Stuff Pico to Pi HAT': 'Adapts the Pico to the Raspberry Pi header.',
   'Pico sockets and headers': 'The Pico plugs in, so it can come out.',
-  'Wire harness to the power board': 'Power, I2S audio and battery sense lines.',
+  'Wires to the GPIO header': 'Soldered into the power board, plugged onto the splitter: 5 V, ground, I2S audio and the three sense lines.',
+  'USB-C inlet wires': 'Red and black, 5 V in from the socket.',
+  'Power switch wires': 'White and black: closing the switch pulls EN low and turns the device off.',
+  'Speaker leads': 'A twisted pair from the amp terminal block.',
+  'Battery lead': 'JST-PH plug into the PowerBoost.',
+  'STEMMA QT cables': 'I2C chain: Pico to the encoder, encoder to the keys.',
   'Power and amp protoboard': 'Hand-wired 5 × 7 cm board.',
   'Adafruit PowerBoost 1000C': 'Charges the battery and makes 5 V.',
   'Adafruit MAX98357A amplifier': 'I2S class-D amplifier, 3 W.',
@@ -449,13 +456,15 @@ const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
 let labelsOn = false, labelHover = null;
-// Callouts can be filtered by kind. Screws start switched off: nine more labels is a lot.
+// Callouts can be filtered by kind. Wires and screws start switched off: that many more labels is a lot.
 const BOARDS = new Set(['Waveshare IT8951 driver HAT', 'GPIO splitter', 'Pimoroni Pico Plus 2 W', 'Hard Stuff Pico to Pi HAT', 'Pico sockets and headers', 'Power and amp protoboard',
   'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'E-paper flex adapter', 'Adafruit NeoKey 1x4 QT', 'Adafruit I2C rotary encoder', 'USB-C power inlet']);
-const CATS = ['Case', 'Boards', 'Parts', 'Screws'], CATS_DEFAULT = ['Case', 'Boards', 'Parts'];
+const WIRES = new Set(['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables']);
+const CATS = ['Case', 'Boards', 'Parts', 'Wires', 'Screws'], CATS_DEFAULT = ['Case', 'Boards', 'Parts'];
 const cats = new Set(CATS_DEFAULT);
 function catOf(name) {
   if (/screws/i.test(name)) return 'Screws';
+  if (WIRES.has(name)) return 'Wires';
   if (SHELL.includes(name) || name === 'Accent stripe') return 'Case';
   return BOARDS.has(name) ? 'Boards' : 'Parts';
 }
@@ -606,6 +615,11 @@ function frame() {
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
     if (p.name === 'USB-C power inlet' && state.design !== 'mk21') p.mesh.position.y -= 12;     // MK II.I's plinth is 12 mm deeper, and the inlet is exported in that place
+    if (PLINTH_WIRES.has(p.name)) {
+      // these run from the power board (y 34) to the back of the plinth (y 84 on MK II.I), so on the shallower versions they are squeezed to end 12 mm sooner
+      const k = state.design === 'mk21' ? 1 : 0.76;
+      p.mesh.scale.y = k; p.mesh.position.y += 34 * (1 - k);
+    }
   }
   // pull the camera back as the model spreads out, keeping whatever zoom the viewer chose
   const fit = 1 + 0.55 * e1 + 0.12 * e2;
