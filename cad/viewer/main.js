@@ -54,6 +54,7 @@ function setFinish(name) {
     p.mesh.material.color.copy(f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base);
     p.mesh.material.roughness = f.colour ? 0.62 : 0.72;
   }
+  paintWire();
   document.documentElement.classList.toggle('light', f.light);
   document.querySelector('meta[name=theme-color]').content = f.light ? '#f4f5f7' : '#0b0d12';
   for (const b of $('finish').children) b.setAttribute('aria-pressed', String(b.textContent === state.finish));
@@ -127,6 +128,45 @@ for (const name of CASE_PARTS) {
   });
   $('show').appendChild(b);
 }
+
+// Wireframe: the three printed case parts drawn as their edges over a faint fill, so the inside shows through.
+let wire = false;
+const HOT = new THREE.Color('#e2783c');
+function paintWire() {
+  const f = FINISHES[state.finish] || FINISHES.Beige;
+  for (const p of parts) if (p.lines) p.lines.material.color.copy(hovered === p.name ? HOT : (f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base));
+}
+function setWire(on) {
+  wire = on;
+  for (const p of parts) {
+    if (p.screen || !SHELL.includes(p.name)) continue;
+    if (on && !p.lines) {                 // built on first use: only the creases, not every triangle
+      p.lines = new THREE.LineSegments(new THREE.EdgesGeometry(p.mesh.geometry, 28), new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9 }));
+      p.lines.raycast = () => {};
+      p.mesh.add(p.lines);
+    }
+    if (p.lines) p.lines.visible = on;
+    const m = p.mesh.material;
+    m.transparent = on; m.opacity = on ? 0.07 : 1; m.depthWrite = !on; m.needsUpdate = true;
+  }
+  paintWire();
+  $('wireToggle').setAttribute('aria-pressed', String(on));
+  pointerMoved = true;
+}
+$('wireToggle').addEventListener('click', () => { setWire(!wire); track('bedside_wireframe', { on: wire }); });
+
+// The panel folds down to a round button. Phones start folded and fold again when the model is touched.
+const panel = $('controls');
+const phone = matchMedia('(max-width:640px)');
+function setOpen(open) {
+  if (!open) panel.scrollTop = 0;         // left scrolled, the folded button would sit out of view
+  panel.classList.toggle('open', open);
+  $('fab').setAttribute('aria-expanded', String(open));
+}
+$('fab').addEventListener('click', () => { setOpen(true); track('bedside_controls', { open: true }); });
+$('closeControls').addEventListener('click', () => { setOpen(false); track('bedside_controls', { open: false }); });
+canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false); });
+
 function applyVisibility() {
   for (const p of parts) {
     const hide = state.hidden.has(p.name) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
@@ -152,6 +192,7 @@ $('reset').addEventListener('click', () => {
   state.hidden.clear();
   setFinish('Beige');
   setLabels(false);
+  setWire(false);
   for (const b of $('show').children) b.setAttribute('aria-pressed', 'true');
   applyVisibility();
   controls.target.copy(CENTRE);
@@ -179,6 +220,7 @@ function setHover(name) {
     const m = p.mesh.material;
     m.emissive.setHex(name && p.name === name ? 0x3a1d0c : 0x000000);
   }
+  paintWire();
   if (!name) { tip.classList.remove('on'); return; }
   const group = parts.filter((p) => p.name === name && !p.screen);
   const c = group.length ? '#' + group[0].mesh.material.color.getHexString() : '#ccc';
@@ -339,7 +381,7 @@ function frame() {
   if (pointerMoved && !pointerDown && !labelHover) {
     pointerMoved = false;
     ray.setFromCamera(pointer, camera);
-    const hit = ray.intersectObjects(model.children.filter((m) => m.visible), false)[0];
+    const hit = ray.intersectObjects(model.children.filter((m) => m.visible && !(wire && SHELL.includes(m.userData.name))), false)[0];
     setHover(hit ? hit.object.userData.name : null);
   }
   renderer.render(scene, camera);
@@ -356,6 +398,7 @@ load().then(() => {
   const lab = /(?:^#|&)labels=1/.test(location.hash);
   try { localStorage.removeItem('bedside-labels'); } catch (e) { /* storage blocked */ }   // labels are never remembered: off unless the link asks for them
   setLabels(lab);
+  if (/(?:^#|&)wire=1/.test(location.hash)) setWire(true);
   applyVisibility(); frame();
 }).catch((err) => {
   const el = document.getElementById('loading');

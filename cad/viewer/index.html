@@ -23,7 +23,17 @@
   canvas#scene { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
   canvas#scene:active { cursor:grabbing; }
   .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:14px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
-  #controls { left:16px; bottom:16px; width:292px; padding:14px 14px 12px; max-height:calc(100% - 32px); overflow:auto; }
+  /* Controls collapse to a round button that grows into the full panel */
+  #controls { left:16px; bottom:16px; padding:0; width:56px; max-height:56px; border-radius:28px; overflow:hidden;
+    transition:width .4s cubic-bezier(.3,.9,.3,1), max-height .4s cubic-bezier(.3,.9,.3,1), border-radius .4s cubic-bezier(.3,.9,.3,1); }
+  #controls.open { width:292px; max-height:calc(100% - 32px); border-radius:14px; overflow-y:auto; }
+  #fab { display:grid; place-items:center; position:absolute; left:0; top:0; width:54px; height:54px; padding:0; border:0; background:none; color:var(--ink); cursor:pointer; transition:opacity .2s .15s; }
+  #controls.open #fab { opacity:0; pointer-events:none; visibility:hidden; transition:opacity .12s, visibility 0s .12s; }
+  .content { position:relative; width:290px; padding:14px 14px 12px; opacity:0; visibility:hidden; transition:opacity .12s, visibility 0s .12s; }
+  #controls.open .content { opacity:1; visibility:visible; transition:opacity .28s .14s, visibility 0s; }
+  #closeControls { display:grid; place-items:center; position:absolute; right:9px; top:9px; width:26px; height:26px; padding:0; border-radius:13px; border:1px solid var(--line); background:rgba(128,128,128,.1); color:var(--ink); font-size:17px; line-height:1; cursor:pointer; }
+  #closeControls:hover { background:rgba(128,128,128,.22); }
+  #fab:focus-visible, #closeControls:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
   #controls h1 { font-size:13px; font-weight:600; letter-spacing:.02em; margin:0 0 2px; }
   #controls .sub { color:var(--dim); font-size:11.5px; margin-bottom:12px; }
   .group { margin-top:12px; }
@@ -57,14 +67,17 @@
   html.light .seg button[aria-pressed="true"] { background:rgba(226,120,60,.22); border-color:rgba(226,120,60,.75); }
   @media (max-width:640px) {
     #note { display:none; }
-    #controls { left:10px; right:10px; bottom:calc(10px + env(safe-area-inset-bottom)); width:auto; max-height:46vh; }
+    #controls { left:10px; bottom:calc(10px + env(safe-area-inset-bottom)); }
+    #controls.open { width:calc(100vw - 20px); max-height:46vh; border-radius:18px; }
+    .content { width:calc(100vw - 22px); padding:16px 16px 14px; }
+    #closeControls { width:34px; height:34px; border-radius:17px; font-size:20px; }
     #tip { right:10px; left:10px; top:10px; min-width:0; max-width:none; }
     .seg button { padding:8px 12px; font-size:13px; }
     #labels .lab { font-size:10px; padding:2px 6px; }
     .row { margin-top:10px; }
     input[type=range] { height:26px; }
   }
-  @media (prefers-reduced-motion: reduce) { #tip, .seg button { transition:none; } }
+  @media (prefers-reduced-motion: reduce) { #tip, .seg button, #controls, #fab, .content { transition:none !important; } }
 </style>
 <script>
   // PostHog analytics (US cloud), same project as the brain viewer. The phc_ project token is a public, write-only key.
@@ -94,7 +107,12 @@
 <div id="note">Work in progress: a 10.3 inch e-paper bedside dashboard.<br>Drag to rotate · scroll to zoom · hover a part to name it</div>
 <svg id="leaders" aria-hidden="true"></svg>
 <div id="labels"></div>
-<div id="controls" class="panel">
+<div id="controls" class="panel open">
+  <button id="fab" type="button" aria-label="Open controls" aria-expanded="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+  </button>
+  <div class="content">
+  <button id="closeControls" type="button" aria-label="Close controls">&times;</button>
   <h1>Bedside Dashboard</h1>
   <div class="sub">Every part of the build, in its three-piece case</div>
   <div class="group"><label>Take it apart</label>
@@ -102,14 +120,22 @@
     <div class="row"><span>Components</span><input id="parts" type="range" min="0" max="1" step="0.005" value="0" aria-label="Explode the components"></div>
   </div>
   <div class="group"><label>Case colour</label><div class="seg" id="finish"></div></div>
-  <div class="group"><label>Case</label><div class="seg" id="show"></div></div>
+  <div class="group"><label>Case</label>
+    <div class="seg" id="show"></div>
+    <div class="seg" style="margin-top:4px"><button id="wireToggle" type="button" aria-pressed="false">Wireframe</button></div>
+  </div>
   <div class="group"><label>View</label>
     <div class="seg" id="views"></div>
     <div class="seg" style="margin-top:4px"><button id="labelsToggle" type="button" aria-pressed="false">Labels</button></div>
     <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
   </div>
   <div class="group"><div class="seg"><button id="reset" type="button">Reset</button></div></div>
+  </div>
 </div>
+<script>
+  // Phones start with the controls collapsed. Done here, before first paint, so the panel never flashes open.
+  if (matchMedia('(max-width:640px)').matches) { document.getElementById('controls').classList.remove('open'); document.getElementById('fab').setAttribute('aria-expanded', 'false'); }
+</script>
 <script type="module" src="./main.js"></script>
 </body>
 </html>
