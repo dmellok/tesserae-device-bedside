@@ -42,9 +42,9 @@ const parts = [];              // { mesh, e1, e2, name }
 const state = { explode: 0, parts: 0, spin: 0, hidden: new Set() };
 const shown = { explode: 0, parts: 0 };
 
-const CASE_PARTS = ['Front bezel', 'Rear shell'];
-// Case finishes. Black gets a light backdrop so the shape still reads.
-const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell'];
+const CASE_PARTS = ['Front bezel', 'Rear shell', 'Plinth'];
+// Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
+const SHELL = ['Front bezel', 'Mid chassis and base', 'Rear shell', 'Plinth'];
 const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
 function setFinish(name) {
   const f = FINISHES[name] || FINISHES.Beige;
@@ -169,7 +169,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 function applyVisibility() {
   for (const p of parts) {
-    const hide = state.hidden.has(p.name) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
+    const hide = state.hidden.has(p.name);
     p.mesh.visible = !hide;
   }
 }
@@ -230,10 +230,10 @@ function setHover(name) {
   tip.classList.add('on');
 }
 const DETAILS = {
-  'Front bezel': 'Printed case, part 1 of 3. Holds the glass from the front.',
-  'Mid chassis and base': 'Printed case, part 2 of 3. Everything mounts to this.',
-  'Rear shell': 'Printed case, part 3 of 3. Slides off the back.',
-  'Accent stripe': 'Orange insert, matching the menu key.',
+  'Front bezel': 'Printed case, part 1 of 4. Holds the glass from the front.',
+  'Mid chassis and base': 'Printed case, part 2 of 4, in black. Everything mounts to this.',
+  'Rear shell': 'Printed case, part 3 of 4. The back of the frame; slides off once the plinth is off.',
+  'Plinth': 'Printed case, part 4 of 4, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
   'Waveshare IT8951 driver HAT': 'Drives the e-paper panel over SPI.',
   'GPIO splitter': 'Doubles the 40-pin header: one for the HAT, one for wiring.',
@@ -246,7 +246,7 @@ const DETAILS = {
   'Adafruit MAX98357A amplifier': 'I2S class-D amplifier, 3 W.',
   'Headers, resistors, capacitors and diode': 'Sense dividers, supply capacitor, Schottky diode.',
   'LiPo battery, 4400 mAh': 'Keeps the alarm going through a power cut.',
-  'Visaton FRS 5 X speaker': '5 cm full-range driver, fires out the left side.',
+  'Visaton FRS 5 X speaker': '5 cm full-range driver, fires out the left side of the plinth.',
   'USB-C power inlet': 'Mains power, centre of the back.',
   'E-paper flex adapter': 'Joins the panel flex to the ribbon for the HAT.',
   'Adafruit NeoKey 1x4 QT': 'Four key sockets with backlights, on I2C.',
@@ -258,8 +258,8 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Mid chassis and base', 'Accent stripe', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
-const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 84, 130], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
+const OUTSIDE = new Set(['Front bezel', 'Rear shell', 'Plinth', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
 const SVGNS = 'http://www.w3.org/2000/svg';
 let labelsOn = false, labelHover = null;
@@ -301,7 +301,7 @@ function spread(col, yMin, yMax, step) {            // keep labels in anchor ord
 }
 function layoutLabels(e1) {
   const W = window.innerWidth, H = window.innerHeight, phone = W <= 640;
-  const inside = state.hidden.has('Rear shell') ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
+  const inside = state.hidden.has('Rear shell') && state.hidden.has('Plinth') ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
   const live = [];
   for (const l of labels) {
     proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
