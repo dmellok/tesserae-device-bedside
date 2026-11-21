@@ -107,8 +107,11 @@ async function load() {
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
+// These two sets differ in length between versions, so the viewer names them without one.
+const SCREW_NAMES = { 'Speaker screws and nuts, M4 x 8': 'Speaker screws and nuts, M4', 'Frame screws, M3 x 8': 'Frame screws, M3' };
 function addParts(meta, bin, variantOf) {
   for (const p of meta.parts) {
+    p.name = SCREW_NAMES[p.name] || p.name;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, p.pos, p.verts * 3), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bin, p.nrm, p.verts * 3), 3));
@@ -404,8 +407,8 @@ const BUILD = [
   ['Power and amp board', ['Power and amp protoboard', 'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'Power board screws, M2 x 6'], along(WN, 150)],
   ['Key module', ['Adafruit NeoKey 1x4 QT', 'Cherry MX Brown switches', 'Key module screws, M2.5 x 8'], along(VN, 120)],
   ['Rotary encoder', ['Adafruit I2C rotary encoder'], [-70, 60, 0]],
-  ['Base tray', ['Base tray', 'Frame screws, M3 x 8'], [0, 0, -130]],
-  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4 x 8'], [90, 40, 40]],
+  ['Base tray', ['Base tray', 'Frame screws, M3'], [0, 0, -130]],
+  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40]],
   ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
   ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
   ['Wiring', ['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables'], [0, 60, 30]],
@@ -509,8 +512,8 @@ $('apart').addEventListener('click', () => {
 });
 
 // What comes away with the base tray of MK II.I and MK III when the case is exploded: the parts fixed to it, and the screws that come up through it.
-const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4 x 8', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
-  'Base screws, M3 x 12', 'Frame screws, M3 x 8']);
+const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
+  'Base screws, M3 x 12', 'Frame screws, M3']);
 const TRAY_DROP = 70;
 
 // ---------- hover ----------
@@ -548,7 +551,7 @@ const DETAILS = {
   'Mid chassis and base': 'Printed case. Everything mounts to this.',
   'Frame plate': 'Printed case, in black. The boards, keys and encoder mount to this. A beam along its foot and five gussets up its back screw to the base tray.',
   'Base tray': 'Printed case, in black. Carries the battery, speaker, USB-C inlet and power switch.',
-  'Frame screws, M3 x 8': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets.',
+  'Frame screws, M3': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets. All M3 x 8 on MK II.I; on MK III the four in the foot are M3 x 12.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
@@ -559,7 +562,7 @@ const DETAILS = {
   'Power board screws, M2 x 6': 'Four, one per corner.',
   'Flex adapter screws, M2 x 5': 'Four, one per corner.',
   'Key module screws, M2.5 x 8': 'Four, down through the NeoKey into the fins.',
-  'Speaker screws and nuts, M4 x 8': 'Two, through the lugs and the baffle.',
+  'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',

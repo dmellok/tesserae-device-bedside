@@ -23,6 +23,7 @@ def bezel():
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
+def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
 def mounts():
     add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
     # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
@@ -53,7 +54,7 @@ def mounts():
     tadd.append(SUB(duct, [cyl((2, 49, 33.3), (16, 49, 33.3), 23.5), box(0, 0, 0, 20, 120, 23.5)]))
     tcut.append(cyl((14, 49, 33.3), (19, 49, 33.3), 23.0))
     for y, z in ((70.21, 54.51), (27.79, 12.09)): tcut.append(cyl((14, y, z), (19, y, z), 2.2))
-    tcut.append(NUT_RELIEF())
+    tcut.append(NUT_RELIEF()); tcut += TIP_RELIEF()
     # Battery: a raised pad with low walls and two tunnels for cable ties
     bx = lambda x0, y0, z0, x1, y1, z1: box(x0 + BX, y0, z0, x1 + BX, y1, z1)
     tadd += [bx(78.7, 44.7, 3, 134.9, 73.4, 7),
@@ -98,7 +99,7 @@ def plate():
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
     cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
     cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ]
-    cuts += [cyl((x, y, 2.9), (x, y, 10), 1.25) for x, y in FS + HS]                                 # 2.5 mm holes the tray screws thread into
+    cuts += [cyl((x, y, 2.9), (x, y, 15), 1.25) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 10), 1.25) for x, y in HS]      # the foot takes M3 x 12, the heels M3 x 8
     return SUB(m, cuts + cut)
 def tray():
     # black: the flat base. Prints as it stands.
@@ -170,7 +171,7 @@ def shell():
     s = SUB(slab(0), [cavity()])
     # the frame overhangs the tray and plinth on each side, so its underside is closed there with a floor
     s = U([s] + [INTER(slab(0), box(x0, -80, 10 + G, x1, 300, 10 + G + T)) for x0, x1 in ((0, PI + T), (244 - PI - T, 244))])
-    cuts = [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - 1, WSO + 1, 1.7) for u, v, r in BACK]                       # key channel, open to the front
+    cuts = TIP_RELIEF() + [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - 1, WSO + 1, 1.7) for u, v, r in BACK]                       # key channel, open to the front
     # slats on the top left, mirroring the key block. Across the top they are 1 mm grooves; down the back they go right through, as the high outlet for the floor vents
     cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
     cuts += [obox(25 + 4.5*i, 166, WSO - T - 1, 27 + 4.5*i, 187, WSO + 1) for i in range(17)]
@@ -210,10 +211,10 @@ def screws():
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
     add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
     add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
-    add('Speaker', [U([screw((19.5, y, z), (-1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 with a nut behind the baffle
+    add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
     add('Back', [screw(F(u, v, WSO), nW, 8.0, 1.5, 2.8, 1.8) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36, 129.6)])
-    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in FS + HS])                # M3 x 8 up through the tray into the frame plate's foot and the gusset heels    # M2.5 x 8 down through the breakout
+    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 12.0, 1.5, 2.75, 1.7) for x, y in FS] + [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
     return out
 def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
@@ -222,7 +223,7 @@ def plinth():
     s = U([s] + [b for x, y in rear for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 1.25) for x, y in rear]
     cuts += [box(87.7, YR - T - 1, 9, 134.9, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
-    cuts += grille(-1, PI) + grille(1, PI)                                                   # the speaker fires out of the left one; the right one matches it
+    cuts += TIP_RELIEF() + grille(-1, PI) + grille(1, PI)                                                   # the speaker fires out of the left one; the right one matches it
     return SUB(s, cuts)
 def run(_context: str):
     case = doc_named('Bedside case'); case.activate()
@@ -300,4 +301,4 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK III case: base tray as deep as the plinth'))
+    print('save', case.save('MK III case: foot screws M3 x 12, speaker screws M4 x 10 with washers'))
