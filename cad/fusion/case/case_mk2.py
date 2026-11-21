@@ -15,6 +15,7 @@ def bezel():
     cuts += [wcyl(u, v, 0.5, 6.5, 2.0) for u, v in BZ]               # M3 heat-set holes from the back
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
+BACK = [(16, 178), (228, 178), (16, 105), (228, 105)]                              # rear shell screws through the back (u, v)
 def NUT_RELIEF(): return cyl((11.2, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def mounts():
     add, cut = [], []
@@ -59,6 +60,8 @@ def mounts():
     cut += [box(111.2, YR - T - 0.1, 42, 132.8, YR - 0.4, 46.0)]       # relief for the board's edge and its two screw heads
     cut += [box(x0 + r, y0, z0, x1 - r, y1, z1), box(x0, y0, z0 + r, x1, y1, z1 - r)] + [cyl((x, y0, z), (x, y1, z), r) for x in (x0 + r, x1 - r) for z in (z0 + r, z1 - r)]
     for x in (114.36, 129.6): cut.append(cyl((x, 80.94, 33), (x, 80.94, 42.1), 1.05))
+    # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back into heat-set inserts
+    for u, v in BACK: add.append(wcyl(u, v, 7.5, WSO - T, 4.0)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 2.0))
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
     for x0, n in ((24, 8), (145, 12)):
         cut += [box(x0 + 7*i, 22, -3, x0 + 7*i + 2.5, 62, 3.5) for i in range(n)]
@@ -116,7 +119,7 @@ def shell():
     front = [p for p in POSTS if p[1] < 40]
     s = U([s] + [b for x, y in front for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in front]
-    cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()]                       # key channel, open to the front
+    cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - 1, WSO + 1, 1.7) for u, v in BACK]                       # key channel, open to the front
     # slats on the top left, mirroring the key block: 1 mm grooves that run back across the top and 30 mm down the back
     cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
     ky, kz = F(0, KV, KW)[1:]
@@ -160,6 +163,7 @@ def screws():
     add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
     add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
     add('Speaker', [U([screw((19.5, y, z), (-1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 with a nut behind the baffle
+    add('Back', [screw(F(u, v, WSO), nW, 8.0, 1.5, 2.8, 1.8) for u, v in BACK])                         # M3 x 8 through the back of the rear shell into the chassis posts
     add('USB', [screw((x, 80.94, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36, 129.6)])    # M2.5 x 8 down through the breakout
     return out
 def plinth():
@@ -246,4 +250,4 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK II case: screws drawn in'))
+    print('save', case.save('MK II case: four screws through the back of the rear shell'))

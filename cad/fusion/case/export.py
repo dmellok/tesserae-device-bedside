@@ -5,7 +5,7 @@ W = (0, C, -S); V = (0, S, C)
 def mul(v, k): return [round(x*k, 3) for x in v]
 Z3 = [0, 0, 0]
 ONLY = None
-SCREWS = {'Bezel': (Z3, mul(W, 26)), 'Shell': ([0, 0, -45], Z3), 'HAT': (Z3, mul(W, 12)), 'Board': (Z3, mul(W, 9)), 'Adapter': (Z3, [0, 36, 0]),
+SCREWS = {'Bezel': (Z3, mul(W, 26)), 'Shell': ([0, 0, -45], Z3), 'Back': ([0, 205, 0], Z3), 'HAT': (Z3, mul(W, 12)), 'Board': (Z3, mul(W, 9)), 'Adapter': (Z3, [0, 36, 0]),
           'Key': (Z3, mul(V, 9)), 'Speaker': (Z3, [28, 0, 0]), 'USB': (Z3, [0, 70, 42])}
 def classify(path, bname=''):
     top = path[0][5:] if path[0].startswith('MK I ') else path[0]; sub = path[1] if len(path) > 1 else ''
