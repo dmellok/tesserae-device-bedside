@@ -322,15 +322,17 @@ $('share').addEventListener('click', async () => {
 });
 
 // ---------- demo ----------
-// A scripted run: the beige case turning slowly, a fade to wireframe as the backdrop turns to blueprint, then the case and its components coming apart.
+// A scripted run: the beige case turning slowly on the light backdrop, a fade to wireframe as the backdrop turns to blueprint, the case and its components
+// coming apart and closing again, and a finish back in beige with the panel facing the viewer.
 // Anything the viewer does to the model stops it. #demo=1 in the link plays it once on load, #demo=loop keeps it going.
 let demo = null;
+const FACING = [70, -650, 150];           // nearly square-on to the panel
 const ramp = (t, a, b) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
 function setSlider(id, v) { state[id] = v; ranges[id].value = v; }
 function startDemo(loop) {
   demo = { t: 0, loop, step: 0, before: { bg: state.bg, finish: state.finish, wire, labels: labelsOn, spin: state.spin, open: panel.classList.contains('open') } };
   setLabels(false); setWire(false); wireShown = 0.001;                     // snap back to solid before the run starts
-  setFinish('Beige', false); setBackdrop('Night', false);
+  setFinish('Beige', false); setBackdrop('Studio', false);
   setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0.5);    // slow enough that the explode is seen from the front quarter
   state.hidden.clear(); for (const b of $('show').children) b.setAttribute('aria-pressed', 'true'); applyVisibility();
   controls.target.copy(CENTRE);
@@ -343,8 +345,8 @@ function stopDemo(restore) {
   const b = demo.before; demo = null;
   $('demo').textContent = 'Play demo'; $('demo').setAttribute('aria-pressed', 'false');
   if (!restore) return;                                                   // stopped by hand: leave things as they are
-  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', b.spin);
-  setWire(b.wire); setLabels(b.labels); setFinish(b.finish, false); setBackdrop(b.bg, false);
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0);
+  setWire(false); setLabels(b.labels);                                   // ends as it began: solid beige on the light backdrop, panel facing the viewer
   if (b.open) setOpen(true);
 }
 function stepDemo(dt) {
@@ -353,8 +355,12 @@ function stepDemo(dt) {
   at(0, 3.0, () => setWire(true));
   at(1, 3.6, () => setBackdrop('Blueprint', false));
   if (d.t > 6) { setSlider('explode', ramp(d.t, 6, 9.5) - ramp(d.t, 17, 20)); setSlider('parts', ramp(d.t, 9.5, 12.5) - ramp(d.t, 15.5, 18)); }
-  at(2, 20.2, () => { setWire(false); setBackdrop('Night', false); });
-  if (d.t >= 23) { if (d.loop) { d.t = 0; d.step = 0; } else stopDemo(true); }
+  at(2, 17.5, () => {                                                     // come round to face the panel for the finish
+    setSlider('spin', 0);
+    flight = { from: camera.position.clone(), to: new THREE.Vector3(...FACING).multiplyScalar(lastFit).add(CENTRE), t: 0, rate: 0.45 };
+  });
+  at(3, 20.2, () => { setWire(false); setBackdrop('Studio', false); });
+  if (d.t >= 23) { if (d.loop) startDemo(true); else stopDemo(true); }
 }
 $('demo').addEventListener('click', () => { if (demo) stopDemo(false); else { startDemo(false); track('bedside_demo'); } });
 canvas.addEventListener('pointerdown', () => stopDemo(false));
@@ -603,7 +609,7 @@ function frame() {
   }
 
   if (flight) {
-    flight.t = Math.min(1, flight.t + dt * 1.6);
+    flight.t = Math.min(1, flight.t + dt * (flight.rate || 1.6));
     const s = flight.t * flight.t * (3 - 2 * flight.t);
     camera.position.lerpVectors(flight.from, flight.to, s);
     if (flight.t >= 1) flight = null;
