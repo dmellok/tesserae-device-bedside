@@ -115,6 +115,8 @@ def shell():
     s = U([s] + [b for x, y in front for b in post(x, y)])
     cuts = [cyl((x, y, 9), (x, y, 17), 2.0) for x, y in front]
     cuts += [obox(142.6, 190, WB - 1, 219.9, 200, 26.6)]                                     # key channel, open to the front
+    # slats on the top left, mirroring the key block: 1 mm grooves that run back across the top and 30 mm down the back
+    cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
@@ -225,4 +227,4 @@ def run(_context: str):
         for b in made[n].bRepBodies: b.appearance = appearance(design, 'c%d_%d_%d' % COL[n], COL[n])
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Power switch'
     add_bodies(o.component, switch_bodies(), design)
-    print('save', case.save('MK II case: snap-on access cover and a power switch on the chassis'))
+    print('save', case.save('MK II case: slats on the top left'))
