@@ -53,15 +53,25 @@ def run(_context: str):
     # --- protoboard to the splitter's 40-pin header ---
     GP = [('W', 2, RED, '5V'), ('V', 6, BLK, 'GND'), ('U', 36, WHT, 'SD'), ('S', 40, BLU, 'DIN'), ('R', 12, YEL, 'BCLK'), ('Q', 35, GRN, 'LRC'),
           ('K', 22, BLU, 'low battery'), ('H', 37, GRY, 'battery sense'), ('G', 13, GRN, 'mains sense')]
+    # One loom: the nine wires lie three by three along the board's edge, turn down the gap beside the board, and peel off to their pins. Cable ties hold it.
     for i, (h, n, col, what) in enumerate(GP):
-        uh = hole(h); vp, wp = pin(n); wl = 24.6 + 1.45*(i % 5); ul = 129.4 + 1.1*(i//5); vt = 60.0 + 1.5*(i//5)
+        uh = hole(h); vp, wp = pin(n); wl = 26.0 + 1.35*(i % 3); ul = 129.3 + 1.35*(i//3); vt = 60.0 + 1.35*(i//3)
         pts = [F(uh, 58.6, 17.6), F(uh, 58.6, 22.5), F(uh + 3, vt, wl), F(min(uh + 12, 123), vt, wl)]
-        if abs(vp - vt) > 6: pts += [F(126.0, vt, wl), F(ul, min(vp, 62.5) + (5.0 if vp < vt else -2.0), wl)]          # down or up the gap beside the board
+        if abs(vp - vt) > 6:
+            pts += [F(126.0, vt, wl)]
+            if vp < vt - 14: pts += [F(ul, vt - 7.0, wl)]                                                    # round the corner, then straight down
+            pts += [F(ul, min(vp, 62.5) + (5.0 if vp < vt else -2.0), wl)]
         else: pts += [F(127.5, (vt + vp)/2, wl)]
         ve = min(vp, 62.5)                                                                                 # under the access cover's snap tab
-        pts += [F(132.4, ve, 31.8), F(133.6, (ve + vp)/2, 38.5), F(135.2, vp, wp), F(137.0, vp, wp)]            # into the hump beside its wall, then into the plug
+        pts += [F(132.4, ve, 31.8), F(133.6, (ve + vp)/2, 38.5), F(135.2, vp, wp), F(137.0, vp, wp)]
         items.append(('GPIO pin %d, %s' % (n, what), tube('GPIO %d' % n, pts, R), col))
-        items.append(('Dupont plug, pin %d' % n, fbox(135.0, vp - 1.25, wp - 1.25, 149.0, vp + 1.25, wp + 1.25), (24, 24, 26)))
+    items.append(('Dupont plug, 2x20', fbox(135.0, 19.3, 42.7, 149.0, 70.1, 47.8), (24, 24, 26)))
+    def tie(k, lo, hi):
+        band = SUB(fbox(*lo, *hi), [fbox(*[(lo[j] + 0.4 if hi[j] - lo[j] > 3 else lo[j] - 1) for j in range(3)], *[(hi[j] - 0.4 if hi[j] - lo[j] > 3 else hi[j] + 1) for j in range(3)])])
+        items.append(('GPIO cable tie %d' % k, band, (236, 236, 230)))
+    tie(1, (123.4, 58.85, 24.85), (125.8, 63.85, 29.85))
+    tie(2, (128.15, 46.0, 24.85), (133.15, 48.4, 29.85))
+    tie(3, (128.15, 33.5, 24.85), (133.15, 35.9, 29.85))
     # --- USB-C inlet and power switch, in the plinth ---
     def down(h, k): uh = hole(h); return [F(uh, 58.6, 17.6), F(uh, 58.6, 24.5), F(uh, 57.3 - k/2, 30.6), F(uh + 1, 51.5 - k, 35.0), F(uh + 2, 46.5 - k, 40.5)]
     for h, col, xp, name in (('F', RED, 113.5, 'USB-C VBUS'), ('E', BLK, 116.04, 'USB-C GND')):

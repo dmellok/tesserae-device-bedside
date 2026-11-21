@@ -74,7 +74,7 @@ def run(_context: str):
             if not mk1 and not body.isVisible: continue
             try: m = body.meshManager.displayMeshes.bestMesh
             except RuntimeError: m = None          # hidden bodies have no display mesh
-            if path[0].startswith('Wiring') and not body.name.startswith(('Dupont', 'Battery plug', 'STEMMA QT plug')):
+            if path[0].startswith('Wiring') and not body.name.startswith(('Dupont', 'Battery plug', 'STEMMA QT plug', 'GPIO cable tie')):
                 calc = body.meshManager.createMeshCalculator(); calc.surfaceTolerance = 0.006; m = calc.calculate()      # wires are thin: a coarse mesh keeps the download small
             if m is None or m.triangleCount == 0:
                 calc = body.meshManager.createMeshCalculator(); calc.setQuality(adsk.fusion.TriangleMeshQualityOptions.NormalQualityTriangleMesh); m = calc.calculate()

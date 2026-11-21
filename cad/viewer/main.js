@@ -427,7 +427,7 @@ const DETAILS = {
   'Pimoroni Pico Plus 2 W': 'RP2350B, 16 MB flash, 8 MB PSRAM, Wi-Fi.',
   'Hard Stuff Pico to Pi HAT': 'Adapts the Pico to the Raspberry Pi header.',
   'Pico sockets and headers': 'The Pico plugs in, so it can come out.',
-  'Wires to the GPIO header': 'Soldered into the power board, plugged onto the splitter: 5 V, ground, I2S audio and the three sense lines.',
+  'Wires to the GPIO header': 'One zip-tied loom, soldered into the power board, with a 2x20 Dupont plug on the splitter: 5 V, ground, I2S audio and the three sense lines.',
   'USB-C inlet wires': 'Red and black, 5 V in from the socket.',
   'Power switch wires': 'White and black: closing the switch pulls EN low and turns the device off.',
   'Speaker leads': 'A twisted pair from the amp terminal block.',
