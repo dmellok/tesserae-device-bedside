@@ -243,9 +243,20 @@ $('fab').addEventListener('click', () => { setOpen(true); track('bedside_control
 $('closeControls').addEventListener('click', () => { setOpen(false); track('bedside_controls', { open: false }); });
 canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false); });
 
+// With the electronics hidden, what is left is what gets printed or screwed together: the case, its own screws, the keycaps and the knob.
+const CASE_SCREWS = /^(Bezel|Base|Back|Frame) screws/;
+const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || CASE_SCREWS.test(p.name));
+let elec = true;
+function setElec(on) {
+  elec = on;
+  $('elecToggle').setAttribute('aria-pressed', String(on));
+  applyVisibility();
+}
+$('elecToggle').addEventListener('click', () => { setElec(!elec); track('bedside_electronics', { on: elec }); });
+
 function applyVisibility() {
   for (const p of parts) {
-    const hide = state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
+    const hide = (!elec && !isHardware(p)) || state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
     p.off = hide; p.mesh.visible = !hide;
   }
   if (build) planBuild();
@@ -272,6 +283,7 @@ $('reset').addEventListener('click', () => {
   setLabels(false);
   setCats(CATS_DEFAULT);
   setWire(false);
+  elec = true; $('elecToggle').setAttribute('aria-pressed', 'true');
   setDesign('mk2');
   setBackdrop('Auto');
   for (const b of $('show').children) b.setAttribute('aria-pressed', 'true');
@@ -293,6 +305,7 @@ function shareURL() {
   if (state.spin > 0) q.set('spin', state.spin.toFixed(1));
   if (state.hidden.size) q.set('hide', [...state.hidden].map((n) => SLUGS[n]).filter(Boolean).join('_'));
   if (wire) q.set('wire', '1');
+  if (!elec) q.set('elec', '0');
   if (labelsOn) { q.set('labels', '1'); if ([...cats].sort().join() !== [...CATS_DEFAULT].sort().join()) q.set('lab', [...cats].join('_').toLowerCase()); }
   const eye = camera.position.clone().sub(controls.target).divideScalar(lastFit).add(controls.target);   // without the explode pull-back, which is re-applied on load
   q.set('cam', [...eye.toArray(), ...controls.target.toArray()].map(Math.round).join('_'));
@@ -800,6 +813,7 @@ load().then(() => {
   try { localStorage.removeItem('bedside-labels'); } catch (e) { /* storage blocked */ }   // labels are never remembered: off unless the link asks for them
   setLabels(q.get('labels') === '1');
   if (q.get('wire') === '1') setWire(true);
+  if (q.get('elec') === '0') { elec = false; $('elecToggle').setAttribute('aria-pressed', 'false'); }
   applyURL(q);
   applyVisibility();
   if (q.has('demo')) startDemo(q.get('demo') === 'loop');
