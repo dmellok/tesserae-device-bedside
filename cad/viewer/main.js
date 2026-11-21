@@ -118,7 +118,7 @@ function addParts(meta, bin, variantOf) {
     mesh.userData.name = p.name;
     mesh.userData.base = colour.clone();
     model.add(mesh);
-    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name) });
+    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name), op: p.opacity });
   }
 }
 async function addScreen(meta) {
@@ -134,7 +134,7 @@ async function addScreen(meta) {
   const screen = new THREE.Mesh(quad, new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false, color: 0xe4e4e0 }));
   screen.userData.name = 'E Ink ED103TC2 panel';
   model.add(screen);
-  parts.push({ mesh: screen, name: screen.userData.name, e1: new THREE.Vector3(...s.e1), e2: new THREE.Vector3(...s.e2), screen: true });
+  parts.push({ mesh: screen, name: screen.userData.name, e1: new THREE.Vector3(...s.e1), e2: new THREE.Vector3(...s.e2), screen: true, op: 1 });
 }
 
 // ---------- controls ----------
@@ -247,8 +247,9 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 function applyVisibility() {
   for (const p of parts) {
     const hide = state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
-    p.mesh.visible = !hide;
+    p.off = hide; p.mesh.visible = !hide;
   }
+  if (build) planBuild();
 }
 
 let flight = null;
@@ -263,7 +264,7 @@ for (const [name, pos] of Object.entries(VIEWS)) {
   $('views').appendChild(b);
 }
 $('reset').addEventListener('click', () => {
-  stopDemo(false);
+  stopDemo(false); endBuild();
   track('bedside_reset');
   state.explode = state.parts = state.spin = 0;
   for (const k of Object.keys(ranges)) ranges[k].value = 0;
@@ -334,6 +335,7 @@ const FACING = [70, -650, 150];           // nearly square-on to the panel
 const ramp = (t, a, b) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
 function setSlider(id, v) { state[id] = v; ranges[id].value = v; }
 function startDemo(loop) {
+  endBuild();
   demo = { t: 0, loop, step: 0, before: { bg: state.bg, finish: state.finish, wire, labels: labelsOn, spin: state.spin, open: panel.classList.contains('open') } };
   setLabels(false); setWire(false); wireShown = 0.001;                     // snap back to solid before the run starts
   setFinish('Beige', false); setBackdrop('Studio', false);
@@ -370,6 +372,126 @@ $('demo').addEventListener('click', () => { if (demo) stopDemo(false); else { st
 canvas.addEventListener('pointerdown', () => stopDemo(false));
 canvas.addEventListener('wheel', () => stopDemo(false), { passive: true });
 for (const id of ['explode', 'parts', 'spin']) $(id).addEventListener('pointerdown', () => stopDemo(false));
+for (const id of ['explode', 'parts']) $(id).addEventListener('pointerdown', () => endBuild());
+
+// ---------- build ----------
+// The device going together one module at a time, in the order it is assembled, or coming apart in reverse. Each module flies in from the side it is
+// fitted from and fades up as it lands; its screws follow. #build=1 in the link plays it on load, #build=loop builds and strips it over and over.
+const WN = [0, Math.cos(Math.PI / 12), -Math.sin(Math.PI / 12)], VN = [0, Math.sin(Math.PI / 12), Math.cos(Math.PI / 12)];   // into the frame, and up it
+const along = (v, k) => v.map((x) => x * k);
+const BUILD = [
+  ['Chassis frame', ['Frame plate', 'Mid chassis and base'], [0, 0, 150]],
+  ['E-ink panel', ['E Ink ED103TC2 panel'], along(WN, -160)],
+  ['Front bezel', ['Front bezel', 'Accent stripe', 'Bezel screws, M3 x 8'], along(WN, -190)],
+  ['Flex adapter', ['E-paper flex adapter', 'Flex adapter screws, M2 x 5'], along(WN, 130)],
+  ['Display driver HAT', ['Waveshare IT8951 driver HAT', 'Driver HAT screws, M2.5 x 8'], along(WN, 150)],
+  ['Pico and GPIO splitter', ['GPIO splitter', 'Hard Stuff Pico to Pi HAT', 'Pico sockets and headers', 'Pimoroni Pico Plus 2 W'], along(WN, 170)],
+  ['Power and amp board', ['Power and amp protoboard', 'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'Power board screws, M2 x 6'], along(WN, 150)],
+  ['Key module', ['Adafruit NeoKey 1x4 QT', 'Cherry MX Brown switches', 'Key module screws, M2.5 x 8'], along(VN, 120)],
+  ['Rotary encoder', ['Adafruit I2C rotary encoder'], [-70, 60, 0]],
+  ['Base tray', ['Base tray', 'Frame screws, M3 x 8'], [0, 0, -130]],
+  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4 x 8'], [90, 40, 40]],
+  ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
+  ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
+  ['Wiring', ['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables'], [0, 60, 30]],
+  ['Rear shell', ['Rear shell', 'Back screws, M3 x 8'], [0, 210, 30]],
+  ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
+  ['Plinth', ['Plinth', 'Base screws, M3 x 12'], [0, 230, 0]],
+  ['Access cover', ['Access cover'], [0, 130, 110]],
+];
+const BUILD_FROM = { Knob: [110, 0, 0] };                 // parts that arrive from somewhere other than their module
+const STEP = 0.85, DUR = 1.25, SCREW_LAG = 0.55;        // seconds between modules, for one to land, and before its screws follow
+let build = null, buildSpread = 0;
+function planBuild() {
+  // which modules this version of the case has, and where each of their parts flies in from
+  const mods = [];
+  for (const p of parts) p.mod = -1;
+  for (const [title, names, from] of BUILD) {
+    const mine = parts.filter((p) => names.includes(p.name) && !p.off);
+    if (!mine.length) continue;
+    for (const p of mine) {
+      p.mod = mods.length;
+      const own = p.e1.clone().add(p.e2);
+      p.from = new THREE.Vector3(...(BUILD_FROM[p.name] || from));
+      if (isScrew(p.name) && own.lengthSq() > 1) p.from = own.setLength(70);       // screws go in along their own axis
+    }
+    mods.push(title);
+  }
+  build.mods = mods; build.total = (mods.length - 1) * STEP + SCREW_LAG + DUR;
+}
+function startBuild(dir, loop) {
+  const apart = build && build.apart;                    // already stripped to the chassis: build from there
+  const before = build ? build.before : { spin: state.spin, labels: labelsOn };
+  stopDemo(false);
+  build = { dir, loop, speed: 1, hold: 0, keep: dir < 0 || apart, apart: false, before };
+  setLabels(false); if (wire) { setWire(false); wireShown = 0.001; }
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 1.5);          // a slow turn, so the front and the back are both seen going on
+  if (phone.matches) setOpen(false);
+  planBuild();
+  build.T = dir < 0 ? build.total : (build.keep ? STEP - 0.3 : -0.3);
+  if (dir > 0 && !build.keep) flight = { from: camera.position.clone(), to: new THREE.Vector3(...VIEWS.Front).multiplyScalar(lastFit).add(CENTRE), t: 0 };
+  paintBuild();
+}
+function endBuild() {
+  // put every part back as it was
+  if (!build) return;
+  const b = build.before; build = null;
+  for (const p of parts) {
+    const m = p.mesh.material;
+    if (p.faded) { m.opacity = p.op; m.transparent = p.op < 1; m.depthWrite = p.op >= 1; m.needsUpdate = true; p.faded = false; }
+    p.mesh.visible = !p.off;
+  }
+  setSlider('spin', b.spin); setLabels(b.labels);
+  paintBuild();
+}
+function paintBuild() {
+  const run = build && build.dir !== 0;
+  $('build').textContent = run && build.dir > 0 ? 'Finish' : 'Build';
+  $('apart').textContent = run && build.dir < 0 ? 'Finish' : 'Take apart';
+  $('build').setAttribute('aria-pressed', String(!!(run && build.dir > 0))); $('apart').setAttribute('aria-pressed', String(!!(run && build.dir < 0)));
+  if (!run) $('buildCap').classList.remove('on');
+}
+function stepBuild(dt) {
+  const b = build;
+  if (b.dir === 0) {                                      // resting between runs of the loop
+    if (b.loop && (b.hold -= dt) <= 0) { if (b.apart) startBuild(1, true); else startBuild(-1, true); }
+    return;
+  }
+  b.T += b.dir * dt * b.speed;
+  const i = Math.min(b.mods.length - 1, Math.max(0, Math.floor(b.T / STEP)));
+  const cap = $('buildCap');
+  cap.textContent = `${b.mods[i]}  ·  ${i + 1} of ${b.mods.length}`; cap.classList.add('on');
+  if (b.dir > 0 && b.T >= b.total) {
+    if (b.loop) { b.dir = 0; b.hold = 2.5; b.T = b.total; paintBuild(); } else { endBuild(); flight = { from: camera.position.clone(), to: new THREE.Vector3(...FACING).multiplyScalar(lastFit).add(CENTRE), t: 0, rate: 0.6 }; }
+  } else if (b.dir < 0 && b.T <= STEP) {
+    b.T = STEP; b.dir = 0; b.apart = true; b.hold = 1.5; setSlider('spin', b.before.spin); paintBuild();
+  }
+}
+function placeBuild(p) {
+  // how far in this part is: 0 away and unseen, 1 home
+  let t = 1;
+  if (p.mod > 0 || (p.mod === 0 && !build.keep)) t = Math.min(1, Math.max(0, (build.T - p.mod * STEP - (isScrew(p.name) ? SCREW_LAG : 0)) / DUR));
+  const m = p.mesh.material;
+  if (t >= 1) {
+    if (p.faded) { m.opacity = p.op; m.transparent = p.op < 1; m.depthWrite = p.op >= 1; m.needsUpdate = true; p.faded = false; }
+    p.mesh.visible = !p.off;
+    return;
+  }
+  const fade = Math.min(1, t * 2.4), s = 1 - Math.pow(1 - t, 3);
+  if (!m.transparent) { m.transparent = true; m.needsUpdate = true; }
+  m.opacity = p.op * fade; m.depthWrite = p.op >= 1 && fade > 0.7; p.faded = true;
+  p.mesh.visible = !p.off && t > 0.002;
+  p.mesh.position.addScaledVector(p.from, 1 - s);
+}
+$('build').addEventListener('click', () => {
+  if (build && build.dir > 0) { build.speed = 6; build.loop = false; return; }
+  startBuild(1, false); track('bedside_build', { way: 'build' });
+});
+$('apart').addEventListener('click', () => {
+  if (build && build.dir < 0) { build.speed = 6; build.loop = false; return; }
+  if (build && build.apart) return;
+  startBuild(-1, false); track('bedside_build', { way: 'apart' });
+});
 
 // ---------- hover ----------
 const ray = new THREE.Raycaster();
@@ -612,6 +734,8 @@ function frame() {
   shown.parts += (state.parts - shown.parts) * k;
   const e1 = shown.explode * shown.explode * (3 - 2 * shown.explode);     // ease the ends of each slider
   const e2 = shown.parts * shown.parts * (3 - 2 * shown.parts);
+  if (build) stepBuild(dt);
+  buildSpread += ((build && build.dir !== 0 ? 1 : 0) - buildSpread) * (1 - Math.exp(-dt * 2));
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
     if (p.name === 'USB-C power inlet' && state.design !== 'mk21') p.mesh.position.y -= 12;     // MK II.I's plinth is 12 mm deeper, and the inlet is exported in that place
@@ -620,9 +744,10 @@ function frame() {
       const k = state.design === 'mk21' ? 1 : 0.76;
       p.mesh.scale.y = k; p.mesh.position.y += 34 * (1 - k);
     }
+    if (build) placeBuild(p);
   }
   // pull the camera back as the model spreads out, keeping whatever zoom the viewer chose
-  const fit = 1 + 0.55 * e1 + 0.12 * e2;
+  const fit = 1 + 0.55 * e1 + 0.12 * e2 + 0.3 * buildSpread;
   if (Math.abs(fit - lastFit) > 1e-5) {
     const ratio = fit / lastFit;
     camera.position.sub(controls.target).multiplyScalar(ratio).add(controls.target);
@@ -677,8 +802,10 @@ load().then(() => {
   setLabels(q.get('labels') === '1');
   if (q.get('wire') === '1') setWire(true);
   applyURL(q);
+  applyVisibility();
   if (q.has('demo')) startDemo(q.get('demo') === 'loop');
-  applyVisibility(); frame();
+  else if (q.has('build')) startBuild(1, q.get('build') === 'loop');
+  frame();
 }).catch((err) => {
   const el = document.getElementById('loading');
   if (el) el.textContent = 'Could not load the model';

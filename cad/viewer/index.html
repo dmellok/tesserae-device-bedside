@@ -48,6 +48,8 @@
   input[type=range] { flex:1; accent-color:var(--accent); height:18px; min-width:0; }
   #tip { left:16px; top:16px; padding:10px 14px; min-width:200px; max-width:320px; pointer-events:none; opacity:0; transform:translateY(-4px); transition:opacity .15s, transform .15s; }
   #tip.on { opacity:1; transform:none; }
+  #buildCap { left:50%; bottom:22px; transform:translateX(-50%); padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .3s; }
+  #buildCap.on { opacity:1; }
   #tip .name { font-size:14px; font-weight:600; }
   #tip .meta { color:var(--dim); font-size:12px; margin-top:1px; }
   #tip i { width:9px; height:9px; border-radius:3px; display:inline-block; margin-right:6px; }
@@ -120,6 +122,7 @@
 <div class="bd" id="bdA"></div><div class="bd" id="bdB"></div>
 <canvas id="scene"></canvas>
 <div id="loading">Loading model…</div>
+<div id="buildCap" class="panel" aria-live="polite"></div>
 <div id="tip" class="panel"><div class="name"></div><div class="meta"></div></div>
 <div id="note">Work in progress: a 10.3 inch e-paper bedside dashboard.<br>Drag to rotate · scroll to zoom · hover a part to name it</div>
 <svg id="leaders" aria-hidden="true"></svg>
@@ -150,6 +153,7 @@
     <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
   </div>
   <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button><button id="demo" type="button" aria-pressed="false">Play demo</button></div></div>
+  <div class="group"><div class="seg"><button id="build" type="button" aria-pressed="false">Build</button><button id="apart" type="button" aria-pressed="false">Take apart</button></div></div>
   </div>
 </div>
 <script>
