@@ -124,7 +124,7 @@ def grille(side):
     # removal slots through a side wall over the speaker cone. They lean with the frame, and the bar between two of them sits on the seam between shell and plinth.
     x0, x1 = (-1, T + 0.5) if side < 0 else (244 - T - 0.5, 245)
     out = []
-    for wc in (26.5, 32.5, 38.5, 44.5, 50.5, 56.5, 62.5):
+    for wc in (24.5, 30.5, 40.5, 46.5, 52.5, 58.5):      # the bar on the seam is 7.5 mm, so each colour keeps 3.75 mm beside it
         h = math.sqrt(max(0.0, 22.0**2 - (wc - 41.8)**2))
         if h >= 6: out.append(INTER(obox(-5, 33.3 - h, wc - 1.25, 250, 33.3 + h, wc + 1.25), box(x0, -80, 13, x1, 200, 60)))
     return out
