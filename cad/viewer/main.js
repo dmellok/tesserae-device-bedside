@@ -58,17 +58,24 @@ function applyBackdrop() {
   const b = BACKDROPS[name];
   lightBackdrop = b.light;
   document.documentElement.dataset.bg = name.toLowerCase();
+  const under = $('bdA'), over = $('bdB');           // two stacked layers, so a change of backdrop fades instead of snapping
+  if (over.dataset.bg !== name.toLowerCase()) {
+    under.dataset.bg = over.dataset.bg || name.toLowerCase();
+    over.style.transition = 'none'; over.style.opacity = 0; void over.offsetWidth;
+    over.dataset.bg = name.toLowerCase();
+    over.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity .9s ease'; over.style.opacity = 1;
+  }
   document.documentElement.classList.toggle('light', b.light);
   document.querySelector('meta[name=theme-color]').content = b.theme;
   paintWire();
 }
-function setBackdrop(name) {
+function setBackdrop(name, save = true) {
   state.bg = Object.keys(BACKDROPS).find((k) => k.toLowerCase() === String(name || '').toLowerCase()) || 'Auto';
   for (const b of $('backdrop').children) b.setAttribute('aria-pressed', String(b.textContent === state.bg));
-  try { localStorage.setItem('bedside-backdrop', state.bg); } catch (e) { /* storage blocked */ }
+  if (save) try { localStorage.setItem('bedside-backdrop', state.bg); } catch (e) { /* storage blocked */ }
   applyBackdrop();
 }
-function setFinish(name) {
+function setFinish(name, save = true) {
   const f = FINISHES[name] || FINISHES.Beige;
   state.finish = FINISHES[name] ? name : 'Beige';
   for (const p of parts) {
@@ -78,7 +85,7 @@ function setFinish(name) {
   }
   applyBackdrop();
   for (const b of $('finish').children) b.setAttribute('aria-pressed', String(b.textContent === state.finish));
-  try { localStorage.setItem('bedside-finish', state.finish); } catch (e) { /* storage blocked */ }
+  if (save) try { localStorage.setItem('bedside-finish', state.finish); } catch (e) { /* storage blocked */ }
   if (hovered) { const h = hovered; hovered = null; setHover(h); }
 }
 
@@ -192,22 +199,32 @@ function paintWire() {
     if (hovered === p.name) c.copy(HOT);
   }
 }
+let wireShown = 0;                          // 0 solid .. 1 wireframe; eased in the frame loop so the case fades between the two
 function setWire(on) {
   wire = on;
   for (const p of parts) {
-    if (p.screen || !SHELL.includes(p.name)) continue;
-    if (on && !p.lines) {                 // built on first use: only the creases, not every triangle
-      p.lines = new THREE.LineSegments(new THREE.EdgesGeometry(p.mesh.geometry, 28), new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9 }));
-      p.lines.raycast = () => {};
-      p.mesh.add(p.lines);
-    }
-    if (p.lines) p.lines.visible = on;
-    const m = p.mesh.material;
-    m.transparent = on; m.opacity = on ? 0.07 : 1; m.depthWrite = !on; m.needsUpdate = true;
+    if (p.screen || !SHELL.includes(p.name) || p.lines) continue;
+    // built on first use: only the creases, not every triangle
+    p.lines = new THREE.LineSegments(new THREE.EdgesGeometry(p.mesh.geometry, 28), new THREE.LineBasicMaterial({ transparent: true, opacity: 0 }));
+    p.lines.raycast = () => {}; p.lines.visible = false;
+    p.mesh.add(p.lines);
   }
   paintWire();
   $('wireToggle').setAttribute('aria-pressed', String(on));
   pointerMoved = true;
+}
+function applyWire(dt) {
+  const target = wire ? 1 : 0;
+  if (wireShown === target) return;
+  wireShown += (target - wireShown) * (1 - Math.exp(-dt * 2.6));
+  if (Math.abs(target - wireShown) < 0.004) wireShown = target;
+  for (const p of parts) {
+    if (!p.lines) continue;
+    const m = p.mesh.material, see = wireShown > 0;
+    if (m.transparent !== see) { m.transparent = see; m.needsUpdate = true; }
+    m.opacity = 1 - 0.93 * wireShown; m.depthWrite = wireShown < 0.5;
+    p.lines.visible = see; p.lines.material.opacity = 0.9 * wireShown;
+  }
 }
 $('wireToggle').addEventListener('click', () => { setWire(!wire); track('bedside_wireframe', { on: wire }); });
 
@@ -242,6 +259,7 @@ for (const [name, pos] of Object.entries(VIEWS)) {
   $('views').appendChild(b);
 }
 $('reset').addEventListener('click', () => {
+  stopDemo(false);
   track('bedside_reset');
   state.explode = state.parts = state.spin = 0;
   for (const k of Object.keys(ranges)) ranges[k].value = 0;
@@ -302,6 +320,46 @@ $('share').addEventListener('click', async () => {
   setTimeout(() => { btn.textContent = 'Copy link'; }, 2000);
   track('bedside_share');
 });
+
+// ---------- demo ----------
+// A scripted run: the beige case turning slowly, a fade to wireframe as the backdrop turns to blueprint, then the case and its components coming apart.
+// Anything the viewer does to the model stops it. #demo=1 in the link plays it once on load, #demo=loop keeps it going.
+let demo = null;
+const ramp = (t, a, b) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
+function setSlider(id, v) { state[id] = v; ranges[id].value = v; }
+function startDemo(loop) {
+  demo = { t: 0, loop, step: 0, before: { bg: state.bg, finish: state.finish, wire, labels: labelsOn, spin: state.spin, open: panel.classList.contains('open') } };
+  setLabels(false); setWire(false); wireShown = 0.001;                     // snap back to solid before the run starts
+  setFinish('Beige', false); setBackdrop('Night', false);
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0.5);    // slow enough that the explode is seen from the front quarter
+  state.hidden.clear(); for (const b of $('show').children) b.setAttribute('aria-pressed', 'true'); applyVisibility();
+  controls.target.copy(CENTRE);
+  flight = { from: camera.position.clone(), to: new THREE.Vector3(...VIEWS.Front).multiplyScalar(lastFit).add(CENTRE), t: 0 };
+  setOpen(false);
+  $('demo').textContent = 'Stop demo'; $('demo').setAttribute('aria-pressed', 'true');
+}
+function stopDemo(restore) {
+  if (!demo) return;
+  const b = demo.before; demo = null;
+  $('demo').textContent = 'Play demo'; $('demo').setAttribute('aria-pressed', 'false');
+  if (!restore) return;                                                   // stopped by hand: leave things as they are
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', b.spin);
+  setWire(b.wire); setLabels(b.labels); setFinish(b.finish, false); setBackdrop(b.bg, false);
+  if (b.open) setOpen(true);
+}
+function stepDemo(dt) {
+  const d = demo; d.t += dt;
+  const at = (n, time, fn) => { if (d.step === n && d.t >= time) { d.step++; fn(); } };
+  at(0, 3.0, () => setWire(true));
+  at(1, 3.6, () => setBackdrop('Blueprint', false));
+  if (d.t > 6) { setSlider('explode', ramp(d.t, 6, 9.5) - ramp(d.t, 17, 20)); setSlider('parts', ramp(d.t, 9.5, 12.5) - ramp(d.t, 15.5, 18)); }
+  at(2, 20.2, () => { setWire(false); setBackdrop('Night', false); });
+  if (d.t >= 23) { if (d.loop) { d.t = 0; d.step = 0; } else stopDemo(true); }
+}
+$('demo').addEventListener('click', () => { if (demo) stopDemo(false); else { startDemo(false); track('bedside_demo'); } });
+canvas.addEventListener('pointerdown', () => stopDemo(false));
+canvas.addEventListener('wheel', () => stopDemo(false), { passive: true });
+for (const id of ['explode', 'parts', 'spin']) $(id).addEventListener('pointerdown', () => stopDemo(false));
 
 // ---------- hover ----------
 const ray = new THREE.Raycaster();
@@ -563,6 +621,9 @@ function frame() {
     camera.updateProjectionMatrix();
   }
 
+  applyWire(dt);
+  if (demo) stepDemo(dt);
+
   if (labelsOn) layoutLabels(e1);
 
   if (pointerMoved && !pointerDown && !labelHover) {
@@ -588,6 +649,7 @@ load().then(() => {
   setLabels(q.get('labels') === '1');
   if (q.get('wire') === '1') setWire(true);
   applyURL(q);
+  if (q.has('demo')) startDemo(q.get('demo') === 'loop');
   applyVisibility(); frame();
 }).catch((err) => {
   const el = document.getElementById('loading');

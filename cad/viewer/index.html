@@ -72,6 +72,15 @@
   html[data-bg=blueprint] { --bg0:#0a2146; --bg1:#16407c; --panel:rgba(10,28,60,.72); --dim:#9db4d6;
     --overlay:linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px; }
   html[data-bg=dusk] { --overlay:linear-gradient(180deg, #141433 0%, #4a2459 52%, #c9663f 88%, #f0a35e 100%); --panel:rgba(30,20,48,.7); --dim:#b9a9c9; }
+  /* The same backdrops as two stacked layers behind the canvas, so one can fade into the next */
+  .bd { position:fixed; inset:0; pointer-events:none; --overlay:none; background:var(--overlay), radial-gradient(ellipse at 50% 42%, var(--bg1) 0%, var(--bg0) 68%); }
+  .bd[data-bg=night] { --bg0:#0b0d12; --bg1:#161a24; }
+  .bd[data-bg=studio] { --bg0:#c9cdd3; --bg1:#f4f5f7; }
+  .bd[data-bg=paper] { --bg0:#e2dacb; --bg1:#fbf8f2; }
+  .bd[data-bg=sky] { --overlay:linear-gradient(180deg, #8ec5f0 0%, #d7ecfa 58%, #f3efe6 100%); }
+  .bd[data-bg=blueprint] { --bg0:#0a2146; --bg1:#16407c;
+    --overlay:linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px; }
+  .bd[data-bg=dusk] { --overlay:linear-gradient(180deg, #141433 0%, #4a2459 52%, #c9663f 88%, #f0a35e 100%); }
   @media (max-width:640px) {
     #note { display:none; }
     #controls { left:10px; bottom:calc(10px + env(safe-area-inset-bottom)); }
@@ -108,6 +117,7 @@
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
+<div class="bd" id="bdA"></div><div class="bd" id="bdB"></div>
 <canvas id="scene"></canvas>
 <div id="loading">Loading model…</div>
 <div id="tip" class="panel"><div class="name"></div><div class="meta"></div></div>
@@ -139,7 +149,7 @@
     <div class="seg" id="labelCats" style="margin-top:4px" aria-label="Which labels to show"></div>
     <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
   </div>
-  <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button></div></div>
+  <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button><button id="demo" type="button" aria-pressed="false">Play demo</button></div></div>
   </div>
 </div>
 <script>
