@@ -395,7 +395,8 @@ for (const id of ['explode', 'parts']) $(id).addEventListener('pointerdown', () 
 
 // ---------- build ----------
 // The device going together one module at a time, in the order it is assembled, or coming apart in reverse. Each module flies in from the side it is
-// fitted from and fades up as it lands; its screws follow. #build=1 in the link plays it on load, #build=loop builds and strips it over and over.
+// fitted from and fades up as it lands; its screws follow. The camera comes round to face that side first, and the next module waits for it.
+// #build=1 in the link plays it on load, #build=loop builds and strips it over and over.
 const WN = [0, Math.cos(Math.PI / 12), -Math.sin(Math.PI / 12)], VN = [0, Math.sin(Math.PI / 12), Math.cos(Math.PI / 12)];   // into the frame, and up it
 const along = (v, k) => v.map((x) => x * k);
 const BUILD = [
@@ -419,11 +420,12 @@ const BUILD = [
   ['Access cover', ['Access cover'], [0, 130, 110]],
 ];
 const BUILD_FROM = { Knob: [110, 0, 0] };                 // parts that arrive from somewhere other than their module
-const STEP = 0.85, DUR = 1.25, SCREW_LAG = 0.55;        // seconds between modules, for one to land, and before its screws follow
+const STEP = 0.85, DUR = 1.1, SCREW_LAG = 0.6;          // seconds: the least between modules, for one to land, and before its screws follow
+const PAUSE = 0.3, SETTLE = 0.2;                         // a beat after a module is home, and another once the camera has come round, before the next one moves
 let build = null, buildSpread = 0;
 function planBuild() {
   // which modules this version of the case has, and where each of their parts flies in from
-  const mods = [];
+  const mods = [], screwed = [];
   for (const p of parts) p.mod = -1;
   for (const [title, names, from] of BUILD) {
     const mine = parts.filter((p) => names.includes(p.name) && !p.off);
@@ -434,9 +436,37 @@ function planBuild() {
       p.from = new THREE.Vector3(...(BUILD_FROM[p.name] || from));
       if (isScrew(p.name) && own.lengthSq() > 1) p.from = own.setLength(70);       // screws go in along their own axis
     }
-    mods.push(title);
+    mods.push(title); screwed.push(mine.some((p) => isScrew(p.name)));
   }
-  build.mods = mods; build.total = (mods.length - 1) * STEP + SCREW_LAG + DUR;
+  // where the camera stands for each module, as [azimuth, elevation], and when each module starts: one thing at a time, so a module and its screws
+  // are home before the camera turns, and the camera is still before the next module moves
+  const at = [], view = [], turn = [];
+  let az = FRONT_AZ;
+  for (const title of mods) {
+    const [x, y, z] = BUILD.find((b) => b[0] === title)[2], h = Math.hypot(x, y), n = Math.hypot(h, z);
+    if (h > 0.5 * n) {                                    // fitted from a side: stand a quarter-turn off square to it, on whichever hand is nearer
+      const side = Math.atan2(y, x), off = Math.atan2(Math.sin(az - side), Math.cos(az - side));
+      if (Math.abs(off) > SIDE_KEEP) az = side + Math.sign(off || 1) * SIDE_OFF + Math.round((az - side - Math.sign(off || 1) * SIDE_OFF) / (2 * Math.PI)) * 2 * Math.PI;
+    }                                                     // fitted from above or below: stay where it is, and look down or up at it
+    const el = (16 + (z > 0 ? 24 : 40) * z / n) * Math.PI / 180;
+    const i = view.length, far = i ? Math.hypot(az - view[i - 1][0], el - view[i - 1][1]) : 0;
+    turn.push(far < 0.02 ? 0 : 0.35 + far / TURN_RATE);
+    at.push(i ? at[i - 1] + DUR + (screwed[i - 1] ? SCREW_LAG : 0) + PAUSE + (turn[i] ? turn[i] + SETTLE : 0) : 0);
+    view.push([az, el]);
+  }
+  build.mods = mods; build.at = at; build.view = view; build.turn = turn;
+  build.total = at[at.length - 1] + SCREW_LAG + DUR;
+}
+const FRONT_AZ = Math.atan2(-560, 330), SIDE_OFF = 28 * Math.PI / 180, SIDE_KEEP = 40 * Math.PI / 180, TURN_RATE = 130 * Math.PI / 180;   // radians a second
+function buildView(T) {
+  // the camera's place at time T: at a module's angle while it goes on, turning to the next one's just before that starts
+  const b = build;
+  let i = 0;
+  while (i + 1 < b.at.length && b.at[i + 1] <= T) i++;
+  if (i + 1 >= b.at.length || !b.turn[i + 1]) return b.view[i];
+  let u = Math.min(1, Math.max(0, (T - (b.at[i + 1] - SETTLE - b.turn[i + 1])) / b.turn[i + 1]));
+  u = u * u * (3 - 2 * u);
+  return [b.view[i][0] + (b.view[i + 1][0] - b.view[i][0]) * u, b.view[i][1] + (b.view[i + 1][1] - b.view[i][1]) * u];
 }
 function startBuild(dir, loop) {
   const apart = build && build.apart;                    // already stripped to the chassis: build from there
@@ -444,11 +474,11 @@ function startBuild(dir, loop) {
   stopDemo(false);
   build = { dir, loop, speed: 1, hold: 0, keep: dir < 0 || apart, apart: false, before };
   setLabels(false); if (wire) { setWire(false); wireShown = 0.001; }
-  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 1.5);          // a slow turn, so the front and the back are both seen going on
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0);            // the camera is led round to each module instead
   if (phone.matches) setOpen(false);
   planBuild();
-  build.T = dir < 0 ? build.total : (build.keep ? STEP - 0.3 : -0.3);
-  if (dir > 0 && !build.keep) flight = { from: camera.position.clone(), to: new THREE.Vector3(...VIEWS.Front).multiplyScalar(lastFit).add(CENTRE), t: 0 };
+  build.T = dir < 0 ? build.total : (build.keep ? (build.at[1] || STEP) - 0.3 : -0.5);
+  flight = null;
   paintBuild();
 }
 function endBuild() {
@@ -477,19 +507,20 @@ function stepBuild(dt) {
     return;
   }
   b.T += b.dir * dt * b.speed;
-  const i = Math.min(b.mods.length - 1, Math.max(0, Math.floor(b.T / STEP)));
+  let i = 0;
+  while (i + 1 < b.at.length && b.at[i + 1] <= b.T) i++;
   const cap = $('buildCap');
   cap.textContent = `${b.mods[i]}  ·  ${i + 1} of ${b.mods.length}`; cap.classList.add('on');
   if (b.dir > 0 && b.T >= b.total) {
     if (b.loop) { b.dir = 0; b.hold = 2.5; b.T = b.total; paintBuild(); } else { endBuild(); flight = { from: camera.position.clone(), to: new THREE.Vector3(...FACING).multiplyScalar(lastFit).add(CENTRE), t: 0, rate: 0.6 }; }
-  } else if (b.dir < 0 && b.T <= STEP) {
-    b.T = STEP; b.dir = 0; b.apart = true; b.hold = 1.5; setSlider('spin', b.before.spin); paintBuild();
+  } else if (b.dir < 0 && b.T <= (b.at[1] || STEP)) {
+    b.T = b.at[1] || STEP; b.dir = 0; b.apart = true; b.hold = 1.5; setSlider('spin', b.before.spin); paintBuild();
   }
 }
 function placeBuild(p) {
   // how far in this part is: 0 away and unseen, 1 home
   let t = 1;
-  if (p.mod > 0 || (p.mod === 0 && !build.keep)) t = Math.min(1, Math.max(0, (build.T - p.mod * STEP - (isScrew(p.name) ? SCREW_LAG : 0)) / DUR));
+  if (p.mod > 0 || (p.mod === 0 && !build.keep)) t = Math.min(1, Math.max(0, (build.T - build.at[p.mod] - (isScrew(p.name) ? SCREW_LAG : 0)) / DUR));
   const m = p.mesh.material;
   if (t >= 1) {
     if (p.faded) { m.opacity = p.op; m.transparent = p.op < 1; m.depthWrite = p.op >= 1; m.needsUpdate = true; p.faded = false; }
@@ -527,7 +558,7 @@ canvas.addEventListener('pointermove', (e) => {
   pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   pointerMoved = true;
 });
-canvas.addEventListener('pointerdown', () => { pointerDown = true; });
+canvas.addEventListener('pointerdown', () => { pointerDown = true; if (build) build.free = true; });   // dragging during a build takes the camera over for the rest of it
 window.addEventListener('pointerup', () => { pointerDown = false; });
 canvas.addEventListener('pointerleave', () => { pointer.set(2, 2); pointerMoved = true; });
 
@@ -789,6 +820,13 @@ function frame() {
     const s = flight.t * flight.t * (3 - 2 * flight.t);
     camera.position.lerpVectors(flight.from, flight.to, s);
     if (flight.t >= 1) flight = null;
+  } else if (build && build.dir !== 0 && !build.free) {
+    // lead the camera round to the side the current module goes on from, at whatever distance the viewer chose
+    const [az, el] = buildView(build.T), ease = 1 - Math.exp(-dt * 5);
+    tmp.copy(camera.position).sub(controls.target);
+    const r = tmp.length(), az0 = Math.atan2(tmp.y, tmp.x), el0 = Math.asin(tmp.z / r);
+    const a = az0 + Math.atan2(Math.sin(az - az0), Math.cos(az - az0)) * ease, e = el0 + (el - el0) * ease;
+    camera.position.set(Math.cos(e) * Math.cos(a), Math.cos(e) * Math.sin(a), Math.sin(e)).multiplyScalar(r).add(controls.target);
   } else if (state.spin > 0 && !pointerDown) {
     tmp.copy(camera.position).sub(controls.target).applyAxisAngle(camera.up, dt * state.spin * 0.12);
     camera.position.copy(controls.target).add(tmp);
