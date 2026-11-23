@@ -101,7 +101,9 @@ function setFinish(name, save = true) {
 }
 
 async function load() {
-  const get = (stem) => [fetch(`./data/${stem}.json`).then((r) => r.json()), fetch(`./data/${stem}.bin`).then((r) => r.arrayBuffer())];
+  // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
+  const DATA_V = '20261123b';
+  const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
   const own = (name) => SHELL.includes(name) || name === 'Power switch' || name === 'Rubber feet' || isScrew(name);
@@ -183,7 +185,7 @@ function setDesign(id) {
   state.design = Object.values(DESIGNS).includes(id) ? id : 'mk2';
   for (const b of $('design').children) b.setAttribute('aria-pressed', String(DESIGNS[b.textContent] === state.design));
   for (const b of $('show').children) if (NOT_MK1.includes(b.textContent)) b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth or access cover
-  try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }
+  if (!/[#&]embed/.test(location.hash)) try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }      // the copy inside the assembly guide doesn't change what the viewer remembers
   applyVisibility();
   pointerMoved = true;
   if (hovered) { const h = hovered; hovered = null; setHover(h); }
@@ -286,7 +288,7 @@ for (const [name, pos] of Object.entries(VIEWS)) {
   $('views').appendChild(b);
 }
 $('reset').addEventListener('click', () => {
-  stopDemo(false); endBuild();
+  stopDemo(false); endBuild(); endFlash();
   track('bedside_reset');
   state.explode = state.parts = state.spin = 0;
   for (const k of Object.keys(ranges)) ranges[k].value = 0;
@@ -359,7 +361,7 @@ const FACING = [70, -650, 150];           // nearly square-on to the panel
 const ramp = (t, a, b) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
 function setSlider(id, v) { state[id] = v; ranges[id].value = v; }
 function startDemo(loop) {
-  endBuild();
+  endBuild(); endFlash();
   demo = { t: 0, loop, step: 0, before: { bg: state.bg, finish: state.finish, wire, labels: labelsOn, spin: state.spin, open: panel.classList.contains('open') } };
   setLabels(false); setWire(false); wireShown = 0.001;                     // snap back to solid before the run starts
   setFinish('Beige', false); setBackdrop('Studio', false);
@@ -475,6 +477,7 @@ function buildView(T) {
   return [b.view[i][0] + (b.view[i + 1][0] - b.view[i][0]) * u, b.view[i][1] + (b.view[i + 1][1] - b.view[i][1]) * u];
 }
 function startBuild(dir, loop) {
+  endFlash();
   const apart = build && build.apart;                    // already stripped to the chassis: build from there
   const before = build ? build.before : { spin: state.spin, labels: labelsOn };
   stopDemo(false);
@@ -500,16 +503,22 @@ function endBuild() {
   paintBuild();
 }
 function paintBuild() {
-  const run = build && build.dir !== 0;
+  const run = build && build.dir !== 0 && build.only == null;
   $('build').textContent = run && build.dir > 0 ? 'Finish' : 'Build';
   $('apart').textContent = run && build.dir < 0 ? 'Finish' : 'Take apart';
   $('build').setAttribute('aria-pressed', String(!!(run && build.dir > 0))); $('apart').setAttribute('aria-pressed', String(!!(run && build.dir < 0)));
-  if (!run) $('buildCap').classList.remove('on');
+  if (!run && !(build && build.only != null) && !flash) $('buildCap').classList.remove('on');
 }
 function stepBuild(dt) {
   const b = build;
+  if (b.dir === 0 && b.only != null) return;              // a single step, finished and held
   if (b.dir === 0) {                                      // resting between runs of the loop
     if (b.loop && (b.hold -= dt) <= 0) { if (b.apart) startBuild(1, true); else startBuild(-1, true); }
+    return;
+  }
+  if (b.only != null) {                                   // one step on its own: play it to its end and hold there
+    b.T += b.dir * dt;
+    if ((b.dir > 0 && b.T >= b.stop) || (b.dir < 0 && b.T <= b.stop)) { b.T = b.stop; b.dir = 0; }
     return;
   }
   b.T += b.dir * dt * b.speed;
@@ -540,13 +549,92 @@ function placeBuild(p) {
   p.mesh.position.addScaledVector(p.from, 1 - s);
 }
 $('build').addEventListener('click', () => {
-  if (build && build.dir > 0) { build.speed = 6; build.loop = false; return; }
+  if (build && build.only == null && build.dir > 0) { build.speed = 6; build.loop = false; return; }
   startBuild(1, false); track('bedside_build', { way: 'build' });
 });
 $('apart').addEventListener('click', () => {
-  if (build && build.dir < 0) { build.speed = 6; build.loop = false; return; }
+  if (build && build.only == null && build.dir < 0) { build.speed = 6; build.loop = false; return; }
   if (build && build.apart) return;
   startBuild(-1, false); track('bedside_build', { way: 'apart' });
+});
+
+// ---------- single steps ----------
+// The assembly guide (assembly.html) links to one step at a time: #step=<module> plays that module going on and holds with everything after it
+// still off; with way=apart it plays the module coming off instead. The module is named by its title in BUILD, in lower case with dashes.
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function showStep(id, apart) {
+  endFlash(); stopDemo(false);
+  const before = build ? build.before : { spin: state.spin, labels: labelsOn };
+  build = { dir: apart ? -1 : 1, loop: false, speed: 1, hold: 0, keep: true, apart: false, before, only: 0 };
+  setLabels(false); if (wire) { setWire(false); wireShown = 0.001; }
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0);
+  planBuild();
+  const n = build.mods.findIndex((m) => slug(m) === id);
+  if (n < 0) { endBuild(); return; }
+  const home = build.at[n] + DUR + SCREW_LAG;
+  build.only = n; build.keep = n > 0;
+  build.T = apart ? home + 0.5 : build.at[n] - 0.3;       // a beat before it moves
+  build.stop = apart ? build.at[n] : home;
+  flight = null;
+  const cap = $('buildCap');
+  cap.textContent = apart ? `Remove  ·  ${build.mods[n]}` : `Fit  ·  ${build.mods[n]}  ·  ${n + 1} of ${build.mods.length}`; cap.classList.add('on');
+  paintBuild();
+}
+
+// ---------- flashing ----------
+// #flash=1: the finished device from behind, the access cover coming off and a USB-C cable going into the Pico's port underneath it.
+const PORT = new THREE.Vector3(174.4, 58.43, 75.2), UP_FRAME = new THREE.Vector3(...VN);     // the mouth of the Pico's USB-C socket, and the way it faces: up the leaning frame
+const COVER_OFF = new THREE.Vector3(0, 75, 34);
+let flash = null, cable = null;
+function makeCable() {
+  // drawn here, not exported from the CAD model: a USB-C plug and a length of cable, with +Y pointing away from the port
+  const g = new THREE.Group();
+  const metal = new THREE.MeshStandardMaterial({ color: 0xc9ccd2, roughness: 0.4, metalness: 0.6 }), rubber = new THREE.MeshStandardMaterial({ color: 0x2a2b2f, roughness: 0.8, metalness: 0.02 });
+  const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; g.add(m); };
+  add(new THREE.BoxGeometry(8.3, 6.5, 2.5), metal, -2.25);                 // the plug's shell, 5.5 mm of it inside the socket
+  add(new THREE.BoxGeometry(12, 22, 6.5), rubber, 12);                     // overmould
+  add(new THREE.CylinderGeometry(1.8, 1.8, 150, 16), rubber, 98);          // cable
+  g.setRotationFromMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(1, 0, 0), UP_FRAME, new THREE.Vector3(1, 0, 0).cross(UP_FRAME)));
+  g.visible = false; scene.add(g);
+  return g;
+}
+function startFlash() {
+  stopDemo(false); endBuild();
+  if (!cable) cable = makeCable();
+  setLabels(false); if (wire) { setWire(false); wireShown = 0.001; }
+  setSlider('explode', 0); setSlider('parts', 0); setSlider('spin', 0);
+  flash = { t: -0.6 };
+  flight = { from: camera.position.clone(), to: PORT.clone().add(new THREE.Vector3(-95, 215, 140).multiplyScalar(lastFit)), aimFrom: controls.target.clone(), aim: PORT.clone(), t: 0, rate: 0.9 };
+  const cap = $('buildCap'); cap.textContent = 'Flashing  ·  cover off, USB-C cable into the Pico'; cap.classList.add('on');
+}
+function endFlash() {
+  if (!flash) return;
+  flash = null; cable.visible = false;
+  flight = { from: camera.position.clone(), to: new THREE.Vector3(...VIEWS.Rear).multiplyScalar(lastFit).add(CENTRE), aimFrom: controls.target.clone(), aim: CENTRE.clone(), t: 0 };
+  paintBuild();
+}
+const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
+function placeFlash(p) {
+  if (p.name === 'Access cover') p.mesh.position.addScaledVector(COVER_OFF, smooth(flash.t / 1.0));
+}
+function stepFlash(dt) {
+  flash.t = Math.min(4, flash.t + dt);
+  const out = 1 - smooth((flash.t - 1.3) / 1.2);
+  cable.visible = flash.t > 1.2;
+  cable.position.copy(PORT).addScaledVector(UP_FRAME, 55 * out);
+}
+function applyHashStep(q) {
+  if (q.has('step')) showStep(q.get('step'), q.get('way') === 'apart');
+  else if (q.has('flash')) startFlash();
+  else return false;
+  return true;
+}
+window.addEventListener('hashchange', () => {
+  // the assembly guide drives an embedded copy of this page by changing its hash
+  const q = new URLSearchParams(location.hash.slice(1));
+  const mk = Object.keys(MK_HASH).find((k) => MK_HASH[k] === q.get('mk'));
+  if (mk && mk !== state.design) { setDesign(mk); applyVisibility(); }
+  if (!applyHashStep(q)) { endBuild(); endFlash(); }
 });
 
 // What comes away with the base tray of MK II.I and MK III when the case is exploded: the parts fixed to it, and the screws that come up through it.
@@ -799,6 +887,7 @@ function frame() {
   const e1 = shown.explode * shown.explode * (3 - 2 * shown.explode);     // ease the ends of each slider
   const e2 = shown.parts * shown.parts * (3 - 2 * shown.parts);
   if (build) stepBuild(dt);
+  if (flash) stepFlash(dt);
   buildSpread += ((build && build.dir !== 0 ? 1 : 0) - buildSpread) * (1 - Math.exp(-dt * 2));
   for (const p of parts) {
     p.mesh.position.copy(p.e1).multiplyScalar(e1).addScaledVector(p.e2, e2);
@@ -812,6 +901,7 @@ function frame() {
       p.mesh.scale.x = k; p.mesh.position.x += 75 * (1 - k);
     }
     if (build) placeBuild(p);
+    if (flash) placeFlash(p);
   }
   // pull the camera back as the model spreads out, keeping whatever zoom the viewer chose
   const fit = 1 + 0.55 * e1 + 0.12 * e2 + 0.3 * buildSpread;
@@ -826,10 +916,11 @@ function frame() {
     flight.t = Math.min(1, flight.t + dt * (flight.rate || 1.6));
     const s = flight.t * flight.t * (3 - 2 * flight.t);
     camera.position.lerpVectors(flight.from, flight.to, s);
+    if (flight.aim) controls.target.lerpVectors(flight.aimFrom, flight.aim, s);
     if (flight.t >= 1) flight = null;
-  } else if (build && build.dir !== 0 && !build.free) {
+  } else if (build && !build.free && (build.dir !== 0 || build.only != null)) {
     // lead the camera round to the side the current module goes on from, at whatever distance the viewer chose
-    const [az, el] = buildView(build.T), ease = 1 - Math.exp(-dt * 5);
+    const [az, el] = build.only != null ? build.view[build.only] : buildView(build.T), ease = 1 - Math.exp(-dt * 5);
     tmp.copy(camera.position).sub(controls.target);
     const r = tmp.length(), az0 = Math.atan2(tmp.y, tmp.x), el0 = Math.asin(tmp.z / r);
     const a = az0 + Math.atan2(Math.sin(az - az0), Math.cos(az - az0)) * ease, e = el0 + (el - el0) * ease;
@@ -878,7 +969,9 @@ load().then(() => {
   if (q.get('elec') === '0') { elec = false; $('elecToggle').setAttribute('aria-pressed', 'false'); }
   applyURL(q);
   applyVisibility();
-  if (q.has('demo')) startDemo(q.get('demo') === 'loop');
+  if (q.has('embed')) { document.documentElement.dataset.embed = '1'; setOpen(false); }      // inside the assembly guide: no controls, just the model
+  if (applyHashStep(q)) { /* one step of the build, or the flashing view */ }
+  else if (q.has('demo')) startDemo(q.get('demo') === 'loop');
   else if (q.has('build')) startBuild(1, q.get('build') === 'loop');
   frame();
 }).catch((err) => {
