@@ -348,7 +348,7 @@ $('reset').addEventListener('click', () => {
 });
 
 // ---------- share ----------
-// Everything on screen goes into the link's hash: version, colours, sliders, hidden parts, wireframe, labels and the camera.
+// Everything on screen goes into the link's hash: version, colours, sliders, hidden parts, wireframe, labels, screw sizes and the camera.
 const SLUGS = { 'Front bezel': 'bezel', 'Rear shell': 'shell', Plinth: 'plinth', 'Access cover': 'cover' };
 function shareURL() {
   const q = new URLSearchParams();
@@ -363,6 +363,7 @@ function shareURL() {
   if (wire) q.set('wire', '1');
   if (!elec) q.set('elec', '0');
   if (labelsOn) { q.set('labels', '1'); if ([...cats].sort().join() !== [...CATS_DEFAULT].sort().join()) q.set('lab', [...cats].join('_').toLowerCase()); }
+  if (sizesOn) q.set('sizes', '1');
   const eye = camera.position.clone().sub(controls.target).divideScalar(lastFit).add(controls.target);   // without the explode pull-back, which is re-applied on load
   q.set('cam', [...eye.toArray(), ...controls.target.toArray()].map(Math.round).join('_'));
   return location.origin + location.pathname + '#' + q.toString();
@@ -906,6 +907,63 @@ function layoutLabels(e1) {
   }
 }
 
+// ---------- screw sizes ----------
+// A second kind of callout: a small tag on every single screw giving its size. A set of screws is one mesh, so the screws are found by splitting
+// the mesh into its connected pieces; the size comes from the set's name, or for the sets that mix lengths, from the version and the screw's length.
+const sizeTags = [];
+let sizesOn = false;
+function screwSize(part, long) {
+  const m = / (M[\d.]+ x \d+)$/.exec(part.name);
+  if (m) return m[1];
+  const mk3 = (part.variants || []).includes('mk3');
+  if (part.name.startsWith('Base screws')) return mk3 ? 'M3 x 16' : 'M3 x 12';
+  if (part.name.startsWith('Speaker screws')) return mk3 ? 'M4 x 10' : 'M4 x 8';
+  if (part.name.startsWith('Frame screws')) return mk3 && long > 15 ? 'M3 x 12' : 'M3 x 8';      // the four in the plate's foot are the long ones
+  return (/M[\d.]+/.exec(part.name) || ['?'])[0];
+}
+function buildSizeTags() {
+  for (const part of parts) {
+    if (!isScrew(part.name)) continue;
+    const pos = part.mesh.geometry.attributes.position, idx = part.mesh.geometry.index.array, n = pos.count;
+    const parent = new Int32Array(n), first = new Map();
+    const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    for (let i = 0; i < n; i++) {                       // corners that share a place count as one, so a screw's faces join up
+      const k = Math.round(pos.getX(i) * 50) + '_' + Math.round(pos.getY(i) * 50) + '_' + Math.round(pos.getZ(i) * 50);
+      if (first.has(k)) parent[i] = first.get(k); else { first.set(k, i); parent[i] = i; }
+    }
+    for (let t = 0; t < idx.length; t += 3) { const a = find(idx[t]); parent[find(idx[t + 1])] = a; parent[find(idx[t + 2])] = a; }
+    const boxes = new Map(), v = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const r = find(i);
+      if (!boxes.has(r)) boxes.set(r, new THREE.Box3());
+      boxes.get(r).expandByPoint(v.fromBufferAttribute(pos, i));
+    }
+    for (const box of boxes.values()) {
+      const size = screwSize(part, box.getSize(v).length());
+      const el = document.createElement('div');
+      el.className = 'tag d' + /M([\d.]+)/.exec(size)[1].replace('.', '');
+      el.textContent = size; el.title = part.name;
+      $('sizes').appendChild(el);
+      sizeTags.push({ el, part, anchor: box.getCenter(new THREE.Vector3()), on: false });
+    }
+  }
+}
+function setSizes(on) {
+  sizesOn = on;
+  document.body.classList.toggle('sizes', on);
+  $('sizesToggle').setAttribute('aria-pressed', String(on));
+}
+$('sizesToggle').addEventListener('click', () => { setSizes(!sizesOn); track('bedside_screw_sizes', { on: sizesOn }); });
+function layoutSizes() {
+  const W = window.innerWidth, H = window.innerHeight;
+  for (const t of sizeTags) {
+    proj.copy(t.anchor).add(t.part.mesh.position).project(camera);
+    const on = t.part.mesh.visible && proj.z < 1;
+    if (on) t.el.style.transform = `translate(${((proj.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-proj.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, -150%)`;
+    if (on !== t.on) { t.on = on; t.el.style.opacity = on ? 1 : 0; }
+  }
+}
+
 // ---------- frame loop ----------
 // On a wide screen the open controls panel covers the left of the window, so the model is centred in what is left over
 let viewShift = 0, shiftApplied = null;
@@ -991,6 +1049,7 @@ function frame() {
   if (demo) stepDemo(dt);
 
   if (labelsOn) layoutLabels(e1);
+  if (sizesOn) layoutSizes();
 
   if (pointerMoved && !pointerDown && !labelHover) {
     pointerMoved = false;
@@ -1015,6 +1074,8 @@ load().then(() => {
   buildLabels();
   try { localStorage.removeItem('bedside-labels'); } catch (e) { /* storage blocked */ }   // labels are never remembered: off unless the link asks for them
   setLabels(q.get('labels') === '1');
+  buildSizeTags();
+  setSizes(q.get('sizes') === '1');
   if (q.get('wire') === '1') setWire(true);
   if (q.get('elec') === '0') { elec = false; $('elecToggle').setAttribute('aria-pressed', 'false'); }
   applyURL(q);
