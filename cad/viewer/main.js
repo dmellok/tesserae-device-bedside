@@ -460,8 +460,8 @@ const BUILD = [
   ['Power and amp board', ['Power and amp protoboard', 'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'Power board screws, M2 x 6'], along(WN, 150)],
   ['Key module', ['Adafruit NeoKey 1x4 QT', 'Cherry MX Brown switches', 'Key module screws, M2.5 x 8'], along(VN, 120)],
   ['Rotary encoder', ['Adafruit I2C rotary encoder'], [-70, 60, 0]],
-  ['Base tray', ['Base tray'], [0, 0, -130]],
-  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40]],      // onto the tray before the tray meets the plate: its bolts are hard to reach afterwards
+  ['Base tray', ['Base tray'], [0, 0, -130], 'Frame onto the base tray'],                 // the tray waits below, on the bench, until the frame goes onto it
+  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40], 'Frame onto the base tray'],      // onto the tray before the tray meets the plate: its bolts are hard to reach afterwards
   ['Frame onto the base tray', ['Frame screws, M3'], [0, 0, -130]],
   ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
   ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
@@ -472,6 +472,7 @@ const BUILD = [
   ['Access cover', ['Access cover'], [0, 130, 110]],
   ['Rubber feet', ['Rubber feet'], [0, 0, -90]],
 ];
+const BENCH = [0, 0, -60], BENCH_V = new THREE.Vector3(...BENCH);                                // where a module that is built up off the device waits, from its place on it
 const BUILD_FROM = { Knob: [110, 0, 0] };                 // parts that arrive from somewhere other than their module
 const STEP = 0.85, DUR = 1.1, SCREW_LAG = 0.6;          // seconds: the least between modules, for one to land, and before its screws follow
 const PAUSE = 0.3, SETTLE = 0.2;                         // a beat after a module is home, and another once the camera has come round, before the next one moves
@@ -479,12 +480,14 @@ let build = null, buildSpread = 0;
 function planBuild() {
   // which modules this version of the case has, and where each of their parts flies in from
   const mods = [], screwed = [];
-  for (const p of parts) p.mod = -1;
-  for (const [title, names, from] of BUILD) {
+  for (const p of parts) { p.mod = -1; p.joinAt = null; }
+  const waiting = [];
+  for (const [title, names, from, joins] of BUILD) {
     const mine = parts.filter((p) => names.includes(p.name) && !p.off);
     if (!mine.length) continue;
     for (const p of mine) {
       p.mod = mods.length;
+      if (joins) waiting.push([p, joins]);
       const own = p.e1.clone().add(p.e2);
       p.from = new THREE.Vector3(...(BUILD_FROM[p.name] || from));
       if (isScrew(p.name) && own.lengthSq() > 1) p.from = own.setLength(70);       // screws go in along their own axis
@@ -507,6 +510,7 @@ function planBuild() {
     at.push(i ? at[i - 1] + DUR + (screwed[i - 1] ? SCREW_LAG : 0) + PAUSE + (turn[i] ? turn[i] + SETTLE : 0) : 0);
     view.push([az, el]);
   }
+  for (const [p, joins] of waiting) { const j = mods.indexOf(joins); if (j >= 0) p.joinAt = j; }      // only where this version has that step
   build.mods = mods; build.at = at; build.view = view; build.turn = turn; build.screwed = screwed;
   build.total = at[at.length - 1] + SCREW_LAG + DUR;
 }
@@ -581,6 +585,10 @@ function placeBuild(p) {
   // how far in this part is: 0 away and unseen, 1 home
   let t = 1;
   if (p.mod > 0 || (p.mod === 0 && !build.keep)) t = Math.min(1, Math.max(0, (build.T - build.at[p.mod] - (isScrew(p.name) ? SCREW_LAG : 0)) / DUR));
+  if (p.joinAt != null) {                                 // built up on the bench: it comes home with the rest of its sub-assembly at the step that joins them
+    const u = Math.min(1, Math.max(0, (build.T - build.at[p.joinAt]) / DUR));
+    p.mesh.position.addScaledVector(BENCH_V, 1 - u * u * (3 - 2 * u));
+  }
   const m = p.mesh.material;
   if (t >= 1) {
     if (p.faded) { m.opacity = p.op; m.transparent = p.op < 1; m.depthWrite = p.op >= 1; m.needsUpdate = true; p.faded = false; }
