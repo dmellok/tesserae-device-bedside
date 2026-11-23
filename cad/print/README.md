@@ -1,6 +1,6 @@
 # Print files
 
-`keycap.stl` is one keycap for a Cherry MX switch, top face down as it prints. Print four: three grey and one orange for the menu key. No supports.
+`keycap.stl` is one keycap for a Cherry MX switch, top face down as it prints. It is longer in front of the post than behind it; the long side faces the screen. Print four: three grey and one orange for the menu key. No supports.
 
 Print `../test-fits/15-keycap-stem-fit.stl` first. It has three stem sockets, marked with one, two and three notches (tight, as modelled, loose).
 Push each onto a switch and say which one holds firmly without forcing; the keycap uses the two-notch size.

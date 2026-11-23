@@ -56,24 +56,27 @@ def foam_bodies():
         out.append(('Foam %d' % (i + 1), obox(u0, v0, GLASS_W + 0.78, u1, v1, 5.85), (92, 95, 102)))      # the foam is black; it is drawn grey so it shows against the black plate
         out.append(('Adhesive %d' % (i + 1), obox(u0, v0, 5.85, u1, v1, 6.05), (40, 120, 235)))      # the sticky side, drawn blue: it goes on the plate, not the panel
     return out
-# Printed keycaps for the four Cherry MX switches: a flat-topped shell 17.5 x 16 mm with a round post underneath that pushes onto the switch's cross.
+# Printed keycaps for the four Cherry MX switches: a flat-topped shell 17.5 mm wide with a round post underneath that pushes onto the switch's cross.
+# Each runs from 0.7 mm behind the bezel to 0.8 mm short of the back of the slot in the shell, so the slot is filled: 19.1 mm front to back, with the
+# post 3.1 mm behind the middle, over the switch.
 # They print top face down, so the post and its socket point straight up. Positions and heights are in frame coordinates (v runs up the switch).
 KCU, KCW = (152.325, 171.375, 190.425, 209.475), 17.8          # switch centres across, and front to back
-KC_HALF = (8.75, 8.0)                                          # half the cap's width and depth
+KC_HALF, KC_W0, KC_W1 = 8.75, 6.7, 25.8                        # half the cap's width, and its front and back faces
 KC_TOP, KC_SKIRT, KC_SEAT = 198.5, 193.0, 191.1                # top face, bottom of the skirt, and the shoulder on the switch's slider that the post sits on
 KC_WALL, KC_ROOF, KC_POST, KC_SOCK = 1.2, 1.4, 2.75, 4.0       # wall, top thickness, post radius, socket depth
 KC_ARM = (4.25, 1.35, 4.45)                                    # the cross socket: one arm's length, both arms' width, the other arm's length. The stem's arms are 4.0 x 1.17.
 def keycap(uc):
-    (hu, hw), w = KC_HALF, KCW
-    shell = SUB(obox(uc - hu, KC_SKIRT, w - hw, uc + hu, KC_TOP, w + hw), [obox(uc - hu + KC_WALL, KC_SKIRT - 0.1, w - hw + KC_WALL, uc + hu - KC_WALL, KC_TOP - KC_ROOF, w + hw - KC_WALL)])
+    hu, w = KC_HALF, KCW
+    shell = SUB(obox(uc - hu, KC_SKIRT, KC_W0, uc + hu, KC_TOP, KC_W1), [obox(uc - hu + KC_WALL, KC_SKIRT - 0.1, KC_W0 + KC_WALL, uc + hu - KC_WALL, KC_TOP - KC_ROOF, KC_W1 - KC_WALL)])
     cap = U([shell, cyl(F(uc, KC_SEAT, w), F(uc, KC_TOP - KC_ROOF + 0.1, w), KC_POST)])
     a, t, b = KC_ARM
     return SUB(cap, [obox(uc - a/2, KC_SEAT - 0.1, w - t/2, uc + a/2, KC_SEAT + KC_SOCK, w + t/2), obox(uc - t/2, KC_SEAT - 0.1, w - b/2, uc + t/2, KC_SEAT + KC_SOCK, w + b/2)])
 def keycap_flat(arm=None):
     # the same cap as it prints: top face on Z = 0, centred on the origin
-    (hu, hw), (a, t, b) = KC_HALF, (arm or KC_ARM)
+    hu, (a, t, b) = KC_HALF, (arm or KC_ARM)
     zs, zp = KC_TOP - KC_SKIRT, KC_TOP - KC_SEAT
-    shell = SUB(box(-hu, -hw, 0, hu, hw, zs), [box(-hu + KC_WALL, -hw + KC_WALL, KC_ROOF, hu - KC_WALL, hw - KC_WALL, zs + 0.1)])
+    y0, y1 = KC_W0 - KCW, KC_W1 - KCW             # the post stays on the origin; the long side is the front of the cap
+    shell = SUB(box(-hu, y0, 0, hu, y1, zs), [box(-hu + KC_WALL, y0 + KC_WALL, KC_ROOF, hu - KC_WALL, y1 - KC_WALL, zs + 0.1)])
     cap = U([shell, cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp), KC_POST)])
     return SUB(cap, [box(-a/2, -t/2, zp - KC_SOCK, a/2, t/2, zp + 0.1), box(-t/2, -b/2, zp - KC_SOCK, t/2, b/2, zp + 0.1)])
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
@@ -397,4 +400,4 @@ def run(_context: str):
     add_bodies(o.component, [('Key %d' % (i + 1), keycap(u), (226, 120, 60) if i == 3 else (150, 150, 150)) for i, u in enumerate(KCU)], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: self-tapping holes at 85 percent of the screw; power board on M2 screws and 6 mm posts'))
+    print('save', case.save('MK III case: keycaps extended forward to fill the slot'))
