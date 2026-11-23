@@ -31,10 +31,10 @@ def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
-R3, R25, R2 = 1.4, 1.15, 0.9                  # holes the M3, M2.5 and M2 screws cut their own thread in: 2.8, 2.3 and 1.8 mm, each 0.2 mm under the screw. Printed holes come out small: the first set (2.5, 2.1, 1.6) was far too tight, and 1.9 was loose for M2.
+R3, R25, R2 = 1.3, 1.075, 0.85                # holes the M3, M2.5 and M2 screws cut their own thread in: 2.6, 2.15 and 1.7 mm, about 85% of the screw. From test prints: an M2 would not start in 1.6 mm with no chamfer, was loose in 1.9 mm, and an M2.5 was tight but held in 1.9 mm.
 def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r)      # a 0.5 mm chamfer at a hole's mouth p, where d points into the hole, so the screw finds it and starts square
 nW_ = tuple(-x for x in W_)
-PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 x 46 mm between centres. From a photo of the 70.18 mm long board with the perspective taken out; the holes are about 2.3 mm across.
+PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 x 46 mm between centres. From a photo of the 70.18 mm long board with the perspective taken out; the holes take an M2 screw.
 # The e-paper adapter (the small board that joins the panel's flex to the ribbon for the HAT), measured from the real one: 42.1 mm long by caliper,
 # and from a photo scaled to that, 20.5 mm wide with 3.1 mm holes 35 x 14 mm apart. It sits long side across, its lower connector where the panel's flex tail ends.
 FAC, FAL, FAW = (180.3, 53.75), 42.1, 20.5      # centred on the flex tail; 6 mm lower than where the tail's end would lie flat, because the tail has to come through the plate and up to the connector first
@@ -97,9 +97,9 @@ def mounts():
         add.append(wcyl(u, v, 7.5, 28.5, r)); add += braces(u, v, r, 12.0, 5.0)
         if screw: cut += [wcyl(u, v, 19, 28.6, R25), lead(F(u, v, 28.5), nW_, R25)]
         else: add.append(wcyl(u, v, 28.5, 30.6, 1.15))
-    # Power and amp protoboard: four corner posts, M2 from behind
+    # Power and amp protoboard: four corner posts, M2 from behind (an M2 fits the board's holes)
     for u in PBU:
-        for v in PBV: add.append(wcyl(u, v, 7.5, 18, 2.5)); cut += [wcyl(u, v, 11, 18.1, R2), lead(F(u, v, 18), nW_, R2)]
+        for v in PBV: add.append(wcyl(u, v, 7.5, 18, 3.0)); cut += [wcyl(u, v, 11, 18.1, R2), lead(F(u, v, 18), nW_, R2)]
     # E-paper flex adapter: four short posts, M2.5 through its 3.1 mm holes
     for u in FAU:
         for v in FAV: add.append(wcyl(u, v, 7.5, 14.5, 3.0)); cut += [wcyl(u, v, 9, 14.6, R25), lead(F(u, v, 14.5), nW_, R25)]
@@ -397,4 +397,4 @@ def run(_context: str):
     add_bodies(o.component, [('Key %d' % (i + 1), keycap(u), (226, 120, 60) if i == 3 else (150, 150, 150)) for i, u in enumerate(KCU)], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: power board posts 65.5 x 46 mm, M2 holes 1.8 mm, NeoKey front rests with pegs'))
+    print('save', case.save('MK III case: self-tapping holes at 85 percent of the screw; power board on M2 screws and 6 mm posts'))
