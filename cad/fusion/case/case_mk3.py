@@ -32,7 +32,7 @@ def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
     # four triangular fins round the foot of a post, so a knock or an over-tightened screw doesn't snap it off the plate. Each is 1.6 mm thick,
-    # reaches L out from the post on the plate and H up it, and prints with the post.
+    # reaches L out from the post on the plate and H up it, and prints with the post. Only the tall posts have them: the short board posts are too stubby to snap.
     out = []
     for side, du, dv in (('E', 1, 0), ('W', -1, 0), ('N', 0, 1), ('S', 0, -1)):
         if (u, v, side) in SKIP: continue
@@ -45,15 +45,16 @@ def mounts():
     add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
     # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
     for u, v, screw in ((161.5, 73.57, False), (161.5, 15.56, False), (210.72, 73.57, True), (210.72, 15.56, True)):
-        add.append(wcyl(u, v, 7.5, 28.5, 2.75)); add += braces(u, v, 2.75, 12.0, 5.0)
+        r = 3.25 if screw else 2.75                    # the screwed pair are 6.5 mm across, for more plastic round the thread the M2.5 screw cuts; 7 mm would touch the HAT's micro-USB socket
+        add.append(wcyl(u, v, 7.5, 28.5, r)); add += braces(u, v, r, 12.0, 5.0)
         if screw: cut.append(wcyl(u, v, 19, 28.6, 1.05))
         else: add.append(wcyl(u, v, 28.5, 30.6, 1.15))
     # Power and amp protoboard: four corner posts, M2 from behind
     for u in (60.5, 125.5):
-        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); add += braces(u, v, 2.5, 6.0, 3.5); cut.append(wcyl(u, v, 11, 18.1, 0.8))
+        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); cut.append(wcyl(u, v, 11, 18.1, 0.8))
     # E-paper flex adapter: four short posts, M2
     for u in (165.5, 195.5):
-        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); add += braces(u, v, 2.25, 4.0, 3.0); cut.append(wcyl(u, v, 9, 14.6, 0.8))
+        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut.append(wcyl(u, v, 9, 14.6, 0.8))
     # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
     for u0 in (161.85, 199.95):
         fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, 174.5, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
@@ -328,4 +329,4 @@ def run(_context: str):
     add_bodies(o.component, screws(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: four braces round the foot of every screw post on the frame plate'))
+    print('save', case.save('MK III case: braces on the tall posts only, and the two screwed driver HAT posts 6.5 mm across'))
