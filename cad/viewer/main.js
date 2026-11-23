@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123r';
+  const DATA_V = '20261123s';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -763,7 +763,7 @@ const DETAILS = {
   'Cherry MX Brown switches': 'Tactile, quiet enough for a bedroom.',
   'Keycaps': 'Printed, flat-topped, 17.5 x 19.1 mm, filling the slot in the top of the case, with marks sunk into the top to tell them apart by touch: three grey, one orange for the menu. Each pushes onto its switch\'s cross.',
   'Adafruit I2C rotary encoder': 'Detented, with a push switch.',
-  'Knob': 'Printed, 24 mm across with a straight knurl. Pushes onto the encoder\'s 6 mm D-shaft. Volume, scrolling and select.',
+  'Knob': 'Printed, 32 mm across with a straight knurl. Pushes onto the encoder\'s 6 mm D-shaft. Volume, scrolling and select.',
 };
 
 // ---------- labels ----------

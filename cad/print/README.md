@@ -18,7 +18,7 @@ the two-notch size.
 
 ## Knob
 
-`knob.stl` is the knob for the rotary encoder: 24 mm across, 12 mm long, straight knurl. It prints outer face down with no supports and pushes onto
+`knob.stl` is the knob for the rotary encoder: 32 mm across, 12 mm long, straight knurl. It prints outer face down with no supports and pushes onto
 the encoder's 6 mm D-shaft. The socket is 6.1 mm with its flat 0.05 mm clear of the shaft's; if it is loose or will not go on, say which.
 
 ## Case parts

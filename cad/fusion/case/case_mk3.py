@@ -94,12 +94,13 @@ def keycap_flat_plain(arm=None):
     shell = SUB(box(-hu, y0, 0, hu, y1, zs), [box(-hu + KC_WALL, y0 + KC_WALL, KC_ROOF, hu - KC_WALL, y1 - KC_WALL, zs + 0.1)])
     cap = U([shell, cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp), KC_POST)])
     return SUB(cap, [box(-a/2, -t/2, zp - KC_SOCK, a/2, t/2, zp + 0.1), box(-t/2, -b/2, zp - KC_SOCK, t/2, b/2, zp + 0.1)])
-# Printed knob for the rotary encoder: 24 mm across and 12 mm long, with a straight knurl of 40 V-grooves round a band and a chamfer at each end.
+# Printed knob for the rotary encoder: 32 mm across and 12 mm long, with a straight knurl of 54 V-grooves round a band and a chamfer at each end.
+# 32 mm is as big as it goes without standing proud of the back of the case: its axis is 16.8 mm in from the back face.
 # It pushes onto the encoder's 6 mm D-shaft: the flat is 1.5 mm off the axis and runs the last 6.5 mm of the shaft, and the shaft's tip is the stop.
 # It prints outer face down, so the socket points straight up and the grooves run vertically.
-KN_X0, KN_X1, KN_R = 246.0, 258.0, 12.0          # back face (2 mm off the side of the case, clear of the bushing's end when pressed), outer face, radius
+KN_X0, KN_X1, KN_R = 246.0, 258.0, 16.0          # back face (2 mm off the side of the case, clear of the bushing's end when pressed), outer face, radius
 KN_TIP, KN_SHAFT, KN_FLAT = 253.0, 3.05, 1.55    # where the shaft's tip sits, and the socket: radius, and the flat's distance from the axis
-KN_GROOVES, KN_CUT = 40, 0.85                    # number of grooves, and the side of the square that cuts each one (0.6 mm deep)
+KN_GROOVES, KN_CUT = 54, 0.85                    # number of grooves, and the side of the square that cuts each one (0.6 mm deep)
 def knob():
     ky, kz = F(0, KV, KW)[1:]
     ax = lambda x: (x, ky, kz)
@@ -438,4 +439,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: printed knurled knob, and marks sunk into the keycaps'))
+    print('save', case.save('MK III case: knob 32 mm across'))
