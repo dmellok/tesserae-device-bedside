@@ -54,7 +54,13 @@ const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean n
 const isScrew = (name) => /screws/i.test(name);
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Access cover'];
-const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true } };
+// Noctua keeps the two tones and swaps them for the fan maker's pair: its cream where the case is beige, its brown where the case is black.
+const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true }, Noctua: { tones: ['#e3c8ab', '#6b3a2c'], light: true } };
+function finishColour(f, base) {
+  if (f.colour) return new THREE.Color(f.colour);
+  if (f.tones) return new THREE.Color(f.tones[0.3 * base.r + 0.59 * base.g + 0.11 * base.b > 0.2 ? 0 : 1]);
+  return base;
+}
 // Backdrops are plain CSS behind the transparent canvas (see html[data-bg] in index.html). Auto picks Night for the beige case and Studio for the black one.
 const BACKDROPS = { Auto: null, Night: { light: false, theme: '#0b0d12' }, Studio: { light: true, theme: '#f4f5f7' }, Paper: { light: true, theme: '#fbf8f2' },
   Sky: { light: true, theme: '#bfe0f6' }, Blueprint: { light: false, theme: '#16407c' }, Dusk: { light: false, theme: '#4a2459' } };
@@ -86,7 +92,7 @@ function setFinish(name, save = true) {
   state.finish = FINISHES[name] ? name : 'Beige';
   for (const p of parts) {
     if (p.screen || !SHELL.includes(p.name)) continue;
-    p.mesh.material.color.copy(f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base);
+    p.mesh.material.color.copy(finishColour(f, p.mesh.userData.base));
     p.mesh.material.roughness = f.colour ? 0.62 : 0.72;
   }
   applyBackdrop();
@@ -203,7 +209,7 @@ function paintWire() {
   const f = FINISHES[state.finish] || FINISHES.Beige;
   for (const p of parts) {
     if (!p.lines) continue;
-    const c = p.lines.material.color.copy(f.colour ? new THREE.Color(f.colour) : p.mesh.userData.base);
+    const c = p.lines.material.color.copy(finishColour(f, p.mesh.userData.base));
     const lum = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;                 // keep the lines readable against the backdrop
     if (lightBackdrop && lum > 0.25) c.multiplyScalar(0.5); else if (!lightBackdrop && lum < 0.1) c.set('#9aa0ad');
     if (hovered === p.name) c.copy(HOT);
