@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123f';
+  const DATA_V = '20261123g';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -410,7 +410,7 @@ const BUILD = [
   ['Chassis frame', ['Frame plate', 'Mid chassis and base'], [0, 0, 150]],
   ['E-ink panel', ['E Ink ED103TC2 panel'], along(WN, -160)],
   ['Front bezel', ['Front bezel', 'Accent stripe', 'Bezel screws, M3 x 8'], along(WN, -190)],
-  ['Flex adapter', ['E-paper flex adapter', 'Flex adapter screws, M2 x 5'], along(WN, 130)],
+  ['Flex adapter', ['E-paper flex adapter', 'Flex adapter screws, M2.5 x 6'], along(WN, 130)],
   ['Display driver HAT', ['Waveshare IT8951 driver HAT', 'Driver HAT screws, M2.5 x 8'], along(WN, 150)],
   ['Pico and GPIO splitter', ['GPIO splitter', 'Hard Stuff Pico to Pi HAT', 'Pico sockets and headers', 'Pimoroni Pico Plus 2 W'], along(WN, 170)],
   ['Power and amp board', ['Power and amp protoboard', 'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'Power board screws, M2 x 6'], along(WN, 150)],
@@ -688,7 +688,7 @@ const DETAILS = {
   'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
   'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
   'Power board screws, M2 x 6': 'Four, one per corner.',
-  'Flex adapter screws, M2 x 5': 'Four, one per corner.',
+  'Flex adapter screws, M2.5 x 6': 'Four, one per corner.',
   'Key module screws, M2.5 x 8': 'Four, down through the NeoKey into the fins.',
   'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',

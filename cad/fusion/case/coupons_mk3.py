@@ -17,7 +17,7 @@ def run(_context: str):
     BACK = align(F(0, 0, 35.5), V_, U_, neg(W_))                     # rear shell on its back face
     ROOF = align((0, 0, 64), X_, neg(Y_), neg(Z_))                   # plinth on its roof
     spec = [  # name, source, region, lightening cuts, orientation for printing
-        ('01-driver-hat-and-flex-adapter-posts', 'Frame plate', obox(154, 8, 6, 218, 81, 31), [obox(172, 40, 5, 203, 68, 9)], PLATE()),
+        ('01-driver-hat-and-flex-adapter-posts', 'Frame plate', obox(154, 8, 6, 218, 81, 31), [obox(170, 24, 5, 203, 45, 9)], PLATE()),
         ('02-power-board-posts', 'Frame plate', obox(54, 8, 6, 132, 66, 19), [obox(67, 21, 5, 119, 53, 9)], PLATE()),
         ('03-key-module-fins', 'Frame plate', obox(147, 144, 6, 215, 179, 31), [], PLATE()),
         ('04-encoder-bracket', 'Frame plate', obox(223, 129, 6, 242, 171, 34), [], PLATE()),

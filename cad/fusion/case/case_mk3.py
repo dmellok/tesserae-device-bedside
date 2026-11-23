@@ -33,6 +33,16 @@ R3, R25, R2 = 1.4, 1.15, 0.95                 # holes the M3, M2.5 and M2 screws
 def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r)      # a 0.5 mm chamfer at a hole's mouth p, where d points into the hole, so the screw finds it and starts square
 nW_ = tuple(-x for x in W_)
 PBU, PBV = (61.0, 125.0), (59.0, 15.0)        # power and amp board posts: 64 x 44 mm between centres, as measured on the board
+# The e-paper adapter (the small board that joins the panel's flex to the ribbon for the HAT), measured from the real one: 42.1 mm long by caliper,
+# and from a photo scaled to that, 20.5 mm wide with 3.1 mm holes 35 x 14 mm apart. It sits long side across, its lower connector where the panel's flex tail ends.
+FAC, FAL, FAW = (180.3, 53.75), 42.1, 20.5      # centred on the flex tail; 6 mm lower than where the tail's end would lie flat, because the tail has to come through the plate and up to the connector first
+FAU, FAV = (FAC[0] - 17.5, FAC[0] + 17.5), (FAC[1] - 7.0, FAC[1] + 7.0)
+def adapter_bodies():
+    u0, u1, v0, v1 = FAC[0] - FAL/2, FAC[0] + FAL/2, FAC[1] - FAW/2, FAC[1] + FAW/2
+    pcb = SUB(obox(u0, v0, 14.5, u1, v1, 16.1), [wcyl(u, v, 14, 17, 1.55) for u in FAU for v in FAV])
+    return [('PCB', pcb, (30, 70, 150)),
+            ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
+            ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
@@ -57,9 +67,9 @@ def mounts():
     # Power and amp protoboard: four corner posts, M2 from behind
     for u in PBU:
         for v in PBV: add.append(wcyl(u, v, 7.5, 18, 2.5)); cut += [wcyl(u, v, 11, 18.1, R2), lead(F(u, v, 18), nW_, R2)]
-    # E-paper flex adapter: four short posts, M2
-    for u in (165.5, 195.5):
-        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut += [wcyl(u, v, 9, 14.6, R2), lead(F(u, v, 14.5), nW_, R2)]
+    # E-paper flex adapter: four short posts, M2.5 through its 3.1 mm holes
+    for u in FAU:
+        for v in FAV: add.append(wcyl(u, v, 7.5, 14.5, 3.0)); cut += [wcyl(u, v, 9, 14.6, R25), lead(F(u, v, 14.5), nW_, R25)]
     # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
     for u0 in (161.85, 199.95):
         fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, FINTOP, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
@@ -241,7 +251,7 @@ def screws():
     add('Shell', [screw((x, y, CB), (0, 0, 1), 16.0, 1.5, 2.75, 3.0) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in PBU for v in PBV])   # M2 x 6, power and amp board
-    add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
+    add('Adapter', [screw(F(u, v, 16.1), nW, 6.0, 1.0, 2.25, 1.6) for u in FAU for v in FAV])   # M2.5 x 6, flex adapter
     add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
     add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
@@ -275,7 +285,7 @@ def run(_context: str):
     bat = g('LiPo')[0]; m = bat.transform2; tr = m.translation
     tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Floppy slot insert'):
+    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Waveshare 10.3', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
@@ -337,6 +347,8 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Waveshare 10.3 e-Paper adapter'
+    add_bodies(o.component, adapter_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: power board posts 64 x 44 mm apart, larger self-tapping holes with a chamfered mouth'))
+    print('save', case.save('MK III case: e-paper adapter redrawn to its measured size, with its posts and M2.5 screws to match'))
