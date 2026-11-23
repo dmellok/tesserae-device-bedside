@@ -4,7 +4,7 @@
 import json, sys, re
 oj, ob, nj, nb, outj, outb = sys.argv[1:7]
 EXTRA = sys.argv[7:]          # components that really did move, to take from the new export as well
-SHELL = ['Front bezel', 'Mid chassis and base', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Access cover', 'Accent stripe', 'Power switch', 'Rubber feet']
+SHELL = ['Front bezel', 'Mid chassis and base', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Access cover', 'Accent stripe', 'Power switch', 'Rubber feet', 'Panel foam tape']
 own = lambda n: n in SHELL or n in EXTRA or re.search('screws', n, re.I)
 old = json.load(open(oj)); new = json.load(open(nj)); bo = open(ob, 'rb').read(); bn = open(nb, 'rb').read()
 parts = []; blob = bytearray()

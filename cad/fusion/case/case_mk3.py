@@ -43,6 +43,16 @@ def adapter_bodies():
     return [('PCB', pcb, (30, 70, 150)),
             ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
             ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
+# Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 20 mm wide, squashed to the 1.75 mm gap.
+# Strips as (u0, v0, u1, v1): one down each side, one across the top and a half-width one across the middle. They stay above the panel's folded flex
+# at the bottom, and clear of the openings in the plate for the key module and the encoder.
+FOAM = [(15, 32, 35, 169), (203, 32, 223, 169), (35, 149, 203, 169), (35, 95, 203, 105)]
+def foam_bodies():
+    out = []
+    for i, (u0, v0, u1, v1) in enumerate(FOAM):
+        out.append(('Foam %d' % (i + 1), obox(u0, v0, 4.3, u1, v1, 5.85), (92, 95, 102)))      # the foam is black; it is drawn grey so it shows against the black plate
+        out.append(('Adhesive %d' % (i + 1), obox(u0, v0, 5.85, u1, v1, 6.05), (40, 120, 235)))      # the sticky side, drawn blue: it goes on the plate, not the panel
+    return out
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
@@ -285,7 +295,7 @@ def run(_context: str):
     bat = g('LiPo')[0]; m = bat.transform2; tr = m.translation
     tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Waveshare 10.3', 'Floppy slot insert'):
+    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Panel foam tape', 'Waveshare 10.3', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
@@ -349,6 +359,8 @@ def run(_context: str):
     add_bodies(o.component, screws(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Waveshare 10.3 e-Paper adapter'
     add_bodies(o.component, adapter_bodies(), design)
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Panel foam tape'
+    add_bodies(o.component, foam_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: e-paper adapter redrawn to its measured size, with its posts and M2.5 screws to match'))
+    print('save', case.save('MK III case: foam tape behind the panel, adhesive side blue'))

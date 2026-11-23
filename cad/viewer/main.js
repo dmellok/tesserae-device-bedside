@@ -102,11 +102,11 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123g';
+  const DATA_V = '20261123i';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
-  const own = (name) => SHELL.includes(name) || name === 'Power switch' || name === 'Rubber feet' || isScrew(name);
+  const own = (name) => SHELL.includes(name) || name === 'Power switch' || name === 'Rubber feet' || name === 'Panel foam tape' || isScrew(name);
   const wires = (name) => (name === 'Power switch wires' ? ['mk2', 'mk21', 'mk3'] : null);      // MK I has no switch
   addParts(meta1, bin1, () => ['mk1']);
   addParts(meta2, bin2, (name) => (isScrew(name) && !name.startsWith('Back screws') ? ['mk1', 'mk2'] : ['mk2']));    // MK I borrows MK II's screws
@@ -259,7 +259,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 // With the electronics hidden, what is left is what gets printed or screwed together: the case, its own screws, the keycaps and the knob.
 const CASE_SCREWS = /^(Bezel|Base|Back|Frame|Shell corner) screws/;
-const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || p.name === 'Rubber feet' || CASE_SCREWS.test(p.name));
+const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || p.name === 'Rubber feet' || p.name === 'Panel foam tape' || CASE_SCREWS.test(p.name));
 let elec = true;
 function setElec(on) {
   elec = on;
@@ -408,6 +408,7 @@ const WN = [0, Math.cos(Math.PI / 12), -Math.sin(Math.PI / 12)], VN = [0, Math.s
 const along = (v, k) => v.map((x) => x * k);
 const BUILD = [
   ['Chassis frame', ['Frame plate', 'Mid chassis and base'], [0, 0, 150]],
+  ['Foam tape', ['Panel foam tape'], along(WN, -120)],
   ['E-ink panel', ['E Ink ED103TC2 panel'], along(WN, -160)],
   ['Front bezel', ['Front bezel', 'Accent stripe', 'Bezel screws, M3 x 8'], along(WN, -190)],
   ['Flex adapter', ['E-paper flex adapter', 'Flex adapter screws, M2.5 x 6'], along(WN, 130)],
@@ -462,7 +463,7 @@ function planBuild() {
     at.push(i ? at[i - 1] + DUR + (screwed[i - 1] ? SCREW_LAG : 0) + PAUSE + (turn[i] ? turn[i] + SETTLE : 0) : 0);
     view.push([az, el]);
   }
-  build.mods = mods; build.at = at; build.view = view; build.turn = turn;
+  build.mods = mods; build.at = at; build.view = view; build.turn = turn; build.screwed = screwed;
   build.total = at[at.length - 1] + SCREW_LAG + DUR;
 }
 const FRONT_AZ = Math.atan2(-560, 330), SIDE_OFF = 28 * Math.PI / 180, SIDE_KEEP = 40 * Math.PI / 180, TURN_RATE = 130 * Math.PI / 180;   // radians a second
@@ -571,7 +572,7 @@ function showStep(id, apart) {
   planBuild();
   const n = build.mods.findIndex((m) => slug(m) === id);
   if (n < 0) { endBuild(); return; }
-  const home = build.at[n] + DUR + SCREW_LAG;
+  const home = build.at[n] + DUR + (build.screwed[n] ? SCREW_LAG : 0);      // when this module and its screws are home; the next one has not started
   build.only = n; build.keep = n > 0;
   build.T = apart ? home + 0.5 : build.at[n] - 0.3;       // a beat before it moves
   build.stop = apart ? build.at[n] : home;
@@ -692,6 +693,7 @@ const DETAILS = {
   'Key module screws, M2.5 x 8': 'Four, down through the NeoKey into the fins.',
   'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
+  'Panel foam tape': 'Single-sided EVA foam, 2 mm thick, stuck to the front of the frame plate by its blue side. It holds the glass against the bezel without gluing it.',
   'Rubber feet': 'Four self-adhesive pads, 12 mm across and 2 mm thick, stuck to the flat underside of the base tray. Bought, not printed.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
