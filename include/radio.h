@@ -38,7 +38,7 @@ int  radio_pull(int16_t *dst, int n);                 /* core 1: n mono samples;
 
 radio_state_t radio_state(void);
 const char   *radio_state_name(void);
-const char   *radio_station(void);                    /* the stream's icy-name, else the preset's name */
+const char   *radio_station(void);                    /* the preset's name, else the stream's icy-name (often a slogan) */
 const char   *radio_title(void);                      /* what is playing (ICY metadata), "" if unknown */
 int           radio_kbps(void);
 int           radio_buffer_ms(void);                  /* decoded sound in hand */

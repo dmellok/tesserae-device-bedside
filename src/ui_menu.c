@@ -504,6 +504,7 @@ bool local_press(void)
                 mark_list();                                    /* "Playing" moves to this row */
             } else if (r.id == A_DELETE_ALARM) {
                 publish("set/alarm", "%d delete", r.arg + 1);
+                alarm_deleted(r.arg);
                 for (int i = r.arg; i < s_nalarms - 1; i++) s_alarms[i] = s_alarms[i + 1];
                 s_nalarms--; s_ai = 0; alarms_save(); sync_alarm_summary();
                 list_back();

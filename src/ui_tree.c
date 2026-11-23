@@ -383,7 +383,9 @@ void toggle_flip(const row_def_t *r)
                    if ((S.birds >> r->arg) & 1) { S.audition_bird = r->arg; S.audition++; }   /* let you hear who you added */
                    break;
     case T_NIGHT:  S.night = !S.night; inputs_set_night(S.night); config_set_lights(inputs_backlight(), S.night); config_save();
-                   publish("config/night", S.night ? "on" : "off"); break;
+                   publish("config/night", S.night ? "on" : "off");
+                   if (S.live_dark == 2) live_layout_changed();   /* Dark at night: the whole Live page turns over */
+                   break;
     default: break;
     }
 }

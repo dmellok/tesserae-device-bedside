@@ -85,8 +85,8 @@
 #define MAX_DIRTY 24                 /* rects per job: a page change is many small ones; merging them into few streams mostly white */
 #define R_LABELS()  mark(1080, 0, W - 1080, TB_H, IT8951_MODE_GL16)       /* key labels */
 #define R_TOPBAR()  mark(0, 0, W, TB_H, IT8951_MODE_GL16)
-#define R_VOL()     do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
-#define R_SBMID()   do { if (ov_active()) mark_ov(); else mark_changed(&s_prev_sb, &L_sb, 0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* the bar */
+#define R_VOL()     do { if (ov_active()) mark_ov(); else mark_changed(&P_sb, &L_sb, 0, SB_Y + 5, 700, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* volume and sound */
+#define R_SBMID()   do { if (ov_active()) mark_ov(); else mark_changed(&P_sb, &L_sb, 0, SB_Y + 5, W, SB_H - 5, IT8951_MODE_GL16); } while (0)   /* the bar */
 
 /* actions */
 #define ACTION_COUNT ((int)(sizeof ACTIONS / sizeof ACTIONS[0]))
@@ -284,8 +284,6 @@ extern const char *TZ_NAMES[N_TZ];
 extern const char *const SURFACES[4];
 extern const char *const THUNDERS[3];
 extern int s_dash_sel;
-extern layer_t s_prev_sb;
-extern layer_t s_prev_body;
 extern const action_t ACTIONS[];
 
 /* ui_live.c */
@@ -315,6 +313,7 @@ extern int s_list_n;
 bool clock_now(int *wday, int *sec, int64_t *minute);
 bool next_alarm(int *idx, int32_t *delta_s);
 int sleep_left_s(void);
+int sleep_stop_min(void);             /* the minute of the day the sleep timer stops, -1 without one */
 void build_ring(layer_t *l);
 void chorus_preview(int seconds);
 void tone_preview(int tone, int seconds);
@@ -378,6 +377,7 @@ void card_title(layer_t *l, int x, int y, int w, const char *icon, const char *l
 bool live_alarm(int *h, int *m, int *early, int32_t *delta);
 int live_sunrise_today(int alarm_min);
 void live_sound_line(char *b, size_t n);
+int  live_stop_min(int sec);          /* sleep_stop_min(), or the demo's (5 h from sec) */
 void live_home_line(char *b, size_t n, bool *attention);
 /* ui_pages.c: the other Live layouts */
 void build_live_clock(layer_t *l);
@@ -393,6 +393,7 @@ void manual_start(void);
 
 /* ui_alarm.c (the list) */
 void alarm_days_txt(const alarm_t *a, char *b, size_t n);
+void alarm_deleted(int i);                /* before alarm i is removed: its snooze goes, later indices shift */
 void alarms_load(void);
 void alarms_save(void);
 void publish_alarm(int i);

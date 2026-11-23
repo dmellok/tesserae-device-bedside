@@ -366,7 +366,8 @@ static void audio_update(void)
          * below the default the glass is at least that cold: use its longer waveform. */
         int board = it8951_temp_sensed();
         if (ls->wf_temp == 0 && board > 0 && board < want) want = board;
-        if (want != it8951_temp_forced()) { painter_lock(); it8951_set_temp(want); painter_unlock(); }
+        /* between paints: taking the panel mid-paint held the loop (knob, keys, web) for the whole refresh, ~3 s at boot */
+        if (want != it8951_temp_forced() && !painter_busy()) { painter_lock(); it8951_set_temp(want); painter_unlock(); }
         if (it8951_reinit_pending()) { printf("paint: full repaint after the controller re-init\n"); local_set_dirty_full(); local_flush(); }
     }
 
@@ -409,7 +410,7 @@ static void ui_service(void)
             if (was_boot) { local_wizard_boot(); local_flush(); }   /* a fresh device: first-run setup */
         }
     }
-    if (local_live_tick()) local_flush();
+    if (cur_content != CONTENT_BOOT && local_live_tick()) local_flush();   /* not under the boot log: its marks rode on the log's paints */
     if (!painter_busy() && local_settle_tick()) local_flush();   /* the knob stopped: menus back to full quality */
     if (local_wizard_tick()) local_flush();                      /* setup: pairing and the like moved on */
     if (!painter_busy() && !s_flush_pending && it8951_rails_live()) {   /* quiet for a while: the panel's rails off (they drift the image) */

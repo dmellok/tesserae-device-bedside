@@ -26,7 +26,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "bright"))    { if (v < 5 || v > 100) return false; S.bright = v; S.lights_on = true; publish("set/lights", "on %d%%", v); }
     else if (!strcmp(key, "colour"))    { if (v < 0 || v > 1) return false; S.light_mode = v; publish("set/lights", "%s", v ? "night" : "warm"); }
     else if (!strcmp(key, "ac_mode"))   { if (v < 0 || v > 4) return false; S.ac_mode = v; publish("set/ac", "%s", AC_MODES[v]); }
-    else if (!strcmp(key, "setpoint"))  { int x2 = (int)(atof(val) * 2 + 0.5); if (x2 < 32 || x2 > 60) return false; S.sp_x2 = x2; if (!S.ac_mode) S.ac_mode = 3; publish("set/ac", "%s", val); }
+    else if (!strcmp(key, "setpoint"))  { double c = atof(val); if (!(c > 15 && c < 31)) return false; int x2 = (int)(c * 2 + 0.5); if (x2 < 32 || x2 > 60) return false; S.sp_x2 = x2; if (!S.ac_mode) S.ac_mode = 3; publish("set/ac", "%s", val); }
     else if (!strcmp(key, "fan"))       { if (v < 0 || v > 3) return false; S.fan = v; publish("set/ac", "fan %s", FANS[v]); }
     else if (!strcmp(key, "night"))     { if ((v != 0) != S.night) toggle_flip(&R_T_NIGHT); }
     else if (!strcmp(key, "keylights")) { if (v < 0 || v > 100) return false; uint8_t lv = (uint8_t)(v * 255 / 100); inputs_set_backlight(lv); config_set_lights(lv, S.night); config_save(); return true; }
@@ -113,6 +113,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "alarm_del")) {
         if (v < 0 || v >= s_nalarms) return false;
         publish("set/alarm", "%d delete", v + 1);
+        alarm_deleted(v);
         for (int i = v; i < s_nalarms - 1; i++) s_alarms[i] = s_alarms[i + 1];
         s_nalarms--; if (s_ai >= s_nalarms) s_ai = 0;
         alarms_save(); sync_alarm_summary();

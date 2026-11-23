@@ -258,9 +258,6 @@ bool local_take_dirty(local_dirty_t *out)
     return true;
 }
 
-/* Regions the layouts below use. */
-layer_t s_prev_sb, s_prev_body;      /* the strip and live layers before the last rebuild(): changes are marked by what differs */
-
 /* ---- MQTT placeholders (Phase 3) -------------------------------------------- */
 void publish(const char *topic, const char *fmt, ...)
 {
@@ -386,25 +383,29 @@ void mark_changed(const layer_t *prev, const layer_t *now, int fx, int fy, int f
     }
     (void)changed;
 }
-/* The strip layer as it was before the last rebuild(), so a change can be
- * marked by what actually differs (the clock's digits) rather than the whole
- * bar: every partial refresh wears the pixels it covers slightly lighter on
- * this panel, so unchanged pixels must not be refreshed again and again. */
+/* Changes are marked by what differs from the layers the painter was last
+ * handed (P_*), so only the clock's digits repaint, not the whole bar: every
+ * partial refresh wears the pixels it covers slightly lighter on this panel.
+ * Not against the layers before the last rebuild(): two rebuilds in one pass
+ * (the dawn chorus starting on the minute) left the second with nothing to mark. */
 void rebuild(void)
 {
-    layer_copy(&s_prev_sb, &L_sb);
-    layer_copy(&s_prev_body, &L_body);
     L_body.on = L_ring.on = false;
     bool ring = S.phase == PHASE_RINGING;
     build_top(&L_top, ring);
     build_status(&L_sb, ring || (s_mode == M_HOME && S.dash_page == 0 && S.phase != PHASE_RINGING && live_dark_now()));
     if (ov_active()) { L_top.on = false; build_overlay(&L_sb); }     /* Mk II home: the dashboard and one overlay */
+    /* A confirmation is a card over the page, not instead of it: going home
+     * paints the whole screen while the card is up, and the page has to be
+     * under it (only the card's area is repainted when it goes). */
     if (ring) build_ring(&L_ring);
-    else if (s_toast_until) build_toast(&L_ring);
-    else if (s_mode == M_HOME && S.dash_page == 0) build_live(&L_body);
-    else if (s_mode == M_LIST) build_list(&L_body);
-    else if (s_mode == M_CHOICE) build_choice(&L_body);
-    else if (s_mode == M_VALUE) build_value(&L_body);
+    else {
+        if (s_toast_until) build_toast(&L_ring);
+        if (s_mode == M_HOME && S.dash_page == 0) build_live(&L_body);
+        else if (s_mode == M_LIST) build_list(&L_body);
+        else if (s_mode == M_CHOICE) build_choice(&L_body);
+        else if (s_mode == M_VALUE) build_value(&L_body);
+    }
     inputs_set_key_enabled(0x0F);
 }
 
@@ -432,14 +433,28 @@ static void mark_menu(uint8_t mode)
     if (s_marked_mode == M_HOME) mark(L_body.x, L_body.y, L_body.w, L_body.h, mode);   /* from the Live page: all of it changes, in one piece */
     else mark_diff(&P_body, &L_body, mode);
 }
+/* The status bar across a screen change. The page marks above stop at SB_Y,
+ * so a bar that turned over (white on black for the alarm and the dark Live
+ * page, and back) has to be marked here, as its own rect: merged with the page
+ * above it would make the job a full refresh. Otherwise only what differs. */
+static void mark_bar(uint8_t mode)
+{
+    if (!P_sb.on && !L_sb.on) return;
+    if (P_sb.on == L_sb.on && P_sb.bg == L_sb.bg && P_sb.x == L_sb.x && P_sb.y == L_sb.y && P_sb.w == L_sb.w && P_sb.h == L_sb.h) {
+        mark_diff(&P_sb, &L_sb, mode);
+        return;
+    }
+    if (s_dn < MAX_DIRTY) s_dq[s_dn++] = (local_dirty_t){ 0, SB_Y, W, SB_H, mode, false };
+    else mark(0, SB_Y, W, SB_H, mode);
+}
 void mark_screen(void)
 {
     s_epoch++;
     s_settle_due = 0;                       /* the list is going away */
     rebuild();
     if (s_mode == M_HOME && S.dash_page > 0) { mark(0, 0, W, H, IT8951_MODE_GC16); s_marked_mode = M_HOME; return; }   /* overlay layouts differ */
-    else if (s_mode == M_HOME) mark(0, 0, W, SB_Y, IT8951_MODE_GC16);                             /* the Live page: greys */
-    else mark_menu(crisp() ? IT8951_MODE_DU : IT8951_MODE_GC16);                                  /* a menu page: its ink, two-level when crisp */
+    else if (s_mode == M_HOME) { mark(0, 0, W, SB_Y, IT8951_MODE_GC16); mark_bar(IT8951_MODE_GC16); }   /* the Live page: greys */
+    else { mark_menu(crisp() ? IT8951_MODE_DU : IT8951_MODE_GC16); mark_bar(IT8951_MODE_GC16); }       /* a menu page: its ink, two-level when crisp */
     s_marked_mode = s_mode;
 }
 /* Quick menus: a knob step paints what changed, in DU or A2 (black and white,

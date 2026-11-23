@@ -80,9 +80,8 @@ void build_status(layer_t *l, bool inv)
     if (S.night) xr = sb_item_r(l, xr, cy, ICON_MOON, NULL, dim) - 48;
     if (!live && S.ac_mode) { snprintf(b, sizeof b, "%s %d" DEG, AC_MODES[S.ac_mode], S.sp_x2 / 2); xr = sb_item_r(l, xr, cy, ICON_SNOWFLAKE, b, fg) - 48; }
     if (!live && S.alarm_on) { alarm_txt(b, sizeof b); xr = sb_item_r(l, xr, cy, ICON_ALARM, b, fg) - 48; }
-    int left = sleep_left_s(), wd, sec; int64_t mn;
-    if (!live && left > 0 && clock_now(&wd, &sec, &mn)) {
-        int end = (sec + left) / 60 % 1440;
+    int end = sleep_stop_min();
+    if (!live && end >= 0) {
         snprintf(b, sizeof b, "Stops %02d:%02d", end / 60, end % 60);
         xr = sb_item_r(l, xr, cy, ICON_TIMER, b, fg) - 48;
     }
@@ -209,11 +208,13 @@ int live_sunrise_today(int alarm_min)
     return live_sunrise_min(y, mo, d + (sec / 60 > alarm_min ? 1 : 0), tesserae_tz_offset_s());
 }
 /* "Rain 3 · stops 23:40", "Drone Zone", "Paused"; demo: "Lush". */
+int live_stop_min(int sec) { return S.live_demo ? (sec >= 0 ? (sec + 5 * 3600) / 60 % 1440 : -1) : sleep_stop_min(); }
 void live_sound_line(char *b, size_t n)
 {
-    int wd, sec; int64_t mn; int left = S.live_demo ? 5 * 3600 : sleep_left_s();
+    int wd, sec = -1; int64_t mn; clock_now(&wd, &sec, &mn);
     char stops[24] = "";
-    if (left > 0 && clock_now(&wd, &sec, &mn)) snprintf(stops, sizeof stops, " " DOT " stops %02d:%02d", (sec + left) / 60 % 1440 / 60, (sec + left) / 60 % 60);
+    int end = live_stop_min(sec);
+    if (end >= 0) snprintf(stops, sizeof stops, " " DOT " stops %02d:%02d", end / 60, end % 60);
     if (S.live_demo) snprintf(b, n, "Lush%s", stops);
     else if (!S.rain_on) snprintf(b, n, "Paused");
     else if (S.rain_kind == RS_RADIO) snprintf(b, n, "%.30s%s", radio_station(), stops);
@@ -287,8 +288,8 @@ static void build_live_bento(layer_t *l)
     if (alarm) snprintf(b, sizeof b, "%s %02d:%02d", S.live_demo || S.birds ? "Dawn chorus" : "Wake window", cm / 60, cm % 60);
     else snprintf(b, sizeof b, "No wake window");
     op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 226, F_M, tn_fg, b);
-    int left = S.live_demo ? 5 * 3600 : sleep_left_s();
-    if (left > 0 && have_clock) snprintf(b, sizeof b, "%02d:%02d", (sec + left) / 60 % 1440 / 60, (sec + left) / 60 % 60);
+    int end = have_clock ? live_stop_min(sec) : -1;
+    if (end >= 0) snprintf(b, sizeof b, "%02d:%02d", end / 60, end % 60);
     else snprintf(b, sizeof b, "--");
     int sunrise = -1;
     if (S.live_demo) sunrise = 6 * 60 + 42;
@@ -519,7 +520,7 @@ bool local_live_tick_inner(void)
     int ai = -1; int32_t dl = 0; next_alarm(&ai, &dl);
     int ah = 0, am = 0, aon = 0, amask = 0, ae = 0;
     if (ai >= 0) local_alarm_get(ai, &ah, &am, &aon, &amask, &ae);
-    uint32_t sig = (uint32_t)(left > 0 ? (sec + left) / 60 : -1) * 2654435761u ^ (uint32_t)(ai * 7 + ah * 60 + am) * 40503u
+    uint32_t sig = (uint32_t)(left > 0 ? sleep_stop_min() : -1) * 2654435761u ^ (uint32_t)(ai * 7 + ah * 60 + am) * 40503u
                  ^ (uint32_t)ae * 31u ^ (uint32_t)S.rain_on * 977u ^ (uint32_t)S.birds * 13u
                  ^ (uint32_t)(S.ac_mode * 100 + S.sp_x2 + S.fan * 1000 + S.room_x10 * 7) * 2246822519u;
     if (!vis) { last_min = mn; last_sig = sig; return false; }
@@ -527,21 +528,21 @@ bool local_live_tick_inner(void)
     if (mn != last_min) {
         last_min = mn;
         rebuild();
-        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);
-        else mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the digits that changed, not the whole header */
+        if (S.live_layout) mark_changed(&P_body, &L_body, 0, TB_H, W, SB_Y - TB_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);
+        else mark_changed(&P_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, clock_du_active() ? IT8951_MODE_DU : IT8951_MODE_GL16);   /* the digits that changed, not the whole header */
         any = true;
     }
     if (sig != last_sig) {
         last_sig = sig;
         rebuild();
-        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
-        else { mark_changed(&s_prev_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);
+        if (S.live_layout) mark_changed(&P_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
+        else { mark_changed(&P_body, &L_body, 0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16);
                mark(LV_RIGHT_X, LV_ROW1, LV_SMALL_W, LV_SMALL_H, IT8951_MODE_GL16); }
         any = true;
     }
     if (changed) {
         rebuild();
-        if (S.live_layout) mark_changed(&s_prev_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
+        if (S.live_layout) mark_changed(&P_body, &L_body, 0, TB_H, W, SB_Y - TB_H, IT8951_MODE_GL16);
         else for (int i = 0; i < LV_COUNT; i++) if (changed & (1u << i)) live_mark_slot(i);
         any = true;
     }

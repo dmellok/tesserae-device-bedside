@@ -32,7 +32,7 @@ void viewport(int *x, int *y, int *w, int *h)
     default: *x = 0; *y = 0; *w = W; *h = H; break;
     }
 }
-void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark_changed(&s_prev_sb, &L_sb, x, y, w, h, strip_du() ? IT8951_MODE_DU : IT8951_MODE_GL16); }
+void mark_ov(void) { int x, y, w, h; if (ov_rect(&x, &y, &w, &h)) mark_changed(&P_sb, &L_sb, x, y, w, h, strip_du() ? IT8951_MODE_DU : IT8951_MODE_GL16); }
 /* The overlay settings changed: tell Tesserae what the dashboard has now. */
 void overlay_apply(void)
 {

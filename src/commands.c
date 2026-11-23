@@ -133,8 +133,9 @@ static void exec_command(const char *name, const char *value)
     }
     else if (!strcmp(name, "label")) {
         const char *bar = strchr(value, '|');
-        int i = atoi(value) - 1;
-        if (bar && i >= 0 && i < 4) { char lb[16]; snprintf(lb, sizeof lb, "%.13s", bar + 1); config_set_key_label(i, lb); save = true; local_set_dirty_full(); local_flush(); }
+        long k = strtol(value, NULL, 10);                 /* the key, 1-4 */
+        int i = (k >= 1 && k <= 4) ? (int)k - 1 : -1;
+        if (bar && i >= 0) { char lb[16]; snprintf(lb, sizeof lb, "%.13s", bar + 1); config_set_key_label(i, lb); save = true; local_set_dirty_full(); local_flush(); }
     }
     else if (!strcmp(name, "backlight")) { if (v < 0) v = 0; if (v > 255) v = 255; inputs_set_backlight((uint8_t)v); config_set_lights((uint8_t)v, inputs_night()); save = true; }
     else if (!strcmp(name, "night"))     { inputs_set_night(v != 0); config_set_lights(inputs_backlight(), v != 0); save = true; }

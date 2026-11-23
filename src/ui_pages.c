@@ -167,9 +167,8 @@ void build_live_tonight(layer_t *l)
         op_text(l, sx + draw_font_w(F_IM, ICON_MOON) + 14, ly + 3 - F_M->line_h / 2, F_M, 0x5, "Sleep");
     }
     tl_mark(l, x0, 1, ly, "Now", "", false);
-    int left = S.live_demo ? 5 * 3600 : sleep_left_s();
-    if (left > 0 && sec >= 0) {
-        int end = (sec + left) / 60 % 1440;
+    int end = live_stop_min(sec);
+    if (end >= 0) {
         snprintf(b, sizeof b, "%02d:%02d", end / 60, end % 60);
         tl_mark(l, TLX(14), 0, ly, b, S.rain_on || S.live_demo ? "Sound stops" : "Timer ends", false);
     }

@@ -71,7 +71,14 @@ bool next_alarm(int *idx, int32_t *delta_s)
         for (int i = 0; i < s_nalarms; i++) if (s_alarms[i].on) { *idx = i; return true; }
         return false;
     }
-    *idx = alarm_next(s_alarms, s_nalarms, wday * 86400 + sec, false, delta_s);
+    int now_w = wday * 86400 + sec;
+    *idx = alarm_next(s_alarms, s_nalarms, now_w, false, delta_s);
+    /* The ring the dawn chorus was stopped for won't come: the next one after it. */
+    if (*idx >= 0 && (minute * 60 + sec % 60 + *delta_s) / 60 == s_skip_min) {
+        int32_t skip = *delta_s + 60, d2;
+        int i2 = alarm_next(s_alarms, s_nalarms, (int)((now_w + skip) % (7 * 86400)), false, &d2);
+        *idx = i2; *delta_s = i2 >= 0 ? skip + d2 : -1;
+    }
     return *idx >= 0;
 }
 
@@ -158,6 +165,7 @@ void local_alarm_tick(bool *changed)
                     S.night = in; inputs_set_night(S.night); config_set_lights(inputs_backlight(), S.night); config_save();
                     publish("config/night", S.night ? "on" : "off");
                     rebuild(); R_SBMID(); if (changed) *changed = true;
+                    if (S.live_dark == 2) live_layout_changed();   /* Dark at night: the whole Live page turns over */
                 }
             }
         } else last_in = -1;
@@ -214,19 +222,21 @@ void local_alarm_tick(bool *changed)
 static uint32_t s_sleep_end;
 static bool     s_prev_rain_on;
 static int      s_prev_sleep = -1;
+static int64_t  s_sleep_stop_utc;           /* when it stops, on the wall clock (0: not worked out yet) */
 
 float local_sleep_tick(bool *changed)
 {
     uint32_t t = now_ms();
     if (S.rain_on != s_prev_rain_on || S.sleep_min != s_prev_sleep) {
         s_sleep_end = (S.rain_on && S.sleep_min) ? t + (uint32_t)S.sleep_min * 60000u : 0;
+        s_sleep_stop_utc = 0;                       /* worked out again on the next look (sleep_stop_min) */
         s_prev_rain_on = S.rain_on; s_prev_sleep = S.sleep_min;
     }
     if (!s_sleep_end) return 1.0f;
     int32_t left = (int32_t)(s_sleep_end - t);
     if (left <= 0) {
         printf("local: sleep timer ended\n");
-        s_sleep_end = 0;
+        s_sleep_end = 0; s_sleep_stop_utc = 0;
         local_set("rain_on", "0");
         s_prev_rain_on = false;
         if (changed) *changed = true;
@@ -236,6 +246,19 @@ float local_sleep_tick(bool *changed)
 }
 
 int sleep_left_s(void) { return s_sleep_end ? (int)((int32_t)(s_sleep_end - now_ms()) / 1000) : 0; }
+
+/* When the sleep timer stops, as a minute of the local day (-1: no timer, or no
+ * clock yet). Worked out once and kept: the clock's seconds and the timer's
+ * milliseconds tick at different moments, so adding them on every look made
+ * the sum alternate each second, and when it sat on a minute boundary the stop
+ * time (and the Live page with it) flipped between two minutes every second. */
+int sleep_stop_min(void)
+{
+    if (!s_sleep_end) return -1;
+    if (!s_sleep_stop_utc) { int64_t e = utc_now(); if (!e) return -1; s_sleep_stop_utc = e + sleep_left_s(); }
+    int64_t l = s_sleep_stop_utc + tz_offset_at(s_sleep_stop_utc);
+    return (int)((l / 60 % 1440 + 1440) % 1440);
+}
 
 /* The device-side state for the web app, as a JSON object (no braces around
  * the whole: the caller embeds it). Returns bytes written. */
@@ -256,10 +279,25 @@ void alarm_days_txt(const alarm_t *a, char *b, size_t n)
     size_t k = 0; b[0] = 0;
     for (int i = 0; i < 7 && k + 4 < n; i++) if (a->days[i]) k += (size_t)snprintf(b + k, n - k, "%s%.2s", k ? " " : "", DAY_NAMES[i]);
 }
+/* A snooze belongs to the alarm that rang: switched off or deleted, it doesn't come back. */
+static void snooze_check(void)
+{
+    if (!s_snooze_until_ms || s_ring_alarm < 0) return;
+    if (s_ring_alarm < s_nalarms && s_alarms[s_ring_alarm].on) return;
+    printf("local: snooze cancelled, its alarm is off\n");
+    s_snooze_until_ms = 0; s_ring_alarm = -1;
+}
+/* Before alarm i is removed (the ones after it move down one). */
+void alarm_deleted(int i)
+{
+    if (s_ring_alarm == i) { s_ring_alarm = -1; if (s_snooze_until_ms) { printf("local: snooze cancelled, its alarm was deleted\n"); s_snooze_until_ms = 0; } }
+    else if (s_ring_alarm > i) s_ring_alarm--;
+}
 /* The summary the status bar, the alarm screen and the web page show: the
  * first alarm that is on (or the first alarm). */
 void sync_alarm_summary(void)
 {
+    snooze_check();
     int k = 0;
     for (int i = 0; i < s_nalarms; i++) if (s_alarms[i].on) { k = i; break; }
     if (!s_nalarms) { S.alarm_on = false; return; }
