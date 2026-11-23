@@ -23,12 +23,16 @@ def bezel():
     cuts = [obox(16.42, 25.87, -10, 227.58, 184.62, 10),            # window
             obox(13.25, 12.6, 3.0, 230.75, 187.8, 7),                # glass pocket, open to the back
             obox(50, 11.2, 3.0, 195, 13, 7)]                         # flex wrap relief
-    cuts += [wcyl(u, v, 0.5, 6.5, 1.25) for u, v in BZ]              # 2.5 mm holes from the back: the M3 screws cut their own thread in the plastic
+    cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back: the M3 screws cut their own thread in the plastic
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
+R3, R25, R2 = 1.4, 1.15, 0.95                 # holes the M3, M2.5 and M2 screws cut their own thread in: 2.8, 2.3 and 1.9 mm. Printed holes come out small, and the first set (2.5, 2.1, 1.6) was far too tight.
+def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r)      # a 0.5 mm chamfer at a hole's mouth p, where d points into the hole, so the screw finds it and starts square
+nW_ = tuple(-x for x in W_)
+PBU, PBV = (61.0, 125.0), (59.0, 15.0)        # power and amp board posts: 64 x 44 mm between centres, as measured on the board
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
@@ -48,14 +52,14 @@ def mounts():
     for u, v, screw in ((161.5, 73.57, False), (161.5, 15.56, False), (210.72, 73.57, True), (210.72, 15.56, True)):
         r = 3.25 if screw else 2.75                    # the screwed pair are 6.5 mm across, for more plastic round the thread the M2.5 screw cuts; 7 mm would touch the HAT's micro-USB socket
         add.append(wcyl(u, v, 7.5, 28.5, r)); add += braces(u, v, r, 12.0, 5.0)
-        if screw: cut.append(wcyl(u, v, 19, 28.6, 1.05))
+        if screw: cut += [wcyl(u, v, 19, 28.6, R25), lead(F(u, v, 28.5), nW_, R25)]
         else: add.append(wcyl(u, v, 28.5, 30.6, 1.15))
     # Power and amp protoboard: four corner posts, M2 from behind
-    for u in (60.5, 125.5):
-        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); cut.append(wcyl(u, v, 11, 18.1, 0.8))
+    for u in PBU:
+        for v in PBV: add.append(wcyl(u, v, 7.5, 18, 2.5)); cut += [wcyl(u, v, 11, 18.1, R2), lead(F(u, v, 18), nW_, R2)]
     # E-paper flex adapter: four short posts, M2
     for u in (165.5, 195.5):
-        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut.append(wcyl(u, v, 9, 14.6, 0.8))
+        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut += [wcyl(u, v, 9, 14.6, R2), lead(F(u, v, 14.5), nW_, R2)]
     # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
     for u0 in (161.85, 199.95):
         fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, FINTOP, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
@@ -66,7 +70,7 @@ def mounts():
             e = 2.5 + 10.0
             g = obox(min(u0, u0 + du*e), 165, 7.5, max(u0, u0 + du*e), 167, 8.0 + 16.0)
             add.append(SUB(g, [halfspace(F(u0 + du*e, 166, 8.6), tuple(15.4*du*a + 10.0*w for a, w in zip(U_, W_)))]))
-        for w in (9.54, 26.05): cut.append(cyl(F(u0, 169, w), F(u0, 178.2, w), 1.05))
+        for w in (9.54, 26.05): cut += [cyl(F(u0, 169, w), F(u0, 178.2, w), R25), lead(F(u0, 177.9, w), tuple(-x for x in V_), R25)]
     # Encoder: a bracket the threaded bushing bolts through, with a rib above and below
     ky, kz = F(0, KV, KW)[1:]
     add += [obox(238.1, 133, 6.05, 241.3, 167, 27.5), obox(232.2, 131, 7.5, 241.3, 133.2, 22), obox(232.2, 166.8, 7.5, 241.3, 169, 22)]      # the ribs stop short of the board: its two STEMMA QT sockets open up and down, and the plugs need the room
@@ -94,11 +98,11 @@ def mounts():
     r = 1.5; x0, x1, z0, z1, y0, y1 = ux - uw/2, ux + uw/2, uz - uh/2, uz + uh/2, YR - T - 1, YR + 1
     tcut += [box(111.2 + PX, YR - T - 0.1, 42, 132.8 + PX, YR - 0.4, 46.0)]       # relief for the board's edge and its two screw heads
     tcut += [box(x0 + r, y0, z0, x1 - r, y1, z1), box(x0, y0, z0 + r, x1, y1, z1 - r)] + [cyl((x, y0, z), (x, y1, z), r) for x in (x0 + r, x1 - r) for z in (z0 + r, z1 - r)]
-    for x in (114.36 + PX, 129.6 + PX): tcut.append(cyl((x, YR - 3.06, 33), (x, YR - 3.06, 42.1), 1.05))
+    for x in (114.36 + PX, 129.6 + PX): tcut += [cyl((x, YR - 3.06, 33), (x, YR - 3.06, 42.1), R25), lead((x, YR - 3.06, 42.0), (0, 0, -1), R25)]
     # Cable-tie anchors on the back of the plate, above the boards
     for u in (70, 122, 175): add.append(obox(u - 5, 93, 7.5, u + 5, 97, 12.5)); cut.append(obox(u - 3, 92, 8.0, u + 3, 98, 10.5))
     # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back, threading into the post ends
-    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T - BOSS, r)); add += braces(u, v, r, 14.0, 5.0); cut.append(wcyl(u, v, 23, WSO - T + 0.1, 1.25))      # they stop at the bosses inside the shell's back that take the recessed heads
+    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T - BOSS, r)); add += braces(u, v, r, 14.0, 5.0); cut += [wcyl(u, v, 23, WSO - T + 0.1, R3), lead(F(u, v, WSO - T - BOSS), nW_, R3)]      # they stop at the bosses inside the shell's back that take the recessed heads
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, and the four stick-on feet hold the base 2 mm up so air can get under it
     for x0, n in ((24, 8), (145, 12)):
         for i in range(n):
@@ -122,8 +126,8 @@ def plate():
     m = U([p, foot] + add)
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
     cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
-    cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 22.5), 1.25) for x, y in CS] + [cyl((x, y, 12), (x, y, 10 + G + CB + SEAT + 0.3), 4.8) for x, y in CS]      # with room for the shell's bosses under them
-    cuts += [cyl((x, y, 2.9), (x, y, 15.8), 1.25) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 11.8), 1.25) for x, y in HS]      # the foot takes M3 x 12, the heels M3 x 8
+    cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 22.5), R3) for x, y in CS] + [lead((x, y, 10 + G + CB + SEAT + 0.3), (0, 0, 1), R3) for x, y in CS] + [cyl((x, y, 12), (x, y, 10 + G + CB + SEAT + 0.3), 4.8) for x, y in CS]      # with room for the shell's bosses under them
+    cuts += [cyl((x, y, 2.9), (x, y, 15.8), R3) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 11.8), R3) for x, y in HS] + [lead((x, y, CB + SEAT + 0.15), (0, 0, 1), R3) for x, y in FS + HS]      # the foot takes M3 x 12, the heels M3 x 8
     cuts += [cyl((x, y, 2.9), (x, y, CB + SEAT + 0.15), 4.5) for x, y in FS + HS]      # pockets over the tray's bosses
     return SUB(m, cuts + cut)
 def tray():
@@ -236,7 +240,7 @@ def screws():
     add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel
     add('Shell', [screw((x, y, CB), (0, 0, 1), 16.0, 1.5, 2.75, 3.0) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
-    add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
+    add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in PBU for v in PBV])   # M2 x 6, power and amp board
     add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
     add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
     add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
@@ -253,7 +257,7 @@ def plinth():
     s = SUB(plinth_solid(0), [cavity()])
     rear = [p for p in POSTS if p[1] > 40]
     s = U([s] + [b for x, y in rear for b in post(x, y)])
-    cuts = [cyl((x, y, 9), (x, y, 20.5), 1.25) for x, y in rear]                             # deep enough for M3 x 16
+    cuts = [cyl((x, y, 9), (x, y, 20.5), R3) for x, y in rear] + [lead((x, y, 10 + G), (0, 0, 1), R3) for x, y in rear]                             # deep enough for M3 x 16
     cuts += [box(87.7 + PX, YR - T - 1, 9, 134.9 + PX, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
     cuts += TIP_RELIEF() + grille(-1, PI) + grille(1, PI)                                                   # the speaker fires out of the left one; the right one matches it
     return SUB(s, cuts)
@@ -335,4 +339,4 @@ def run(_context: str):
     add_bodies(o.component, screws(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: key module fins taller, with 5 mm bosses and a buttress each side'))
+    print('save', case.save('MK III case: power board posts 64 x 44 mm apart, larger self-tapping holes with a chamfered mouth'))
