@@ -857,12 +857,21 @@ function layoutLabels(e1) {
   const inside = open ? 1 : Math.min(1, Math.max(0, (e1 - 0.18) / 0.3));
   const live = [];
   for (const l of labels) {
-    proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
-    l.sx = (proj.x * 0.5 + 0.5) * W; l.sy = (-proj.y * 0.5 + 0.5) * H;
-    const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws');
-    l.alpha = !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
+    if (l.multi) {                                     // a screw-size callout: it aims at the middle of its screws, and is shown wherever they are
+      l.sx = 0; l.sy = 0;
+      for (const m of l.multi) {
+        proj.copy(m.anchor).add(l.part.mesh.position).project(camera);
+        m.sx = (proj.x * 0.5 + 0.5) * W; m.sy = (-proj.y * 0.5 + 0.5) * H; l.sx += m.sx / l.multi.length; l.sy += m.sy / l.multi.length;
+      }
+      l.alpha = sizesOn && l.part.mesh.visible && proj.z < 1 ? 1 : 0;
+    } else {
+      proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
+      l.sx = (proj.x * 0.5 + 0.5) * W; l.sy = (-proj.y * 0.5 + 0.5) * H;
+      const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws');
+      l.alpha = !labelsOn || !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
+    }
     if (l.alpha > 0.02) { if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; } live.push(l); }
-    else { l.el.style.opacity = 0; l.path.style.opacity = 0; l.dot.style.opacity = 0; }
+    else { l.el.style.opacity = 0; l.path.style.opacity = 0; for (const d of l.multi ? l.multi.map((m) => m.dot) : [l.dot]) d.style.opacity = 0; }
   }
   if (!live.length) return;
   live.sort((a, b) => a.sx - b.sx);
@@ -899,8 +908,14 @@ function layoutLabels(e1) {
       l.el.style.transform = `translate(${(isLeft ? xl - l.w : xr).toFixed(1)}px, ${(l.y - l.h / 2).toFixed(1)}px)`;
       l.el.style.opacity = l.alpha;
       l.el.classList.toggle('hot', hovered === l.name);
-      l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}L${l.sx.toFixed(1)} ${l.sy.toFixed(1)}`);
       l.path.style.opacity = l.alpha * 0.85;
+      if (l.multi) {                                   // level out of the label, then a straight run from the elbow to each screw
+        const e = `${elbow.toFixed(1)} ${l.y.toFixed(1)}`;
+        l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}` + l.multi.map((m) => `M${e}L${m.sx.toFixed(1)} ${m.sy.toFixed(1)}`).join(''));
+        for (const m of l.multi) { m.dot.setAttribute('cx', m.sx.toFixed(1)); m.dot.setAttribute('cy', m.sy.toFixed(1)); m.dot.style.opacity = l.alpha; }
+        continue;
+      }
+      l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}L${l.sx.toFixed(1)} ${l.sy.toFixed(1)}`);
       l.dot.setAttribute('cx', l.sx.toFixed(1)); l.dot.setAttribute('cy', l.sy.toFixed(1));
       l.dot.style.opacity = l.alpha;
     }
@@ -908,9 +923,8 @@ function layoutLabels(e1) {
 }
 
 // ---------- screw sizes ----------
-// A second kind of callout: a small tag on every single screw giving its size. A set of screws is one mesh, so the screws are found by splitting
+// A second kind of callout: every screw's size. A set of screws is one mesh, so the screws are found by splitting
 // the mesh into its connected pieces; the size comes from the set's name, or for the sets that mix lengths, from the version and the screw's length.
-const sizeTags = [];
 let sizesOn = false;
 function screwSize(part, long) {
   const m = / (M[\d.]+ x \d+)$/.exec(part.name);
@@ -938,13 +952,24 @@ function buildSizeTags() {
       if (!boxes.has(r)) boxes.set(r, new THREE.Box3());
       boxes.get(r).expandByPoint(v.fromBufferAttribute(pos, i));
     }
+    const bySize = new Map();
     for (const box of boxes.values()) {
       const size = screwSize(part, box.getSize(v).length());
+      if (!bySize.has(size)) bySize.set(size, []);
+      bySize.get(size).push(box.getCenter(new THREE.Vector3()));
+    }
+    // one callout per size in a set, in the same columns as the part labels, with a leader fanning out to every screw of that size
+    for (const [size, centres] of bySize) {
       const el = document.createElement('div');
-      el.className = 'tag d' + /M([\d.]+)/.exec(size)[1].replace('.', '');
-      el.textContent = size; el.title = part.name;
-      $('sizes').appendChild(el);
-      sizeTags.push({ el, part, anchor: box.getCenter(new THREE.Vector3()), on: false });
+      el.className = 'lab size d' + /M([\d.]+)/.exec(size)[1].replace('.', '');
+      el.textContent = size + (centres.length > 1 ? ' \u00d7' + centres.length : ''); el.title = part.name;
+      el.addEventListener('pointerenter', () => { labelHover = part.name; setHover(part.name); });
+      el.addEventListener('pointerleave', () => { labelHover = null; pointerMoved = true; });
+      $('labels').appendChild(el);
+      const path = document.createElementNS(SVGNS, 'path');
+      $('leaders').append(path);
+      const multi = centres.map((anchor) => { const dot = document.createElementNS(SVGNS, 'circle'); dot.setAttribute('r', '2.5'); $('leaders').append(dot); return { anchor, dot, sx: 0, sy: 0 }; });
+      labels.push({ name: part.name, cat: 'Sizes', el, path, multi, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
     }
   }
 }
@@ -954,15 +979,6 @@ function setSizes(on) {
   $('sizesToggle').setAttribute('aria-pressed', String(on));
 }
 $('sizesToggle').addEventListener('click', () => { setSizes(!sizesOn); track('bedside_screw_sizes', { on: sizesOn }); });
-function layoutSizes() {
-  const W = window.innerWidth, H = window.innerHeight;
-  for (const t of sizeTags) {
-    proj.copy(t.anchor).add(t.part.mesh.position).project(camera);
-    const on = t.part.mesh.visible && proj.z < 1;
-    if (on) t.el.style.transform = `translate(${((proj.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-proj.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, -150%)`;
-    if (on !== t.on) { t.on = on; t.el.style.opacity = on ? 1 : 0; }
-  }
-}
 
 // ---------- frame loop ----------
 // On a wide screen the open controls panel covers the left of the window, so the model is centred in what is left over
@@ -1048,8 +1064,7 @@ function frame() {
   applyWire(dt);
   if (demo) stepDemo(dt);
 
-  if (labelsOn) layoutLabels(e1);
-  if (sizesOn) layoutSizes();
+  if (labelsOn || sizesOn) layoutLabels(e1);
 
   if (pointerMoved && !pointerDown && !labelHover) {
     pointerMoved = false;

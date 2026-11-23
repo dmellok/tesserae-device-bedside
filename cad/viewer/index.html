@@ -62,14 +62,11 @@
   #leaders circle { fill:var(--accent); }
   #labels .lab { position:fixed; left:0; top:0; padding:3px 8px; border-radius:7px; background:var(--panel); border:1px solid var(--line); font-size:11.5px; line-height:1.4; white-space:nowrap; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); will-change:transform, opacity; cursor:default; }
   #labels .lab.hot { border-color:var(--accent); }
-  body:not(.labels) #leaders, body:not(.labels) #labels, body:not(.labels) #labelCats { display:none; }
+  body:not(.labels):not(.sizes) #leaders, body:not(.labels):not(.sizes) #labels, body:not(.labels) #labelCats { display:none; }
   #labelCats button { font-size:11px; padding:3px 8px; }
-  /* Screw sizes: a tag on every screw, coloured by diameter */
-  #sizes { pointer-events:none; }
-  #sizes .tag { position:fixed; left:0; top:0; opacity:0; padding:1px 6px; border-radius:6px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--d); font-size:10.5px; line-height:1.4; white-space:nowrap; font-variant-numeric:tabular-nums; will-change:transform, opacity; }
-  #sizes .tag::after { content:""; position:absolute; left:50%; top:100%; width:1px; height:7px; background:var(--d); }
-  #sizes .d2 { --d:#4fb3ff; } #sizes .d25 { --d:#57c98a; } #sizes .d3 { --d:#f0a04b; } #sizes .d4 { --d:#e0607e; }
-  body:not(.sizes) #sizes { display:none; }
+  /* Screw sizes: callouts in the same columns, with a stripe coloured by diameter */
+  #labels .lab.size { border-left:3px solid var(--d); font-variant-numeric:tabular-nums; }
+  #labels .d2 { --d:#4fb3ff; } #labels .d25 { --d:#57c98a; } #labels .d3 { --d:#f0a04b; } #labels .d4 { --d:#e0607e; }
   /* Light backdrop, used with the black case */
   html.light { --bg0:#c9cdd3; --bg1:#f4f5f7; --ink:#15171c; --dim:#59606e; --line:rgba(0,0,0,.12); --panel:rgba(255,255,255,.72); }
   html.light .seg button { background:rgba(0,0,0,.035); }
@@ -134,7 +131,6 @@
 <div id="note">Work in progress: a 10.3 inch e-paper bedside dashboard.<br>Drag to rotate · scroll to zoom · hover a part to name it</div>
 <svg id="leaders" aria-hidden="true"></svg>
 <div id="labels"></div>
-<div id="sizes"></div>
 <div id="controls" class="panel open">
   <button id="fab" type="button" aria-label="Open controls" aria-expanded="true">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
