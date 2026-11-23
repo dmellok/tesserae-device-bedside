@@ -29,19 +29,31 @@ def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
+SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
+def braces(u, v, r, H, L):
+    # four triangular fins round the foot of a post, so a knock or an over-tightened screw doesn't snap it off the plate. Each is 1.6 mm thick,
+    # reaches L out from the post on the plate and H up it, and prints with the post.
+    out = []
+    for side, du, dv in (('E', 1, 0), ('W', -1, 0), ('N', 0, 1), ('S', 0, -1)):
+        if (u, v, side) in SKIP: continue
+        e = r + L
+        b = obox(min(u, u + du*e) - abs(dv)*0.8, min(v, v + dv*e) - abs(du)*0.8, 7.5, max(u, u + du*e) + abs(dv)*0.8, max(v, v + dv*e) + abs(du)*0.8, 8.0 + H)
+        n = tuple((H - 0.6)*(du*a + dv*c) + L*w for a, c, w in zip(U_, V_, W_))
+        out.append(SUB(b, [halfspace(F(u + du*e, v + dv*e, 8.6), n)]))
+    return out
 def mounts():
     add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
     # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
     for u, v, screw in ((161.5, 73.57, False), (161.5, 15.56, False), (210.72, 73.57, True), (210.72, 15.56, True)):
-        add.append(wcyl(u, v, 7.5, 28.5, 2.75))
+        add.append(wcyl(u, v, 7.5, 28.5, 2.75)); add += braces(u, v, 2.75, 12.0, 5.0)
         if screw: cut.append(wcyl(u, v, 19, 28.6, 1.05))
         else: add.append(wcyl(u, v, 28.5, 30.6, 1.15))
     # Power and amp protoboard: four corner posts, M2 from behind
     for u in (60.5, 125.5):
-        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); cut.append(wcyl(u, v, 11, 18.1, 0.8))
+        for v in (59.5, 14.5): add.append(wcyl(u, v, 7.5, 18, 2.5)); add += braces(u, v, 2.5, 6.0, 3.5); cut.append(wcyl(u, v, 11, 18.1, 0.8))
     # E-paper flex adapter: four short posts, M2
     for u in (165.5, 195.5):
-        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut.append(wcyl(u, v, 9, 14.6, 0.8))
+        for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); add += braces(u, v, 2.25, 4.0, 3.0); cut.append(wcyl(u, v, 9, 14.6, 0.8))
     # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
     for u0 in (161.85, 199.95):
         fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, 174.5, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
@@ -79,7 +91,7 @@ def mounts():
     # Cable-tie anchors on the back of the plate, above the boards
     for u in (70, 122, 175): add.append(obox(u - 5, 93, 7.5, u + 5, 97, 12.5)); cut.append(obox(u - 3, 92, 8.0, u + 3, 98, 10.5))
     # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back, threading into the post ends
-    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T - BOSS, r)); cut.append(wcyl(u, v, 23, WSO - T + 0.1, 1.25))      # they stop at the bosses inside the shell's back that take the recessed heads
+    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T - BOSS, r)); add += braces(u, v, r, 14.0, 5.0); cut.append(wcyl(u, v, 23, WSO - T + 0.1, 1.25))      # they stop at the bosses inside the shell's back that take the recessed heads
     # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, and the four stick-on feet hold the base 2 mm up so air can get under it
     for x0, n in ((24, 8), (145, 12)):
         for i in range(n):
@@ -316,4 +328,4 @@ def run(_context: str):
     add_bodies(o.component, screws(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: stick-on rubber feet as separate bodies, and every outside screw head recessed flush'))
+    print('save', case.save('MK III case: four braces round the foot of every screw post on the frame plate'))
