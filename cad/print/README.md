@@ -23,7 +23,24 @@ the encoder's 6 mm D-shaft. The socket is 6.1 mm with its flat 0.05 mm clear of 
 
 ## Case parts
 
-`1-frame-plate-black.stl` is the frame plate, front face down, exported for a slicing test. The other case parts are not exported yet;
-`../fusion/case/print_export.py` makes them once the test fits are right.
+`1-frame-plate-black-r2.stl` is the frame plate, front face down. The other case parts are not exported yet; `../fusion/case/print_export.py` makes
+them (run after `case_mk3.py` in the same script).
+
+Every case part has `MK3 R<n>` sunk into a face that is hidden once the case is together, and the same `r<n>` at the end of its file name. The number
+goes up whenever that part's shape changes, so a print can be matched to its file.
+
+| Part | Where its mark is |
+|---|---|
+| Frame plate | Back face, in the middle, above the cable-tie anchors |
+| Front bezel | Back of the left border |
+| Base tray | Floor, right of the battery pad |
+| Plinth | Underside of the roof, on the left |
+| Rear shell | Inside of the back, left of centre |
+| Access cover | Inside of the hump's back |
+
+Frame plate revisions:
+
+- R1 (no mark): the first print. The flex adapter's posts are too far from the flex slot for the panel's tail to reach.
+- R2: the flex adapter sits on two rails just above the slot, 2 mm closer to the plate, and can be moved up in 3.5 mm steps.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

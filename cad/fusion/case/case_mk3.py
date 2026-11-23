@@ -36,15 +36,20 @@ def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r) 
 nW_ = tuple(-x for x in W_)
 PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 x 46 mm between centres. From a photo of the 70.18 mm long board with the perspective taken out; the holes take an M2 screw.
 # The e-paper adapter (the small board that joins the panel's flex to the ribbon for the HAT), measured from the real one: 42.1 mm long by caliper,
-# and from a photo scaled to that, 20.5 mm wide with 3.1 mm holes 35 x 14 mm apart. It sits long side across, its lower connector where the panel's flex tail ends.
-FAC, FAL, FAW = (180.3, 53.75), 42.1, 20.5      # centred on the flex tail; 6 mm lower than where the tail's end would lie flat, because the tail has to come through the plate and up to the connector first
+# and from a photo scaled to that, 20.5 mm wide with 3.1 mm holes 35 x 14 mm apart. It sits long side across, its lower connector just above the slot
+# the panel's flex tail comes through. On the first printed plate it sat 21.5 mm higher and 2 mm further off the plate, and the tail could not reach it.
+# The tail's real length is not known, so the board does not stand on four posts but on two rails with a row of holes each, 3.5 mm apart: it can be
+# screwed down in any of FAN places, from the lowest (drawn) upwards, wherever the tail reaches its connector without strain.
+FAZ, FAP, FAN = 12.5, 3.5, 5                    # the w of the board's underside, the pitch of the holes in the rails, and how many places the board can sit
+FAC, FAL, FAW = (180.3, 32.25), 42.1, 20.5      # centred on the flex tail, in the lowest place: its bottom edge 2 mm above the slot
 FAU, FAV = (FAC[0] - 17.5, FAC[0] + 17.5), (FAC[1] - 7.0, FAC[1] + 7.0)
+FAH = sorted(set(round(v + FAP*j, 2) for v in FAV for j in range(FAN)))      # every hole in a rail (14 mm is four pitches, so the two rows share holes)
 def adapter_bodies():
     u0, u1, v0, v1 = FAC[0] - FAL/2, FAC[0] + FAL/2, FAC[1] - FAW/2, FAC[1] + FAW/2
-    pcb = SUB(obox(u0, v0, 14.5, u1, v1, 16.1), [wcyl(u, v, 14, 17, 1.55) for u in FAU for v in FAV])
+    pcb = SUB(obox(u0, v0, FAZ, u1, v1, FAZ + 1.6), [wcyl(u, v, FAZ - 0.5, FAZ + 2.5, 1.55) for u in FAU for v in FAV])
     return [('PCB', pcb, (30, 70, 150)),
-            ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
-            ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
+            ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, FAZ + 1.6, FAC[0] + 15, v0 + 6.3, FAZ + 3.6), BEIGE),
+            ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, FAZ + 1.6, FAC[0] + 15, v1 - 0.9, FAZ + 3.6), BEIGE)]
 # Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 5 mm wide, squashed to the 1.62 mm gap.
 # Strips as (u0, v0, u1, v1), each along an edge of the glass, directly behind the bezel's lip, so the glass is pinched and not levered: down the left,
 # down the right in two pieces either side of the encoder's opening in the plate, and across the top as far as the key module's opening.
@@ -129,6 +134,47 @@ def braces(u, v, r, H, L):
         n = tuple((H - 0.6)*(du*a + dv*c) + L*w for a, c, w in zip(U_, V_, W_))
         out.append(SUB(b, [halfspace(F(u + du*e, v + dv*e, 8.6), n)]))
     return out
+# Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
+# told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
+REV = {'Frame plate': 2, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}
+FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
+        '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
+        '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
+        '6': '00110 01000 10000 11110 10001 10001 01110', '7': '11111 00001 00010 00100 01000 01000 01000', '8': '01110 10001 10001 01110 10001 10001 01110',
+        '9': '01110 10001 10001 01111 00001 00010 01100', ' ': '00000 00000 00000 00000 00000 00000 00000'}
+PXL, STAMP_D = 0.9, 0.4                        # the side of one dot of the 5 x 7 lettering, and how deep it is sunk: letters are 4.5 x 6.3 mm
+def stamp(text, o, ex, ey):
+    # cutting tools for text on a flat face. o: the bottom left corner of the text, on the face. ex: the way it reads; ey: up the letters, both as
+    # seen by someone looking at the face. The tools go into the material along n = -(ex x ey).
+    n = (-(ex[1]*ey[2] - ex[2]*ey[1]), -(ex[2]*ey[0] - ex[0]*ey[2]), -(ex[0]*ey[1] - ex[1]*ey[0]))
+    out = []
+    for i, ch in enumerate(text):
+        for r, row in enumerate(FONT[ch].split()):
+            c = 0
+            while c < 5:
+                if row[c] == '0': c += 1; continue
+                c1 = c
+                while c1 < 5 and row[c1] == '1': c1 += 1
+                x, y, L = (6*i + (c + c1)/2)*PXL, (6.5 - r)*PXL, (c1 - c)*PXL
+                p = tuple(o[k] + x*ex[k] + y*ey[k] + (STAMP_D/2 - 0.05)*n[k] for k in range(3))
+                out.append(tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*p), adsk.core.Vector3D.create(*ex), adsk.core.Vector3D.create(*ey), L*MM, PXL*MM, (STAMP_D + 0.1)*MM)))
+                c = c1
+    return out
+def stamp_volume(text): return sum(row.count('1') for ch in text for row in FONT[ch].split())*PXL*PXL*STAMP_D/1000      # cm3 the mark should remove
+def marks(part):
+    # where each part's mark goes, always on an inside face: (corner, reading direction, up)
+    t = 'MK3 R%d' % REV[part]; nU = neg(U_)
+    at = {'Frame plate': (F(118, 108, 8.0), nU, V_),             # the back of the plate, in the clear middle above the cable-tie anchors
+          'Front bezel': (F(3.4, 44, WB), V_, U_),               # the back of the left border, reading up it: the plate covers it
+          'Base tray': ((139.8, 44, 3.0), (0, 1, 0), (-1, 0, 0)),   # the floor, between the battery pad and the right bank of vents, reading front to back
+          'Plinth': ((30, 68.5, ZP - T), (1, 0, 0), (0, -1, 0)),    # the underside of its roof
+          'Rear shell': (F(50, 120, WSO - T), U_, V_),           # the inside of its back
+          'Access cover': (F(145, 73.5, WBT - T), U_, V_)}[part]   # the inside of the hump's back
+    return stamp(t, *at)
+def marked(part, body):
+    v0 = body.volume; b = SUB(body, marks(part)); cut, want = v0 - b.volume, stamp_volume('MK3 R%d' % REV[part])
+    print('%-12s mark R%d: %.4f of %.4f cm3 cut%s' % (part, REV[part], cut, want, '' if abs(cut - want) < 0.0005 else '   <-- NOT ON A CLEAR FLAT FACE'))
+    return b
 def mounts():
     add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
     # Display driver HAT: four posts off the plate to the HAT's corner holes. The two on the right take M2.5 screws from behind; the two under the adapter are locating pins.
@@ -140,9 +186,10 @@ def mounts():
     # Power and amp protoboard: four corner posts, M2 from behind (an M2 fits the board's holes)
     for u in PBU:
         for v in PBV: add.append(wcyl(u, v, 7.5, 18, 3.0)); cut += [wcyl(u, v, 11, 18.1, R2), lead(F(u, v, 18), nW_, R2)]
-    # E-paper flex adapter: four short posts, M2.5 through its 3.1 mm holes
+    # E-paper flex adapter: two rails, each with a row of holes for M2.5 through the board's 3.1 mm holes. The holes stop 1.85 mm short of the plate's front.
     for u in FAU:
-        for v in FAV: add.append(wcyl(u, v, 7.5, 14.5, 3.0)); cut += [wcyl(u, v, 9, 14.6, R25), lead(F(u, v, 14.5), nW_, R25)]
+        add.append(obox(u - 3.0, FAH[0] - 3.25, 7.5, u + 3.0, FAH[-1] + 3.25, FAZ))
+        for v in FAH: cut += [wcyl(u, v, 7.9, FAZ + 0.1, R25), lead(F(u, v, FAZ), nW_, R25)]
     # Key module: two triangular fins under the NeoKey, between the keys. At the back of each a boss takes an M2.5 screw down through the board. At the front, where the
     # board's hole is only 1.5 mm off the plate and a boss can only ever be half of one, a plain block off the plate holds the board up and a peg locates it: no screw.
     for u0 in (161.85, 199.95):
@@ -326,7 +373,7 @@ def screws():
     add('Shell', [screw((x, y, CB), (0, 0, 1), 16.0, 1.5, 2.75, 3.0) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in PBU for v in PBV])   # M2 x 6, power and amp board
-    add('Adapter', [screw(F(u, v, 16.1), nW, 6.0, 1.0, 2.25, 1.6) for u in FAU for v in FAV])   # M2.5 x 6, flex adapter
+    add('Adapter', [screw(F(u, v, FAZ + 1.6), nW, 6.0, 1.0, 2.25, 1.6) for u in FAU for v in FAV])   # M2.5 x 6, flex adapter
     add('Key', [screw(F(u0, 179.5, 26.05), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95)])   # M2.5 x 8 down through the NeoKey's two back holes
     add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
@@ -373,7 +420,7 @@ def run(_context: str):
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
     for n, fn in (('Front bezel', bezel), ('Base tray', tray), ('Frame plate', plate), ('Rear shell', shell), ('Plinth', plinth), ('Access cover', cover)):
         o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = n
-        add_bodies(o.component, [(n, fn(), COL[n])], design); made[n] = o.component
+        add_bodies(o.component, [(n, marked(n, fn()), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
         print('%-12s volume %.0f cm3, %d lump(s)' % (n, b.volume, b.lumps.count))
     def uvw(p):
@@ -439,4 +486,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: knob 32 mm across'))
+    print('save', case.save('MK III case: flex adapter on rails by the slot, revision marks'))

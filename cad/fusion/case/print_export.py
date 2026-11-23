@@ -1,5 +1,5 @@
 # Exports the six printed parts of the visible (MK III) case as STL files, each already turned to its recommended print orientation and resting on Z = 0,
-# centred on the origin. The orientations are the ones on the printing page (cad/viewer/printing.html): a turn about X, which runs across the case.
+# centred on the origin. Run it with case_mk3.py loaded first, for the revision numbers. The orientations are the ones on the printing page (cad/viewer/printing.html): a turn about X, which runs across the case.
 OUT = '/Users/kayden/Developer/PlatformIO/tesserae-device-bedside/cad/print/'
 # Numbered in the order to print them: the three black parts first, then the three beige ones, so the filament changes once. Within each colour the part
 # everything else is checked against comes first: the frame plate, then the tray that screws to its foot, then the plinth that slides over the tray.
@@ -13,6 +13,7 @@ def run(_context: str):
     bf = comp.features.baseFeatures.add(); bf.startEdit()
     info = []
     for name, part, turn in PRINT:
+        name += '-r%d' % REV[part]                      # the revision sunk into the part (REV in case_mk3.py), so a file can be matched to a print
         src = [o for o in rc.occurrences if o.name.startswith(part + ':')][0].component.bRepBodies.item(0)
         b = tbm.copy(src)
         m = adsk.core.Matrix3D.create(); m.setToRotation(math.radians(turn), adsk.core.Vector3D.create(1, 0, 0), adsk.core.Point3D.create(0, 0, 0))

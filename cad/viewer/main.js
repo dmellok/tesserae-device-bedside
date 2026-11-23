@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123s';
+  const DATA_V = '20261124a';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -731,7 +731,7 @@ const DETAILS = {
   'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
   'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
   'Power board screws, M2 x 6': 'Four, one per corner.',
-  'Flex adapter screws, M2.5 x 6': 'Four, one per corner.',
+  'Flex adapter screws, M2.5 x 6': 'Four, one per corner, into whichever holes in the rails let the flex reach.',
   'Key module screws, M2.5 x 8': 'Two, down through the back holes of the NeoKey into the fins. The front holes sit on pegs.',
   'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
@@ -758,7 +758,7 @@ const DETAILS = {
   'LiPo battery, 4400 mAh': 'Keeps the alarm going through a power cut.',
   'Visaton FRS 5 X speaker': '5 cm full-range driver, fires out the left side of the plinth.',
   'USB-C power inlet': 'Mains power, centre of the back.',
-  'E-paper flex adapter': 'Joins the panel flex to the ribbon for the HAT.',
+  'E-paper flex adapter': 'Joins the panel flex to the ribbon for the HAT. It sits on two rails just above the flex slot and can be moved up in 3.5 mm steps.',
   'Adafruit NeoKey 1x4 QT': 'Four key sockets with backlights, on I2C.',
   'Cherry MX Brown switches': 'Tactile, quiet enough for a bedroom.',
   'Keycaps': 'Printed, flat-topped, 17.5 x 19.1 mm, filling the slot in the top of the case, with marks sunk into the top to tell them apart by touch: three grey, one orange for the menu. Each pushes onto its switch\'s cross.',
