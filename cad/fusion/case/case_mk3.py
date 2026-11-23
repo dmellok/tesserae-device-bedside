@@ -18,10 +18,12 @@ FEET = [(PI + 8, 12), (244 - PI - 8, 12), (PI + 8, YR - 8), (244 - PI - 22, YR -
 CB, CBR, SEAT = 3.2, 3.1, 2.0                # every screw head on the outside sits in a recess this deep and this wide (an M3 socket cap head is 3 mm tall and 5.5 mm across), with this much plastic left under it
 BOSS = CB + SEAT - T                         # so the 2.5 mm walls are thickened by this much on the inside around each one
 KV, KW = 150.0, 18.7                                                               # knob centre in the frame
+GLASS_W = 3.65                                # where the front of the glass sits. The glass is 0.78 mm, so its back is 1.62 mm from the plate, and the 2 mm foam behind it is squeezed by 0.38 mm.
 def bezel():
     b = INTER(obox(0, -40, WF, 244, 196, WB), box(-10, -60, 10, 260, 200, 300))
     cuts = [obox(16.42, 25.87, -10, 227.58, 184.62, 10),            # window
-            obox(13.25, 12.6, 3.0, 230.75, 187.8, 7),                # glass pocket, open to the back
+            obox(13.25, 21.0, GLASS_W - 0.05, 230.75, 187.8, 7),      # glass pocket, open to the back: its floor is the lip the glass is pressed against
+            obox(13.25, 12.6, 3.0, 230.75, 21.0, 7),                 # deeper along the bottom edge, for the driver chips and the flex bonded to the front of the glass there
             obox(50, 11.2, 3.0, 195, 13, 7)]                         # flex wrap relief
     cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back: the M3 screws cut their own thread in the plastic
     return SUB(b, cuts)
@@ -43,15 +45,15 @@ def adapter_bodies():
     return [('PCB', pcb, (30, 70, 150)),
             ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
             ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
-# Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 20 mm wide, squashed to the 1.75 mm gap.
-# Strips as (u0, v0, u1, v1), all the tape's full 20 mm width: one down each side, one across the top and one across the middle, with 2 mm between
-# the ends of the cross strips and the side strips so each reads as its own piece. They stay above the panel's folded flex
+# Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 20 mm wide, squashed to the 1.62 mm gap.
+# Strips as (u0, v0, u1, v1), all the tape's full 20 mm width and all against an edge of the glass, where the bezel's lip is in front of it: one down
+# each side and one across the top left. Nothing crosses the middle, where the glass has no support in front. The plate is cut away at the top right for the key module. They stay above the panel's folded flex
 # at the bottom, and clear of the openings in the plate for the key module and the encoder.
-FOAM = [(15, 32, 35, 169), (203, 32, 223, 169), (37, 149, 201, 169), (37, 90, 201, 110)]
+FOAM = [(15, 32, 35, 187), (203, 32, 223, 169), (37, 167, 138, 187)]
 def foam_bodies():
     out = []
     for i, (u0, v0, u1, v1) in enumerate(FOAM):
-        out.append(('Foam %d' % (i + 1), obox(u0, v0, 4.3, u1, v1, 5.85), (92, 95, 102)))      # the foam is black; it is drawn grey so it shows against the black plate
+        out.append(('Foam %d' % (i + 1), obox(u0, v0, GLASS_W + 0.78, u1, v1, 5.85), (92, 95, 102)))      # the foam is black; it is drawn grey so it shows against the black plate
         out.append(('Adhesive %d' % (i + 1), obox(u0, v0, 5.85, u1, v1, 6.05), (40, 120, 235)))      # the sticky side, drawn blue: it goes on the plate, not the panel
     return out
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
@@ -295,6 +297,13 @@ def run(_context: str):
     USB = ((con.minPoint.x + con.maxPoint.x)/2/MM, con.maxPoint.z/MM - 1.63, 9.44, 3.76)      # shell is 8.94 x 3.26 with 1.25 mm corners
     bat = g('LiPo')[0]; m = bat.transform2; tr = m.translation
     tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
+    # the panel sits with the front of its glass on the pocket's lip
+    pan = g('E Ink')[0]; gl = [b for b in pan.component.bRepBodies if b.name == 'Glass'][0]
+    m = pan.transform2; tr = m.translation
+    w_now = min((v.geometry.y/MM)*C - (v.geometry.z/MM - 12)*S for v in [x for x in gl.createForAssemblyContext(pan).vertices])
+    d = (GLASS_W - w_now)*MM
+    tr.y += d*W_[1]; tr.z += d*W_[2]; m.translation = tr; pan.transform2 = m
+    print('panel moved %.2f mm along W' % (d/MM))
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
     for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Panel foam tape', 'Waveshare 10.3', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
@@ -364,4 +373,4 @@ def run(_context: str):
     add_bodies(o.component, foam_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: foam tape as four separate full-width strips'))
+    print('save', case.save('MK III case: glass pocket 0.65 mm shallower so the foam presses the panel tight; three strips, all at the edges of the glass'))
