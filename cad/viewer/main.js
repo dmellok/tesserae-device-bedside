@@ -54,8 +54,9 @@ const NOT_MK1 = ['Plinth', 'Access cover'];          // case toggles that mean n
 const isScrew = (name) => /screws/i.test(name);
 // Case finishes. Beige is the two-tone case as modelled: beige frame, black chassis and plinth. Black gets a light backdrop so the shape still reads.
 const SHELL = ['Front bezel', 'Mid chassis and base', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Access cover'];
+// All beige is the frame's beige on every printed part.
 // Noctua keeps the two tones and swaps them for the fan maker's pair: its cream where the case is beige, its brown where the case is black.
-const FINISHES = { Beige: { colour: null, light: false }, Black: { colour: '#1b1c1f', light: true }, Noctua: { tones: ['#e3c8ab', '#6b3a2c'], light: true } };
+const FINISHES = { Beige: { colour: null, light: false }, 'All beige': { colour: '#ded3ba', light: false }, Black: { colour: '#1b1c1f', light: true }, Noctua: { tones: ['#e3c8ab', '#6b3a2c'], light: true } };
 function finishColour(f, base) {
   if (f.colour) return new THREE.Color(f.colour);
   if (f.tones) return new THREE.Color(f.tones[0.3 * base.r + 0.59 * base.g + 0.11 * base.b > 0.2 ? 0 : 1]);
