@@ -871,7 +871,7 @@ function layoutLabels(e1) {
       l.alpha = !labelsOn || !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
     }
     if (l.alpha > 0.02) { if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; } live.push(l); }
-    else { l.el.style.opacity = 0; l.path.style.opacity = 0; for (const d of l.multi ? l.multi.map((m) => m.dot) : [l.dot]) d.style.opacity = 0; }
+    else { l.el.style.opacity = 0; l.path.style.opacity = 0; l.dot.style.opacity = 0; }
   }
   if (!live.length) return;
   live.sort((a, b) => a.sx - b.sx);
@@ -896,6 +896,8 @@ function layoutLabels(e1) {
     }
   }
   // aim each label a little above or below its part, so every leader gets a level run and then a slanted one
+  // a screw-size callout points at whichever of its screws is nearest its column
+  for (const [col, pick] of [[left, Math.min], [right, Math.max]]) for (const l of col) if (l.multi) { const x = pick(...l.multi.map((m) => m.sx)), m = l.multi.find((k) => k.sx === x); l.sx = m.sx; l.sy = m.sy; }
   const midY = (b.y0 + b.y1) / 2;
   for (const l of live) l.ty = l.sy + (l.sy < midY ? -34 : 34);
   spread(left, l0, l1, step);
@@ -909,12 +911,6 @@ function layoutLabels(e1) {
       l.el.style.opacity = l.alpha;
       l.el.classList.toggle('hot', hovered === l.name);
       l.path.style.opacity = l.alpha * 0.85;
-      if (l.multi) {                                   // level out of the label, then a straight run from the elbow to each screw
-        const e = `${elbow.toFixed(1)} ${l.y.toFixed(1)}`;
-        l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}` + l.multi.map((m) => `M${e}L${m.sx.toFixed(1)} ${m.sy.toFixed(1)}`).join(''));
-        for (const m of l.multi) { m.dot.setAttribute('cx', m.sx.toFixed(1)); m.dot.setAttribute('cy', m.sy.toFixed(1)); m.dot.style.opacity = l.alpha; }
-        continue;
-      }
       l.path.setAttribute('d', `M${start.toFixed(1)} ${l.y.toFixed(1)}H${elbow.toFixed(1)}L${l.sx.toFixed(1)} ${l.sy.toFixed(1)}`);
       l.dot.setAttribute('cx', l.sx.toFixed(1)); l.dot.setAttribute('cy', l.sy.toFixed(1));
       l.dot.style.opacity = l.alpha;
@@ -923,9 +919,11 @@ function layoutLabels(e1) {
 }
 
 // ---------- screw sizes ----------
-// A second kind of callout: every screw's size. A set of screws is one mesh, so the screws are found by splitting
+// A second mode: every screw painted by its size, with a callout per set. A set of screws is one mesh, so the screws are found by splitting
 // the mesh into its connected pieces; the size comes from the set's name, or for the sets that mix lengths, from the version and the screw's length.
 let sizesOn = false;
+const sizeParts = [];
+const SIZE_COLOURS = { 'M2 x 5': '#8f9bff', 'M2 x 6': '#4fb3ff', 'M2.5 x 6': '#35d6a4', 'M2.5 x 8': '#b9e04a', 'M3 x 8': '#ffa540', 'M3 x 12': '#ff5f4a', 'M3 x 16': '#ffd84a', 'M4 x 8': '#e86bd8', 'M4 x 10': '#e86bd8' };
 function screwSize(part, long) {
   const m = / (M[\d.]+ x \d+)$/.exec(part.name);
   if (m) return m[1];
@@ -952,24 +950,30 @@ function buildSizeTags() {
       if (!boxes.has(r)) boxes.set(r, new THREE.Box3());
       boxes.get(r).expandByPoint(v.fromBufferAttribute(pos, i));
     }
-    const bySize = new Map();
-    for (const box of boxes.values()) {
+    const bySize = new Map(), sizeOf = new Map();
+    for (const [r, box] of boxes) {
       const size = screwSize(part, box.getSize(v).length());
+      sizeOf.set(r, size);
       if (!bySize.has(size)) bySize.set(size, []);
       bySize.get(size).push(box.getCenter(new THREE.Vector3()));
     }
-    // one callout per size in a set, in the same columns as the part labels, with a leader fanning out to every screw of that size
+    // every screw is painted in its size's colour, which shows only while the mode is on
+    const col = new Float32Array(n * 3), c = new THREE.Color();
+    for (let i = 0; i < n; i++) { c.set(SIZE_COLOURS[sizeOf.get(find(i))] || '#ffffff'); col[3 * i] = c.r; col[3 * i + 1] = c.g; col[3 * i + 2] = c.b; }
+    part.mesh.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    sizeParts.push(part);
+    // one callout per size in a set, in the same columns as the part labels, with a single leader to the nearest screw of the set
     for (const [size, centres] of bySize) {
       const el = document.createElement('div');
-      el.className = 'lab size d' + /M([\d.]+)/.exec(size)[1].replace('.', '');
+      el.className = 'lab size'; el.style.setProperty('--d', SIZE_COLOURS[size] || '#ffffff');
       el.textContent = size + (centres.length > 1 ? ' \u00d7' + centres.length : ''); el.title = part.name;
       el.addEventListener('pointerenter', () => { labelHover = part.name; setHover(part.name); });
       el.addEventListener('pointerleave', () => { labelHover = null; pointerMoved = true; });
       $('labels').appendChild(el);
-      const path = document.createElementNS(SVGNS, 'path');
-      $('leaders').append(path);
-      const multi = centres.map((anchor) => { const dot = document.createElementNS(SVGNS, 'circle'); dot.setAttribute('r', '2.5'); $('leaders').append(dot); return { anchor, dot, sx: 0, sy: 0 }; });
-      labels.push({ name: part.name, cat: 'Sizes', el, path, multi, part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
+      const path = document.createElementNS(SVGNS, 'path'), dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('r', '2.5');
+      $('leaders').append(path, dot);
+      labels.push({ name: part.name, cat: 'Sizes', el, path, dot, multi: centres.map((anchor) => ({ anchor, sx: 0, sy: 0 })), part, w: 0, h: 0, sx: 0, sy: 0, y: 0, alpha: 0 });
     }
   }
 }
@@ -977,6 +981,7 @@ function setSizes(on) {
   sizesOn = on;
   document.body.classList.toggle('sizes', on);
   $('sizesToggle').setAttribute('aria-pressed', String(on));
+  for (const p of sizeParts) { p.mesh.material.vertexColors = on; p.mesh.material.needsUpdate = true; }
 }
 $('sizesToggle').addEventListener('click', () => { setSizes(!sizesOn); track('bedside_screw_sizes', { on: sizesOn }); });
 

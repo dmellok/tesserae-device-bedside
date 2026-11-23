@@ -64,9 +64,8 @@
   #labels .lab.hot { border-color:var(--accent); }
   body:not(.labels):not(.sizes) #leaders, body:not(.labels):not(.sizes) #labels, body:not(.labels) #labelCats { display:none; }
   #labelCats button { font-size:11px; padding:3px 8px; }
-  /* Screw sizes: callouts in the same columns, with a stripe coloured by diameter */
-  #labels .lab.size { border-left:3px solid var(--d); font-variant-numeric:tabular-nums; }
-  #labels .d2 { --d:#4fb3ff; } #labels .d25 { --d:#57c98a; } #labels .d3 { --d:#f0a04b; } #labels .d4 { --d:#e0607e; }
+  /* Screw sizes: callouts in the same columns, each with a stripe in the colour its screws are painted */
+  #labels .lab.size { border-left:4px solid var(--d); font-variant-numeric:tabular-nums; }
   /* Light backdrop, used with the black case */
   html.light { --bg0:#c9cdd3; --bg1:#f4f5f7; --ink:#15171c; --dim:#59606e; --line:rgba(0,0,0,.12); --panel:rgba(255,255,255,.72); }
   html.light .seg button { background:rgba(0,0,0,.035); }
