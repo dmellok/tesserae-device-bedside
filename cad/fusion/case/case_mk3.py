@@ -29,6 +29,7 @@ def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
+FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
     # four triangular fins round the foot of a post, so a knock or an over-tightened screw doesn't snap it off the plate. Each is 1.6 mm thick,
@@ -57,9 +58,14 @@ def mounts():
         for v in (34.5, 24.5): add.append(wcyl(u, v, 7.5, 14.5, 2.25)); cut.append(wcyl(u, v, 9, 14.6, 0.8))
     # Key module: two triangular fins under the NeoKey, between the keys, each with two bosses; M2.5 down through its four holes
     for u0 in (161.85, 199.95):
-        fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, 174.5, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
+        fin = SUB(obox(u0 - 2.5, 147, 7.5, u0 + 2.5, FINTOP, 29.5), [halfspace(F(u0, 147, 8), vadd(W_, V_, -1.0))])
         add.append(fin)
-        add += [cyl(F(u0, 172, w), F(u0, 177.9, w), 2.0) for w in (9.54, 26.05)]      # bosses up to the board, clear of the sockets and parts under it
+        add += [cyl(F(u0, 170, w), F(u0, 177.9, w), BOSSR) for w in (9.54, 26.05)]      # bosses up to the board, clear of the sockets and parts under it
+        # a buttress each side of the fin, square to it, so a sideways knock on the keys doesn't lever the fin off the plate
+        for du in (1, -1):
+            e = 2.5 + 10.0
+            g = obox(min(u0, u0 + du*e), 165, 7.5, max(u0, u0 + du*e), 167, 8.0 + 16.0)
+            add.append(SUB(g, [halfspace(F(u0 + du*e, 166, 8.6), tuple(15.4*du*a + 10.0*w for a, w in zip(U_, W_)))]))
         for w in (9.54, 26.05): cut.append(cyl(F(u0, 169, w), F(u0, 178.2, w), 1.05))
     # Encoder: a bracket the threaded bushing bolts through, with a rib above and below
     ky, kz = F(0, KV, KW)[1:]
@@ -329,4 +335,4 @@ def run(_context: str):
     add_bodies(o.component, screws(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: braces on the tall posts only, and the two screwed driver HAT posts 6.5 mm across'))
+    print('save', case.save('MK III case: key module fins taller, with 5 mm bosses and a buttress each side'))
