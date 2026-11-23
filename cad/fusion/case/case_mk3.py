@@ -14,6 +14,9 @@ POSTS = [(60.0, YR - 8), (224.5, YR - 8)]                                       
 FS = [(44, 12.4), (100, 12.4), (144, 12.4), (200, 12.4)]                           # frame plate to base tray screws (X, Y)                            # shell screws (X, Y)
 GUS = [(28.75, 36.0, 46.0), (49.75, 30.0, 36.0), (134.0, 36.0, 46.0), (149.75, 36.0, 46.0), (219.75, 36.0, 46.0)]   # gussets behind the frame plate (X, how far back the heel reaches, how far up the plate), in lanes clear of the speaker, the boards and the wiring
 HS = [(x, y - 4.2) for x, y, z in GUS]                                             # a second row of tray screws, one under the heel of each gusset
+FEET = [(PI + 8, 12), (244 - PI - 8, 12), (PI + 8, YR - 8), (244 - PI - 22, YR - 8)]      # stick-on rubber feet, 12 mm across and 2 mm thick, as far apart as the base allows; the back right one sits inboard of the plinth screw beside it
+CB, CBR, SEAT = 3.2, 3.1, 2.0                # every screw head on the outside sits in a recess this deep and this wide (an M3 socket cap head is 3 mm tall and 5.5 mm across), with this much plastic left under it
+BOSS = CB + SEAT - T                         # so the 2.5 mm walls are thickened by this much on the inside around each one
 KV, KW = 150.0, 18.7                                                               # knob centre in the frame
 def bezel():
     b = INTER(obox(0, -40, WF, 244, 196, WB), box(-10, -60, 10, 260, 200, 300))
@@ -76,42 +79,43 @@ def mounts():
     # Cable-tie anchors on the back of the plate, above the boards
     for u in (70, 122, 175): add.append(obox(u - 5, 93, 7.5, u + 5, 97, 12.5)); cut.append(obox(u - 3, 92, 8.0, u + 3, 98, 10.5))
     # Rear shell: four tall posts off the plate that reach the inside of the shell's back; M3 through the back, threading into the post ends
-    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T, r)); cut.append(wcyl(u, v, 24, WSO - T + 0.1, 1.25))
-    # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, plus four 2 mm feet so air can get under the base
+    for u, v, r in BACK: add.append(wcyl(u, v, 7.5, WSO - T - BOSS, r)); cut.append(wcyl(u, v, 23, WSO - T + 0.1, 1.25))      # they stop at the bosses inside the shell's back that take the recessed heads
+    # Floor vents against trapped moisture: two banks of 2.5 mm slots, clear of the battery pad, and the four stick-on feet hold the base 2 mm up so air can get under it
     for x0, n in ((24, 8), (145, 12)):
         for i in range(n):
             xs = x0 + 7*i; y0 = max([22.0] + [y + 7 for x, y in HS if abs(xs + 1.25 - x) < 7])      # a slot beside a heel screw starts behind it
             tcut.append(box(xs, y0, -3, xs + 2.5, 43 if x0 == 24 and xs + 2.5 > 77.7 + BX else 62, 3.5))      # and one the battery pad would cover stops in front of it
-    tadd += [cyl((x, y, -2), (x, y, 0.5), 6.0) for x in (PI + 8, 244 - PI - 8) for y in (12, YR - 8)]      # feet as far apart as the base allows, against tipping when the knob is pressed
     return add, cut, tadd, tcut
 def gusset(x, ytip, ztop):
     # a triangular rib from a heel on the tray floor up the back of the plate, with a boss at the heel for a screw from below
     ytop = 7.75 + (ztop - 10)*S/C                                                             # the plate's back face at that height
     rib = INTER(box(x - 2, 5, 3, x + 2, ytip, ztop), obox(-10, -60, 6.05, 260, 300, 80))
     rib = SUB(rib, [halfspace((x, ytip, 10.0), (0, ztop - 10.0, ytip - ytop - 3))])
-    return [rib, cyl((x, ytip - 4.2, 3), (x, ytip - 4.2, 10), 4.2)]
+    return [rib, cyl((x, ytip - 4.2, 3), (x, ytip - 4.2, 12), 4.2)]
 def plate():
     # black: the leaning plate everything hangs off. Prints flat on its front face with every post pointing straight up.
     p = INTER(obox(2.7, -40, 6.05, 241.3, 193, 8.0), box(-10, -60, 10, 260, 200, 300))
     # the foot: a beam the full width that sits on the tray floor behind its front wall and runs 10 mm up the back of the plate, so the two are one piece
     foot = U([INTER(box(PI + T + 0.3, 5, 3, 244 - PI - T - 0.3, 16, 20), obox(-10, -60, 6.05, 260, 300, 80))] + [b for g in GUS for b in gusset(*g)])
-    foot = U([foot] + [INTER(box(x0, 5, 10 + G + T + 0.35, x1, 16, 20), obox(-10, -60, 6.05, 260, 300, 80)) for x0, x1 in ((2.9, PI + T + 0.4), (244 - PI - T - 0.4, 241.1))])      # the beam carried out over the shell's floor, for its corner screws
+    foot = U([foot] + [INTER(box(x0, 5, 10 + G + T + 0.35, x1, 16, 23), obox(-10, -60, 6.05, 260, 300, 80)) for x0, x1 in ((2.9, PI + T + 0.4), (244 - PI - T - 0.4, 241.1))])      # the beam carried out over the shell's floor, for its corner screws
     foot = SUB(foot, [box(0, 0, 0, 244, 8.8, 10)])                                            # the tray's front wall, which locates it
     add, cut, _, _ = mounts()
     m = U([p, foot] + add)
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
     cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
-    cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 19.5), 1.25) for x, y in CS]
-    cuts += [cyl((x, y, 2.9), (x, y, 15), 1.25) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 10), 1.25) for x, y in HS]      # the foot takes M3 x 12, the heels M3 x 8
+    cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 22.5), 1.25) for x, y in CS] + [cyl((x, y, 12), (x, y, 10 + G + CB + SEAT + 0.3), 4.8) for x, y in CS]      # with room for the shell's bosses under them
+    cuts += [cyl((x, y, 2.9), (x, y, 15.8), 1.25) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 11.8), 1.25) for x, y in HS]      # the foot takes M3 x 12, the heels M3 x 8
+    cuts += [cyl((x, y, 2.9), (x, y, CB + SEAT + 0.15), 4.5) for x, y in FS + HS]      # pockets over the tray's bosses
     return SUB(m, cuts + cut)
 def tray():
     # black: the flat base. Prints as it stands.
     t = SUB(box(PI, 6, 0, 244 - PI, YR, 10), [box(PI + T, 8.5, 3, 244 - PI - T, YR - T, 11)])      # as deep as the plinth, so the plinth's rear wall sits on the tray's with no overhang
     posts = [cyl((x, y, 3), (x, y, 10), 4.0) for x, y in POSTS]
     _, _, tadd, tcut = mounts()
-    m = U([t] + posts + tadd)
-    cuts = [cyl((x, y, -1), (x, y, 11), 1.7) for x, y in POSTS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in POSTS]
-    cuts += [cyl((x, y, -1), (x, y, 3.5), 1.7) for x, y in FS + HS] + [cyl((x, y, -1), (x, y, 2), 3.25) for x, y in FS + HS]
+    bosses = [cyl((x, y, 2.5), (x, y, CB + SEAT), 4.2) for x, y in FS + HS]      # the floor is 3 mm, so it is built up around each screw to take the whole head
+    m = U([t] + posts + bosses + tadd)
+    cuts = [cyl((x, y, -1), (x, y, 11), 1.7) for x, y in POSTS] + [cyl((x, y, -1), (x, y, CB), CBR) for x, y in POSTS]
+    cuts += [cyl((x, y, -1), (x, y, 6), 1.7) for x, y in FS + HS] + [cyl((x, y, -1), (x, y, CB), CBR) for x, y in FS + HS]
     return SUB(m, cuts + tcut)
 def halfspace(p, n):
     L = math.sqrt(sum(v*v for v in n)); n = [v/L for v in n]
@@ -174,7 +178,9 @@ def shell():
     s = SUB(slab(0), [cavity()])
     # the frame overhangs the tray and plinth on each side, so its underside is closed there with a floor
     s = U([s] + [INTER(slab(0), box(x0, -80, 10 + G, x1, 300, 10 + G + T)) for x0, x1 in ((0, PI + T), (244 - PI - T, 244))])
-    cuts = TIP_RELIEF() + [cyl((x, y, 9), (x, y, 13.5), 1.7) for x, y in CS] + [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - 1, WSO + 1, 1.7) for u, v, r in BACK]                       # key channel, open to the front
+    # bosses inside, behind every recessed screw head: on the back around the six back screws, and on the floor around the two corner screws
+    s = U([s] + [wcyl(u, v, WSO - T - BOSS, WSO - T + 0.5, 5.0) for u, v, r in BACK] + [INTER(cyl((x, y, 10 + G + T - 0.5), (x, y, 10 + G + CB + SEAT), 4.5), obox(-10, -60, 8.3, 260, 300, 80)) for x, y in CS])
+    cuts = TIP_RELIEF() + [cyl((x, y, 9), (x, y, 16.5), 1.7) for x, y in CS] + [cyl((x, y, 9), (x, y, 10 + G + CB), CBR) for x, y in CS] + [obox(142.6, 190, WB - 1, 219.9, 200, 26.6), NUT_RELIEF()] + [wcyl(u, v, WSO - T - BOSS - 1, WSO + 1, 1.7) for u, v, r in BACK] + [wcyl(u, v, WSO - CB, WSO + 1, CBR) for u, v, r in BACK]                       # key channel, open to the front
     # slats on the top left, mirroring the key block. Across the top they are 1 mm grooves; down the back they go right through, as the high outlet for the floor vents
     cuts += [SUB(U([obox(25 + 4.5*i, 166, 12, 27 + 4.5*i, 300, 100) for i in range(17)]), [slab(1.0)])]
     cuts += [obox(25 + 4.5*i, 166, WSO - T - 1, 27 + 4.5*i, 187, WSO + 1) for i in range(17)]
@@ -209,17 +215,20 @@ def screws():
     zinc = (186, 189, 195); out = []; nW = neg(W_)
     def add(kind, bodies): out.extend(('%s screw %d' % (kind, i + 1), b, zinc) for i, b in enumerate(bodies))
     add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel
-    add('Shell', [screw((x, y, 2.0), (0, 0, 1), 16.0, 1.5, 2.75, 1.7) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
+    add('Shell', [screw((x, y, CB), (0, 0, 1), 16.0, 1.5, 2.75, 3.0) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in (60.5, 125.5) for v in (59.5, 14.5)])   # M2 x 6, power and amp board
     add('Adapter', [screw(F(u, v, 16.1), nW, 5.0, 0.75, 1.9, 1.3) for u in (165.5, 195.5) for v in (34.5, 24.5)])   # M2 x 5, flex adapter
     add('Key', [screw(F(u0, 179.5, w), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95) for w in (9.54, 26.05)])   # M2.5 x 8 down through the NeoKey
     add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
-    add('Back', [screw(F(u, v, WSO), nW, 8.0, 1.5, 2.8, 1.8) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
-    add('Corner', [screw((x, y, 10 + G), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
+    add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
+    add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])
-    add('Frame', [screw((x, y, 2.0), (0, 0, 1), 12.0, 1.5, 2.75, 1.7) for x, y in FS] + [screw((x, y, 2.0), (0, 0, 1), 8.0, 1.5, 2.75, 1.7) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
+    add('Frame', [screw((x, y, CB), (0, 0, 1), 12.0, 1.5, 2.75, 3.0) for x, y in FS] + [screw((x, y, CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
     return out
+def feet():
+    # bought, not printed: self-adhesive rubber pads on the flat underside of the tray, clear of every screw head
+    return [('Foot %d' % (i + 1), cyl((x, y, -2), (x, y, 0), 6.0), (28, 28, 30)) for i, (x, y) in enumerate(FEET)]
 def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
     s = SUB(plinth_solid(0), [cavity()])
@@ -243,7 +252,7 @@ def run(_context: str):
     bat = g('LiPo')[0]; m = bat.transform2; tr = m.translation
     tr.x += (81.0 + BX)*MM - bat.boundingBox.minPoint.x; m.translation = tr; bat.transform2 = m
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Floppy slot insert'):
+    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
@@ -305,4 +314,6 @@ def run(_context: str):
     add_bodies(o.component, switch_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Screws'
     add_bodies(o.component, screws(), design)
-    print('save', case.save('MK III case: shell corner screws, M3 x 16 plinth screws, USB-C and switch panel lined up with the hump'))
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
+    add_bodies(o.component, feet(), design)
+    print('save', case.save('MK III case: stick-on rubber feet as separate bodies, and every outside screw head recessed flush'))

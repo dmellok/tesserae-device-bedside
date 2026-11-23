@@ -27,6 +27,7 @@ def classify(path, bname=''):
     if top.startswith('Screws'): return SCREWS[bname.split()[0]]
     if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
     if top.startswith('Power switch'): return 'Power switch', Z3, [0, 60, 0]
+    if top.startswith('Rubber feet'): return 'Rubber feet', [0, 0, -25], Z3
     if top.startswith('Wiring'):
         for pre, label in (('GPIO', 'Wires to the GPIO header'), ('Dupont', 'Wires to the GPIO header'), ('USB', 'USB-C inlet wires'), ('Switch', 'Power switch wires'),
                            ('Speaker', 'Speaker leads'), ('Battery', 'Battery lead'), ('STEMMA', 'STEMMA QT cables')):

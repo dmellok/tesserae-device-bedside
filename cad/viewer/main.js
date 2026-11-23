@@ -104,7 +104,7 @@ async function load() {
   const get = (stem) => [fetch(`./data/${stem}.json`).then((r) => r.json()), fetch(`./data/${stem}.bin`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
-  const own = (name) => SHELL.includes(name) || name === 'Power switch' || isScrew(name);
+  const own = (name) => SHELL.includes(name) || name === 'Power switch' || name === 'Rubber feet' || isScrew(name);
   const wires = (name) => (name === 'Power switch wires' ? ['mk2', 'mk21', 'mk3'] : null);      // MK I has no switch
   addParts(meta1, bin1, () => ['mk1']);
   addParts(meta2, bin2, (name) => (isScrew(name) && !name.startsWith('Back screws') ? ['mk1', 'mk2'] : ['mk2']));    // MK I borrows MK II's screws
@@ -257,7 +257,7 @@ canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false)
 
 // With the electronics hidden, what is left is what gets printed or screwed together: the case, its own screws, the keycaps and the knob.
 const CASE_SCREWS = /^(Bezel|Base|Back|Frame|Shell corner) screws/;
-const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || CASE_SCREWS.test(p.name));
+const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || p.name === 'Rubber feet' || CASE_SCREWS.test(p.name));
 let elec = true;
 function setElec(on) {
   elec = on;
@@ -423,6 +423,7 @@ const BUILD = [
   ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
   ['Plinth', ['Plinth', 'Base screws, M3'], [0, 230, 0]],
   ['Access cover', ['Access cover'], [0, 130, 110]],
+  ['Rubber feet', ['Rubber feet'], [0, 0, -90]],
 ];
 const BUILD_FROM = { Knob: [110, 0, 0] };                 // parts that arrive from somewhere other than their module
 const STEP = 0.85, DUR = 1.1, SCREW_LAG = 0.6;          // seconds: the least between modules, for one to land, and before its screws follow
@@ -550,7 +551,7 @@ $('apart').addEventListener('click', () => {
 
 // What comes away with the base tray of MK II.I and MK III when the case is exploded: the parts fixed to it, and the screws that come up through it.
 const ON_TRAY = new Set(['Base tray', 'Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4', 'LiPo battery, 4400 mAh', 'USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch',
-  'Base screws, M3', 'Frame screws, M3']);
+  'Base screws, M3', 'Frame screws, M3', 'Rubber feet']);
 const TRAY_DROP = 70;
 const PANEL_PARTS = new Set(['USB-C power inlet', 'USB-C inlet wires', 'Power switch wires']);
 
@@ -603,6 +604,7 @@ const DETAILS = {
   'Key module screws, M2.5 x 8': 'Four, down through the NeoKey into the fins.',
   'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
+  'Rubber feet': 'Four self-adhesive pads, 12 mm across and 2 mm thick, stuck to the flat underside of the base tray. Bought, not printed.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
   'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
@@ -634,7 +636,7 @@ const DETAILS = {
 
 // ---------- labels ----------
 // One callout per part: a label in a column either side of the model, joined to the part by a leader line.
-const OUTSIDE = new Set(['Base tray', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
+const OUTSIDE = new Set(['Base tray', 'Rubber feet', 'Front bezel', 'Rear shell', 'Plinth', 'Access cover', 'Power switch', 'Accent stripe', 'Mid chassis and base', 'E Ink ED103TC2 panel', 'Keycaps', 'Knob', 'USB-C power inlet']);
 const ANCHORS_BY = { mk1: { 'Rear shell': [60, 84, 130] }, mk21: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] }, mk3: { 'Base tray': [200, 8, 4], 'Frame plate': [122, 14, 40] } };
 const ANCHORS = { 'Front bezel': [30, 46.3, 196.3], 'Rear shell': [60, 68.4, 130], 'Plinth': [200, 84, 36], 'Mid chassis and base': [200, 8, 4], 'Keycaps': [152, 60, 197] };
 const labels = [];
