@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bedside simulator</title>
+<style>
+:root{
+  --bg:#f3f1ec; --card:#fff; --ink:#1c1b19; --sub:#6d6a64; --line:#e2ded5; --accent:#d0493c;
+  --bezel:#272a2f; --bezel-edge:#1b1d21; --paper:#e9e6df; --inkpx:#1d1c1a;
+  --key:#3a3e45; --key-top:#4a4f57;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#16171a; --card:#202226; --ink:#ecebe7; --sub:#9b988f; --line:#33363c; --key:#3a3e45; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;font-weight:650}
+header .meta{color:var(--sub);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+header .meta a{color:inherit}
+.grow{flex:1}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 11px;cursor:pointer}
+button:hover{border-color:var(--sub)}
+button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;padding:20px;align-items:start}
+@media (max-width:1100px){ main{grid-template-columns:1fr} }
+@media (max-width:600px){ main{padding:10px} .top{padding:0 2%;gap:12px} .keys{gap:6px} .key{width:52px;height:42px;font-size:10px} .knob{width:48px;height:48px} header{flex-wrap:wrap;padding:10px} }
+
+/* the device */
+.device{display:flex;flex-direction:column;align-items:center;gap:0}
+.top{display:flex;align-items:flex-end;gap:28px;width:min(100%,1100px);padding:0 9%}
+.keys{display:flex;gap:14px;flex:1;justify-content:center}
+.key{width:64px;height:46px;border-radius:9px 9px 3px 3px;border:0;background:linear-gradient(var(--key-top),var(--key));
+  color:#d9d7d1;font-size:11px;font-weight:600;position:relative;box-shadow:0 2px 0 var(--bezel-edge);user-select:none;touch-action:none;padding:0}
+.key .glow{position:absolute;inset:auto 8px 5px 8px;height:5px;border-radius:3px;background:#000;transition:background .08s,box-shadow .08s}
+.key.down{transform:translateY(3px);box-shadow:none}
+.key .lab{position:absolute;inset:6px 4px auto;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.knobwrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:-6px}
+.knob{width:62px;height:62px;border-radius:50%;border:0;padding:0;position:relative;user-select:none;touch-action:none;
+  background:radial-gradient(circle at 40% 35%,#5a5f68,#2c2f35 70%);box-shadow:0 0 0 4px #111,0 0 0 6px var(--ring,#000)}
+.knob.down{transform:scale(.96)}
+.knob .tick{position:absolute;left:50%;top:6px;width:3px;height:14px;margin-left:-1.5px;background:#ddd;border-radius:2px;transform-origin:50% 25px}
+.turns{display:flex;gap:6px}.turn{padding:4px 10px;font-size:13px;touch-action:manipulation}
+.bezel{width:min(100%,1100px);background:var(--bezel);border-radius:18px;padding:5.5% 6% 6.5%;box-shadow:0 18px 40px rgba(0,0,0,.18)}
+.glasswrap{position:relative;border:3px solid #0b0c0e;line-height:0}
+canvas{width:100%;height:auto;display:block;image-rendering:auto}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.under{display:flex;gap:16px;align-items:center;justify-content:center;margin-top:14px;color:var(--sub);font-size:12.5px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#9a978f}
+.dot.on{background:#2f9e5b}.dot.busy{background:var(--accent)}
+.boot{font-size:11px;padding:3px 8px}
+
+/* the side panel */
+aside{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin:0 0 10px;font-weight:650}
+.clock{font:600 34px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.row input{font:inherit;width:86px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.small{font-size:12px;color:var(--sub)}
+label.chk{display:flex;gap:8px;align-items:center;margin-top:6px}
+.tabs{display:flex;gap:4px;margin-bottom:10px}
+.tabs button{padding:4px 10px;font-size:12.5px}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#log{height:380px;overflow:auto;margin:0;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+#phone{width:100%;height:640px;border:1px solid var(--line);border-radius:10px;background:#fff}
+kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--bg)}
+.keyshelp{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12.5px;color:var(--sub)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bedside simulator</h1>
+  <div class="meta">
+    <span id="ver">…</span>
+    <span>phone app: <a id="phone-link" href="/" target="_blank">/</a></span>
+    <span id="flash" title="the flash image: settings, pairing, files"></span>
+  </div>
+  <div class="grow"></div>
+  <button id="reboot" title="Restart the firmware (the flash file stays)">Restart</button>
+</header>
+
+<main>
+  <section class="device">
+    <div class="top">
+      <div class="keys" id="keys"></div>
+      <div class="knobwrap">
+        <button class="knob" id="knob" title="Scroll or ←/→ to turn; click or Enter to press; hold (or Esc) for Back"><span class="tick" id="tick"></span></button>
+        <span class="turns"><button class="turn" id="ccw" title="Turn left">◀</button><button class="turn" id="cw" title="Turn right">▶</button></span>
+      </div>
+    </div>
+    <div class="bezel">
+      <div class="glasswrap">
+        <canvas id="glass" width="1872" height="1404"></canvas>
+        <canvas id="overlay" width="1872" height="1404"></canvas>
+      </div>
+    </div>
+    <div class="under">
+      <span class="pill"><span class="dot" id="d-busy"></span><span id="t-busy">panel idle</span></span>
+      <span class="pill"><span class="dot" id="d-spk"></span><span id="t-spk">speaker off</span></span>
+      <span id="t-paints"></span>
+      <button class="boot" id="boot" title="The Pico's BOOT button">BOOT</button>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Clock</h2>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="small" id="warp">no time warp</div>
+      <div class="row">
+        <button data-add="60">+1 min</button><button data-add="600">+10 min</button>
+        <button data-add="3600">+1 h</button><button data-add="28800">+8 h</button>
+      </div>
+      <div class="row">
+        <span class="small">jump to</span><input id="to" placeholder="06:25" inputmode="numeric"><button id="go">Go</button>
+      </div>
+      <div class="small" style="margin-top:8px">Jumps only go forward: timers fire and alarms ring as if the time had passed.</div>
+    </div>
+
+    <div class="card">
+      <h2>Panel</h2>
+      <label class="chk"><input type="checkbox" id="show-ref" checked> Outline each refresh (by waveform)</label>
+      <div class="small" style="margin-top:6px">INIT <span style="color:#d0493c">■</span> GC16 <span style="color:#e38b2c">■</span> GL16 <span style="color:#2f7fd0">■</span> DU/A2 <span style="color:#2f9e5b">■</span></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="on" data-tab="log">Log</button><button data-tab="phone">Phone app</button><button data-tab="keys">Keys</button>
+      </div>
+      <pre id="log"></pre>
+      <iframe id="phone" title="The phone app" hidden></iframe>
+      <div id="keyhelp" hidden>
+        <div class="keyshelp">
+          <kbd>1</kbd><span>…<kbd>4</kbd> the four keys (hold the key to hold it)</span>
+          <kbd>←</kbd><span><kbd>→</kbd> or <kbd>j</kbd> <kbd>k</kbd>, or scroll on the knob: turn</span>
+          <kbd>Enter</kbd><span>press the knob (hold it for a long press)</span>
+          <kbd>Esc</kbd><span>hold the knob: Back</span>
+          <kbd>b</kbd><span>the BOOT button</span>
+        </div>
+        <p class="small">In the terminal running the simulator, single keys go to the firmware's serial console as over USB (<kbd>?</kbd> lists them).</p>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const post = q => fetch(q, { method: 'POST' }).catch(() => {});
+const W = 1872, H = 1404;
+
+/* ---- the glass: 4 bpp, even x in the high nibble ---- */
+const gctx = $('#glass').getContext('2d'), img = gctx.createImageData(W, H);
+const PAPER = [233, 230, 223], INK = [29, 28, 26], LUT = [];
+for (let g = 0; g < 16; g++) LUT.push(INK.map((v, i) => Math.round(v + (PAPER[i] - v) * g / 15)));
+let glassV = 0, lastStatus = null;
+async function pullGlass() {
+  try {
+    const r = await fetch('/sim/glass?v=' + glassV);
+    if (r.status === 200) {
+      glassV = +r.headers.get('X-Glass-Version');
+      const b = new Uint8Array(await r.arrayBuffer()), d = img.data;
+      for (let i = 0, p = 0; i < b.length; i++, p += 8) {
+        const a = LUT[b[i] >> 4], c = LUT[b[i] & 15];
+        d[p] = a[0]; d[p + 1] = a[1]; d[p + 2] = a[2]; d[p + 3] = 255;
+        d[p + 4] = c[0]; d[p + 5] = c[1]; d[p + 6] = c[2]; d[p + 7] = 255;
+      }
+      gctx.putImageData(img, 0, 0);
+    }
+  } catch (e) {}
+  setTimeout(pullGlass, 90);
+}
+
+/* ---- refresh outlines ---- */
+const octx = $('#overlay').getContext('2d');
+const MODE_COL = { INIT: '208,73,60', GC16: '227,139,44', GL16: '47,127,208', DU: '47,158,91', A2: '47,158,91' };
+function drawOverlay(ev) {
+  octx.clearRect(0, 0, W, H);
+  if (!$('#show-ref').checked) return;
+  for (const e of ev) {
+    if (e.age > 2500) continue;
+    const a = 1 - e.age / 2500;
+    octx.strokeStyle = `rgba(${MODE_COL[e.mode] || '120,120,120'},${a})`;
+    octx.lineWidth = 6;
+    octx.strokeRect(e.x + 3, e.y + 3, e.w - 6, e.h - 6);
+    octx.fillStyle = `rgba(${MODE_COL[e.mode] || '120,120,120'},${a})`;
+    octx.font = '600 30px -apple-system,system-ui,sans-serif';
+    octx.fillText(e.mode, e.x + 14, e.y + 40);
+  }
+}
+
+/* ---- the keys and the knob ---- */
+const keysEl = $('#keys'), keyBtns = [];
+for (let i = 0; i < 4; i++) {
+  const b = document.createElement('button');
+  b.className = 'key'; b.innerHTML = `<span class="lab">Key ${i + 1}</span><span class="glow"></span>`;
+  b.title = `Key ${i + 1} (keyboard ${i + 1})`;
+  const down = e => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); b.classList.add('down'); post(`/sim/input?key=${i}&act=down`); };
+  const up = () => { if (!b.classList.contains('down')) return; b.classList.remove('down'); post(`/sim/input?key=${i}&act=up`); };
+  b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+  keysEl.appendChild(b); keyBtns.push(b);
+}
+const knob = $('#knob'); let knobAngle = 0, wheelAcc = 0;
+function turn(n) { knobAngle += n * 18; $('#tick').style.transform = `rotate(${knobAngle}deg)`; post(`/sim/input?knob=${n > 0 ? 'cw' : 'ccw'}&n=${Math.abs(n)}`); }
+knob.addEventListener('wheel', e => { e.preventDefault(); wheelAcc += e.deltaY; while (Math.abs(wheelAcc) >= 40) { const s = Math.sign(wheelAcc); turn(s); wheelAcc -= s * 40; } }, { passive: false });
+knob.addEventListener('pointerdown', e => { e.preventDefault(); knob.setPointerCapture?.(e.pointerId); knob.classList.add('down'); post('/sim/input?knob=down'); });
+const knobUp = () => { if (!knob.classList.contains('down')) return; knob.classList.remove('down'); post('/sim/input?knob=up'); };
+knob.addEventListener('pointerup', knobUp); knob.addEventListener('pointercancel', knobUp);
+$('#cw').onclick = () => turn(1); $('#ccw').onclick = () => turn(-1);
+const boot = $('#boot');
+boot.addEventListener('pointerdown', e => { e.preventDefault(); post('/sim/input?boot=down'); });
+boot.addEventListener('pointerup', () => post('/sim/input?boot=up'));
+
+/* keyboard: real down and up, so holds work */
+const held = new Set();
+function typing(e) { return /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName); }
+addEventListener('keydown', e => {
+  if (typing(e) || e.metaKey || e.ctrlKey) return;
+  const k = e.key;
+  if (/^[1-4]$/.test(k)) { e.preventDefault(); if (held.has(k)) return; held.add(k); keyBtns[+k - 1].classList.add('down'); post(`/sim/input?key=${+k - 1}&act=down`); }
+  else if (k === 'ArrowRight' || k === 'k') { e.preventDefault(); turn(1); }
+  else if (k === 'ArrowLeft' || k === 'j') { e.preventDefault(); turn(-1); }
+  else if (k === 'Enter' || k === ' ') { e.preventDefault(); if (held.has('knob')) return; held.add('knob'); knob.classList.add('down'); post('/sim/input?knob=down'); }
+  else if (k === 'Escape') { e.preventDefault(); post('/sim/input?knob=hold'); }
+  else if (k === 'b') { if (held.has('b')) return; held.add('b'); post('/sim/input?boot=down'); }
+});
+addEventListener('keyup', e => {
+  const k = e.key;
+  if (/^[1-4]$/.test(k) && held.delete(k)) { keyBtns[+k - 1].classList.remove('down'); post(`/sim/input?key=${+k - 1}&act=up`); }
+  else if ((k === 'Enter' || k === ' ') && held.delete('knob')) { knob.classList.remove('down'); post('/sim/input?knob=up'); }
+  else if (k === 'b' && held.delete('b')) post('/sim/input?boot=up');
+});
+
+/* ---- status: LEDs, the clock, the panel ---- */
+const rgb = (c, k = 1) => `rgb(${Math.min(255, c[0] * k)},${Math.min(255, c[1] * k)},${Math.min(255, c[2] * k)})`;
+async function pullStatus() {
+  try {
+    const s = await (await fetch('/sim/status')).json();
+    lastStatus = s;
+    s.inputs.led.forEach((c, i) => { const g = keyBtns[i].querySelector('.glow'); const lit = c[0] + c[1] + c[2] > 0;
+      g.style.background = lit ? rgb(c, 4) : '#000'; g.style.boxShadow = lit ? `0 0 10px ${rgb(c, 4)}` : 'none'; });
+    keyBtns.forEach((b, i) => b.style.opacity = s.inputs.keys ? 1 : .35);
+    knob.style.setProperty('--ring', s.inputs.knob_led.some(v => v) ? rgb(s.inputs.knob_led, 6) : '#000');
+    $('#clock').textContent = s.clock.utc ? s.clock.local : '--:--:--';
+    const w = s.clock.warp_s;
+    $('#warp').textContent = w ? `warped ${fmtDur(w)} ahead of the Mac's clock` : 'no time warp';
+    $('#d-busy').className = 'dot' + (s.panel.busy ? ' busy' : s.panel.rails ? ' on' : '');
+    $('#t-busy').textContent = s.panel.busy ? 'panel refreshing' : s.panel.rails ? 'panel powered' : 'panel idle';
+    $('#d-spk').className = 'dot' + (s.audio.speaker ? ' on' : '');
+    $('#t-spk').textContent = s.audio.speaker ? (s.audio.output ? 'speaker on' : 'speaker on (muted: --no-audio)') : 'speaker off';
+    $('#t-paints').textContent = `${s.panel.paints} refreshes`;
+    $('#ver').textContent = s.version + (s.instant ? ' · instant refresh' : '') + (s.setup ? ' · WiFi setup mode' : '');
+    $('#flash').textContent = s.flash.split('/').slice(-2).join('/');
+    const link = $('#phone-link'); link.href = `http://${s.ip}/`; link.textContent = s.ip;
+    drawOverlay(s.panel.events);
+  } catch (e) { $('#t-busy').textContent = 'simulator not running'; $('#d-busy').className = 'dot'; }
+  setTimeout(pullStatus, 200);
+}
+function fmtDur(s) { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return [d && d + ' d', h && h + ' h', (m || (!d && !h)) && m + ' min'].filter(Boolean).join(' '); }
+
+/* labels from the firmware's state */
+async function pullLabels() {
+  try { const st = await (await fetch('/api/state')).json(); (st.inputs?.labels || []).forEach((l, i) => keyBtns[i].querySelector('.lab').textContent = l || `Key ${i + 1}`); } catch (e) {}
+  setTimeout(pullLabels, 3000);
+}
+
+/* ---- time ---- */
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => post('/sim/time?add=' + b.dataset.add));
+$('#go').onclick = () => { const v = $('#to').value.trim(); if (/^\d{1,2}:\d{2}$/.test(v)) post('/sim/time?to=' + v); };
+$('#to').addEventListener('keydown', e => { if (e.key === 'Enter') $('#go').click(); });
+$('#reboot').onclick = () => post('/sim/reboot');
+
+/* ---- the log ---- */
+let logFrom = 0;
+async function pullLog() {
+  try {
+    const t = await (await fetch('/api/log?from=' + logFrom)).text();
+    const nl = t.indexOf('\n'); const next = parseInt(t.slice(0, nl), 10);
+    if (next < logFrom) $('#log').textContent = '';               /* a restart: the log starts again */
+    const body = t.slice(nl + 1);
+    if (body) {
+      const el = $('#log'), atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+      el.textContent = (el.textContent + body).slice(-200000);
+      if (atEnd) el.scrollTop = el.scrollHeight;
+    }
+    logFrom = next;
+  } catch (e) {}
+  setTimeout(pullLog, 500);
+}
+
+/* ---- tabs ---- */
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  $('#log').hidden = b.dataset.tab !== 'log';
+  $('#phone').hidden = b.dataset.tab !== 'phone';
+  $('#keyhelp').hidden = b.dataset.tab !== 'keys';
+  if (b.dataset.tab === 'phone' && !$('#phone').src) $('#phone').src = '/';
+});
+
+pullGlass(); pullStatus(); pullLabels(); pullLog();
+</script>
+</body>
+</html>

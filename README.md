@@ -327,6 +327,15 @@ release version ordering. GitHub runs them on every push before the firmware
 build. On this Mac the Makefile picks the MacOSX26 SDK (the 27 one won't link
 host code).
 
+## Simulator
+
+`make -C sim run` builds the firmware for macOS and runs it, with the panel,
+keys, knob, clock and log at `http://localhost:8080/sim` and the phone app at
+`/`. The application code is unchanged; only the hardware underneath is
+simulated. Use it to try UI changes without flashing, or to load a user's
+settings. See [sim/README.md](sim/README.md) for what it covers and what it
+doesn't.
+
 ## Menus: quick moves and turn counts
 
 - **Quick menu moves** (Settings > Keys and knob > Menus; web app Buttons page; on by

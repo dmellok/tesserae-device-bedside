@@ -5,3 +5,6 @@ include/secrets.h
 include/wifi_secrets.h
 .DS_Store
 tests/build/
+sim/build/
+sim/build-san/
+__pycache__/
