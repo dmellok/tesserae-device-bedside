@@ -1,9 +1,29 @@
 # Print files
 
-`keycap.stl` is one keycap for a Cherry MX switch, top face down as it prints. It is longer in front of the post than behind it; the long side faces the screen. Print four: three grey and one orange for the menu key. No supports.
+## Keycaps
 
-Print `../test-fits/15-keycap-stem-fit.stl` first. It has three stem sockets, marked with one, two and three notches (tight, as modelled, loose).
-Push each onto a switch and say which one holds firmly without forcing; the keycap uses the two-notch size.
+One file per keycap, for a Cherry MX switch, top face down as it prints. No supports. Each cap is longer in front of its post than behind it; the long
+side faces the screen. The marks are sunk 0.5 mm into the top so the keys can be told apart by touch.
 
-Regenerate both with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script). The case parts themselves are not exported
-here yet; `../fusion/case/print_export.py` makes them once the test fits are right.
+| File | Mark |
+|---|---|
+| `keycap-1-dot.stl`, `keycap-2-dots.stl`, `keycap-3-dots.stl` | The three grey keys, left to right from the front |
+| `keycap-bar.stl` | The orange menu key, on the right |
+| `keycap-4-dots.stl` | For the menu key, if you'd rather have dots on all four |
+| `keycap-plain.stl` | No mark |
+
+The viewer's "Key marks" option shows each arrangement. Print `../test-fits/15-keycap-stem-fit.stl` first: it has three stem sockets, marked with
+one, two and three notches (tight, as modelled, loose). Push each onto a switch and say which one holds firmly without forcing; the keycaps use
+the two-notch size.
+
+## Knob
+
+`knob.stl` is the knob for the rotary encoder: 24 mm across, 12 mm long, straight knurl. It prints outer face down with no supports and pushes onto
+the encoder's 6 mm D-shaft. The socket is 6.1 mm with its flat 0.05 mm clear of the shaft's; if it is loose or will not go on, say which.
+
+## Case parts
+
+`1-frame-plate-black.stl` is the frame plate, front face down, exported for a slicing test. The other case parts are not exported yet;
+`../fusion/case/print_export.py` makes them once the test fits are right.
+
+Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

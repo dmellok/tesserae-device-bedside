@@ -1,4 +1,5 @@
-# Exports the printed keycap, top face down as it prints, and a small test piece with three stem sockets of different tightness.
+# Exports the printed knob and keycaps, top face down as they print, one file per mark (plain, one to four dots, bar), and a small test piece with three stem
+# sockets of different tightness.
 # Run after case_mk3.py in the same script, so the keycap's dimensions come from there.
 KOUT = '/Users/kayden/Developer/PlatformIO/tesserae-device-bedside/cad/'
 STEM_TEST = [(4.15, 1.25, 4.35), (4.25, 1.35, 4.45), (4.35, 1.45, 4.55)]      # tight, as modelled, loose: marked with one, two and three notches
@@ -17,7 +18,12 @@ def run(_context: str):
     design = adsk.fusion.Design.cast(app.activeProduct); rc = design.rootComponent
     occ = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); comp = occ.component; comp.name = 'Keycap export'
     bf = comp.features.baseFeatures.add(); bf.startEdit()
-    items = [('print/keycap', keycap_flat()), ('test-fits/15-keycap-stem-fit', stem_test())]
+    items = [('print/keycap-plain', keycap_flat()), ('print/keycap-1-dot', keycap_flat(None, 1)), ('print/keycap-2-dots', keycap_flat(None, 2)), ('print/keycap-3-dots', keycap_flat(None, 3)),
+             ('print/keycap-4-dots', keycap_flat(None, 4)), ('print/keycap-bar', keycap_flat(None, 'bar')), ('test-fits/15-keycap-stem-fit', stem_test())]
+    # the knob, turned so its outer face is on the bed and its socket points up
+    k = knob(); m = adsk.core.Matrix3D.create(); m.setToRotation(math.pi/2, adsk.core.Vector3D.create(0, 1, 0), adsk.core.Point3D.create(0, 0, 0)); tbm.transform(k, m)
+    bb = k.boundingBox; t = adsk.core.Matrix3D.create(); t.translation = adsk.core.Vector3D.create(-(bb.minPoint.x + bb.maxPoint.x)/2, -(bb.minPoint.y + bb.maxPoint.y)/2, -bb.minPoint.z); tbm.transform(k, t)
+    items.append(('print/knob', k))
     for name, b in items: comp.bRepBodies.add(b, bf)
     bf.finishEdit()
     em = design.exportManager

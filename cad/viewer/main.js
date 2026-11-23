@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123q';
+  const DATA_V = '20261123r';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -133,6 +133,46 @@ function addParts(meta, bin, variantOf) {
     model.add(mesh);
     parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name), op: p.opacity });
   }
+}
+// ---------- key marks ----------
+// The keycaps have marks sunk into their tops so the keys can be told apart by touch. The exported caps carry one arrangement; here each cap gets a lid in
+// its own colour over the top, with the chosen arrangement drawn on it, so the options can be compared. Per key, left to right from the front.
+const MARKS = { 'Dots and bar': [1, 2, 3, 'bar'], 'Dots': [1, 2, 3, 4], 'Menu only': [0, 0, 0, 'bar'], 'Plain': [0, 0, 0, 0] };
+const KEYS_U = [152.325, 171.375, 190.425, 209.475], KEY_V = 198.5, KEY_W = [6.7, 25.8], KEY_HALF = 8.75;      // from the case model: centres across, top face, front and back, half width
+const keyLids = [];             // { group, parent }
+function buildKeyMarks() {
+  for (const name of Object.keys(MARKS)) {              // the buttons, made here because this runs once the page's helpers exist
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = name; b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => { setMarks(name); track('bedside_key_marks', { marks: name }); });
+    $('marks').appendChild(b);
+  }
+  const S15 = Math.sin(Math.PI / 12), C15 = Math.cos(Math.PI / 12);
+  const basis = new THREE.Matrix4().makeBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, C15, -S15), new THREE.Vector3(0, S15, C15));     // across, into the frame, up the frame
+  const caps = parts.filter((p) => p.name === 'Keycaps');
+  KEYS_U.forEach((u, i) => {
+    const wm = (KEY_W[0] + KEY_W[1]) / 2, v = KEY_V + 0.03;
+    const centre = new THREE.Vector3(u, wm * C15 + v * S15, 12 + v * C15 - wm * S15);
+    // the cap this key belongs to: the mesh whose box holds its centre
+    const parent = caps.find((p) => { p.mesh.geometry.computeBoundingBox(); const b = p.mesh.geometry.boundingBox; return i === 3 ? b.min.x > 195 : b.min.x < 195; }) || caps[0];
+    if (!parent) return;
+    const g = new THREE.Group(); g.position.copy(centre); g.setRotationFromMatrix(basis);
+    const lid = new THREE.Mesh(new THREE.PlaneGeometry(KEY_HALF * 2 - 0.1, KEY_W[1] - KEY_W[0] - 0.1), new THREE.MeshStandardMaterial({ color: parent.mesh.material.color.clone(), roughness: 0.72, metalness: 0.04 }));
+    g.add(lid); g.userData.marks = new THREE.Group(); g.userData.marks.position.z = 0.02; g.add(g.userData.marks);
+    g.userData.ink = new THREE.MeshStandardMaterial({ color: parent.mesh.material.color.clone().multiplyScalar(0.42), roughness: 0.9, metalness: 0 });
+    parent.mesh.add(g); keyLids.push({ group: g, parent, i });
+  });
+}
+function setMarks(name, save = true) {
+  state.marks = MARKS[name] ? name : 'Dots and bar';
+  for (const { group, i } of keyLids) {
+    const m = MARKS[state.marks][i], holder = group.userData.marks;
+    holder.clear();
+    if (m === 'bar') holder.add(new THREE.Mesh(new THREE.PlaneGeometry(8, 2), group.userData.ink));
+    else for (let k = 0; k < m; k++) { const d = new THREE.Mesh(new THREE.CircleGeometry(1, 24), group.userData.ink); d.position.x = 4 * (k - (m - 1) / 2); holder.add(d); }
+  }
+  for (const b of $('marks').children) b.setAttribute('aria-pressed', String(b.textContent === state.marks));
+  if (save) try { localStorage.setItem('bedside-marks', state.marks); } catch (e) { /* storage blocked */ }
 }
 async function addScreen(meta) {
   // The dashboard image, laid over the panel's active area
@@ -296,6 +336,7 @@ $('reset').addEventListener('click', () => {
   setFinish('Beige');
   setLabels(false);
   setCats(CATS_DEFAULT);
+  setMarks('Dots and bar');
   setWire(false);
   elec = true; $('elecToggle').setAttribute('aria-pressed', 'true');
   setDesign('mk2');
@@ -313,6 +354,7 @@ function shareURL() {
   const q = new URLSearchParams();
   q.set('mk', MK_HASH[state.design]);
   q.set('case', state.finish.toLowerCase());
+  if (state.marks !== 'Dots and bar') q.set('keys', state.marks.toLowerCase().replace(/ /g, '-'));
   q.set('bg', state.bg.toLowerCase());
   if (state.explode > 0) q.set('x', state.explode.toFixed(2));
   if (state.parts > 0) q.set('c', state.parts.toFixed(2));
@@ -719,9 +761,9 @@ const DETAILS = {
   'E-paper flex adapter': 'Joins the panel flex to the ribbon for the HAT.',
   'Adafruit NeoKey 1x4 QT': 'Four key sockets with backlights, on I2C.',
   'Cherry MX Brown switches': 'Tactile, quiet enough for a bedroom.',
-  'Keycaps': 'Printed, flat-topped, 17.5 x 19.1 mm, filling the slot in the top of the case: three grey, one orange for the menu. Each pushes onto its switch\'s cross.',
+  'Keycaps': 'Printed, flat-topped, 17.5 x 19.1 mm, filling the slot in the top of the case, with marks sunk into the top to tell them apart by touch: three grey, one orange for the menu. Each pushes onto its switch\'s cross.',
   'Adafruit I2C rotary encoder': 'Detented, with a push switch.',
-  'Knob': 'Volume, scrolling and select.',
+  'Knob': 'Printed, 24 mm across with a straight knurl. Pushes onto the encoder\'s 6 mm D-shaft. Volume, scrolling and select.',
 };
 
 // ---------- labels ----------
@@ -905,6 +947,10 @@ function frame() {
     if (build) placeBuild(p);
     if (flash) placeFlash(p);
   }
+  for (const { group, parent } of keyLids) {             // the lids fade in and out with their caps
+    const o = parent.mesh.material.opacity, solid = o >= 0.999;
+    group.traverse((n) => { if (n.material) { n.material.opacity = o; n.material.transparent = !solid; n.material.depthWrite = solid; } });
+  }
   // pull the camera back as the model spreads out, keeping whatever zoom the viewer chose
   const fit = 1 + 0.55 * e1 + 0.12 * e2 + 0.3 * buildSpread;
   if (Math.abs(fit - lastFit) > 1e-5) {
@@ -964,6 +1010,8 @@ load().then(() => {
   const fin = q.get('case');
   setFinish(fin ? fin[0].toUpperCase() + fin.slice(1).toLowerCase() : (stored('bedside-finish') || 'Beige'));
   setBackdrop(q.get('bg') || stored('bedside-backdrop'));
+  buildKeyMarks();
+  setMarks(Object.keys(MARKS).find((n) => n.toLowerCase().replace(/ /g, '-') === q.get('keys')) || stored('bedside-marks'), false);
   buildLabels();
   try { localStorage.removeItem('bedside-labels'); } catch (e) { /* storage blocked */ }   // labels are never remembered: off unless the link asks for them
   setLabels(q.get('labels') === '1');

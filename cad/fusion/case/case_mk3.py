@@ -65,13 +65,28 @@ KC_HALF, KC_W0, KC_W1 = 8.75, 6.7, 25.8                        # half the cap's 
 KC_TOP, KC_SKIRT, KC_SEAT = 198.5, 193.0, 191.1                # top face, bottom of the skirt, and the shoulder on the switch's slider that the post sits on
 KC_WALL, KC_ROOF, KC_POST, KC_SOCK = 1.2, 1.4, 2.75, 4.0       # wall, top thickness, post radius, socket depth
 KC_ARM = (4.25, 1.35, 4.45)                                    # the cross socket: one arm's length, both arms' width, the other arm's length. The stem's arms are 4.0 x 1.17.
-def keycap(uc):
+# Marks sunk into the top of each cap so the keys can be told apart by touch: a number of dots, or a bar. Sunk, not raised, because the caps print top face
+# down. From the front, left to right: one, two and three dots on the grey keys, and a bar on the orange menu key.
+KC_MARKS = (1, 2, 3, 'bar')
+KC_MW, KC_DOT, KC_PITCH, KC_BAR, KC_PIT = (KC_W0 + KC_W1)/2, 1.0, 4.0, (8.0, 2.0), 0.5      # the marks' line across the cap, dot radius and spacing, bar size, depth
+def mark_offsets(mark): return [] if mark in (0, None, 'bar') else [KC_PITCH*(i - (mark - 1)/2) for i in range(mark)]
+def keycap(uc, mark=None):
+    cap = keycap_plain(uc)
+    if mark == 'bar': return SUB(cap, [obox(uc - KC_BAR[0]/2, KC_TOP - KC_PIT, KC_MW - KC_BAR[1]/2, uc + KC_BAR[0]/2, KC_TOP + 0.1, KC_MW + KC_BAR[1]/2)])
+    dots = [cyl(F(uc + dx, KC_TOP - KC_PIT, KC_MW), F(uc + dx, KC_TOP + 0.1, KC_MW), KC_DOT) for dx in mark_offsets(mark)]
+    return SUB(cap, dots) if dots else cap
+def keycap_plain(uc):
     hu, w = KC_HALF, KCW
     shell = SUB(obox(uc - hu, KC_SKIRT, KC_W0, uc + hu, KC_TOP, KC_W1), [obox(uc - hu + KC_WALL, KC_SKIRT - 0.1, KC_W0 + KC_WALL, uc + hu - KC_WALL, KC_TOP - KC_ROOF, KC_W1 - KC_WALL)])
     cap = U([shell, cyl(F(uc, KC_SEAT, w), F(uc, KC_TOP - KC_ROOF + 0.1, w), KC_POST)])
     a, t, b = KC_ARM
     return SUB(cap, [obox(uc - a/2, KC_SEAT - 0.1, w - t/2, uc + a/2, KC_SEAT + KC_SOCK, w + t/2), obox(uc - t/2, KC_SEAT - 0.1, w - b/2, uc + t/2, KC_SEAT + KC_SOCK, w + b/2)])
-def keycap_flat(arm=None):
+def keycap_flat(arm=None, mark=None):
+    cap = keycap_flat_plain(arm); ym = KC_MW - KCW
+    if mark == 'bar': return SUB(cap, [box(-KC_BAR[0]/2, ym - KC_BAR[1]/2, -0.1, KC_BAR[0]/2, ym + KC_BAR[1]/2, KC_PIT)])
+    dots = [cyl((dx, ym, -0.1), (dx, ym, KC_PIT), KC_DOT) for dx in mark_offsets(mark)]
+    return SUB(cap, dots) if dots else cap
+def keycap_flat_plain(arm=None):
     # the same cap as it prints: top face on Z = 0, centred on the origin
     hu, (a, t, b) = KC_HALF, (arm or KC_ARM)
     zs, zp = KC_TOP - KC_SKIRT, KC_TOP - KC_SEAT
@@ -79,6 +94,27 @@ def keycap_flat(arm=None):
     shell = SUB(box(-hu, y0, 0, hu, y1, zs), [box(-hu + KC_WALL, y0 + KC_WALL, KC_ROOF, hu - KC_WALL, y1 - KC_WALL, zs + 0.1)])
     cap = U([shell, cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp), KC_POST)])
     return SUB(cap, [box(-a/2, -t/2, zp - KC_SOCK, a/2, t/2, zp + 0.1), box(-t/2, -b/2, zp - KC_SOCK, t/2, b/2, zp + 0.1)])
+# Printed knob for the rotary encoder: 24 mm across and 12 mm long, with a straight knurl of 40 V-grooves round a band and a chamfer at each end.
+# It pushes onto the encoder's 6 mm D-shaft: the flat is 1.5 mm off the axis and runs the last 6.5 mm of the shaft, and the shaft's tip is the stop.
+# It prints outer face down, so the socket points straight up and the grooves run vertically.
+KN_X0, KN_X1, KN_R = 246.0, 258.0, 12.0          # back face (2 mm off the side of the case, clear of the bushing's end when pressed), outer face, radius
+KN_TIP, KN_SHAFT, KN_FLAT = 253.0, 3.05, 1.55    # where the shaft's tip sits, and the socket: radius, and the flat's distance from the axis
+KN_GROOVES, KN_CUT = 40, 0.85                    # number of grooves, and the side of the square that cuts each one (0.6 mm deep)
+def knob():
+    ky, kz = F(0, KV, KW)[1:]
+    ax = lambda x: (x, ky, kz)
+    body = U([cone(ax(KN_X0), KN_R - 0.8, ax(KN_X0 + 0.8), KN_R), cyl(ax(KN_X0 + 0.8), ax(KN_X1 - 1.2), KN_R), cone(ax(KN_X1 - 1.2), KN_R, ax(KN_X1), KN_R - 1.2)])
+    cuts = []
+    xm, L = (KN_X0 + KN_X1)/2 - 0.2, KN_X1 - KN_X0 - 3.0
+    tool = tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(xm, ky, kz + KN_R), adsk.core.Vector3D.create(1, 0, 0), adsk.core.Vector3D.create(0, 1, 1), L*MM, KN_CUT*MM, KN_CUT*MM))
+    for i in range(KN_GROOVES):
+        t = tbm.copy(tool); m = adsk.core.Matrix3D.create()
+        m.setToRotation(2*math.pi*i/KN_GROOVES, adsk.core.Vector3D.create(1, 0, 0), P(0, ky, kz)); tbm.transform(t, m); cuts.append(t)
+    # the socket: a short wide mouth over the round part of the shaft, then the D
+    cuts.append(cyl(ax(KN_X0 - 0.1), ax(KN_X0 + 0.7), 3.6))
+    fn = (0.0, 0.866, 0.5)                        # the way the shaft's flat faces in the model; on the real part it turns with the shaft
+    cuts.append(SUB(cyl(ax(KN_X0 + 0.6), ax(KN_TIP), KN_SHAFT), [halfspace((KN_X0, ky + fn[1]*KN_FLAT, kz + fn[2]*KN_FLAT), fn)]))
+    return SUB(body, cuts)
 FINTOP, BOSSR = 175.8, 2.5                    # how far up the key module's fins go, and the radius of the bosses on them: as much as clears the sockets and parts under the NeoKey (177.9 or 3.0 touch them)
 SKIP = {(16, 178, 'W'), (228, 178, 'E'), (228, 178, 'W')}      # braces left off because something is in the way, as (u, v, side): the top two bezel screw heads, and the key module's STEMMA QT plug
 def braces(u, v, r, H, L):
@@ -330,7 +366,7 @@ def run(_context: str):
     tr.y += d*W_[1]; tr.z += d*W_[2]; m.translation = tr; pan.transform2 = m
     print('panel moved %.2f mm along W' % (d/MM))
     if design.snapshots.hasPendingSnapshot: design.snapshots.add()
-    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Panel foam tape', 'Waveshare 10.3', 'Keycaps', 'Floppy slot insert'):
+    for n in ('Front bezel', 'Mid chassis', 'Base tray', 'Frame plate', 'Rear shell', 'Plinth', 'Accent stripe', 'Access cover', 'Power switch', 'Screws', 'Rubber feet', 'Panel foam tape', 'Waveshare 10.3', 'Keycaps', 'Knob', 'Floppy slot insert'):
         for o in g(n): o.deleteMe()
     made = {}
     COL = {'Front bezel': BEIGE, 'Base tray': BLACK, 'Frame plate': BLACK, 'Rear shell': BEIGE, 'Plinth': BLACK, 'Access cover': BEIGE}
@@ -397,7 +433,9 @@ def run(_context: str):
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Panel foam tape'
     add_bodies(o.component, foam_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Keycaps'
-    add_bodies(o.component, [('Key %d' % (i + 1), keycap(u), (226, 120, 60) if i == 3 else (150, 150, 150)) for i, u in enumerate(KCU)], design)
+    add_bodies(o.component, [('Key %d' % (i + 1), keycap(u, KC_MARKS[i]), (226, 120, 60) if i == 3 else (150, 150, 150)) for i, u in enumerate(KCU)], design)
+    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Knob'
+    add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: keycaps extended forward to fill the slot'))
+    print('save', case.save('MK III case: printed knurled knob, and marks sunk into the keycaps'))

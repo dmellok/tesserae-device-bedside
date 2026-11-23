@@ -55,7 +55,7 @@
 <div class="wrap">
 <main class="text">
   <h1>Bedside Dashboard printing</h1>
-  <p class="lede">Which way up to print each of the six MK III case parts and the keycaps. Pick a part to see it on the bed, with its layers building up.</p>
+  <p class="lede">Which way up to print each of the six MK III case parts, the keycaps and the knob. Pick a part to see it on the bed, with its layers building up.</p>
   <nav><a href="./assembly.html">Assembly guide</a><a href="./#mk=3">Full 3D viewer</a></nav>
   <div class="note">These orientations come from the model's geometry: the largest flat face on the bed, the least overhang, and screw posts standing upright. None of them has been sliced or printed yet, so check each in your slicer before committing filament.</div>
 
@@ -112,6 +112,9 @@ const PARTS = [
   { name: 'Keycaps', colour: 'Three grey, one orange', swatch: '#969696', turn: 195, how: 'Top face down',
     why: 'The top takes the bed\'s finish and stays flat. The post that pushes onto the switch points straight up, so its cross-shaped socket prints cleanly with no bridging. The four are shown together; they print one at a time or as a set.',
     sup: 'None. Print the stem-fit test piece first to check how tightly the socket grips a switch.' },
+  { name: 'Knob', colour: 'Grey', swatch: '#969696', turn: 90, axis: 'y', how: 'Outer face down',
+    why: 'The outer face takes the bed\'s finish, the knurl\'s grooves run straight up, and the socket for the encoder shaft points up so its flat prints true.',
+    sup: 'None.' },
 ];
 const ORANGE = new THREE.Color('#e2783c');
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -150,7 +153,7 @@ let meta, bin;
 function build(part) {
   // one unindexed mesh for the part, turned onto the bed, with a colour per face: the part's own, or orange where it overhangs
   const a = part.turn * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-  const R = (x, y, z) => [x, y * c - z * s, y * s + z * c];
+  const R = part.axis === 'y' ? (x, y, z) => [x * c + z * s, y, -x * s + z * c] : (x, y, z) => [x, y * c - z * s, y * s + z * c];
   const pos = [], nrm = [], flag = [], hang = [], tint = [];
   let base = new THREE.Color(0.5, 0.5, 0.5);
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
