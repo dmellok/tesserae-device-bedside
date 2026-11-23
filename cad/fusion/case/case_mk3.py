@@ -45,11 +45,11 @@ def adapter_bodies():
     return [('PCB', pcb, (30, 70, 150)),
             ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
             ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
-# Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 20 mm wide, squashed to the 1.62 mm gap.
-# Strips as (u0, v0, u1, v1), all the tape's full 20 mm width and all against an edge of the glass, where the bezel's lip is in front of it: one down
-# each side and one across the top left. Nothing crosses the middle, where the glass has no support in front. The plate is cut away at the top right for the key module. They stay above the panel's folded flex
-# at the bottom, and clear of the openings in the plate for the key module and the encoder.
-FOAM = [(15, 32, 35, 187), (203, 32, 223, 169), (37, 167, 138, 187)]
+# Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 5 mm wide, squashed to the 1.62 mm gap.
+# Strips as (u0, v0, u1, v1), each along an edge of the glass, directly behind the bezel's lip, so the glass is pinched and not levered: down the left,
+# down the right in two pieces either side of the encoder's opening in the plate, and across the top as far as the key module's opening.
+# Nothing along the bottom, where the panel's flex folds behind the glass.
+FOAM = [(13.7, 32, 18.7, 187.4), (225.4, 32, 230.4, 133.8), (225.4, 166.2, 230.4, 187.4), (20.7, 182.4, 139, 187.4)]
 def foam_bodies():
     out = []
     for i, (u0, v0, u1, v1) in enumerate(FOAM):
@@ -373,4 +373,4 @@ def run(_context: str):
     add_bodies(o.component, foam_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: glass pocket 0.65 mm shallower so the foam presses the panel tight; three strips, all at the edges of the glass'))
+    print('save', case.save('MK III case: foam tape as 5 mm strips along the edges of the glass'))
