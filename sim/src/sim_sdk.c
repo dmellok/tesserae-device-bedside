@@ -258,6 +258,31 @@ int rom_get_partition_table_info(uint32_t *out, uint32_t words, uint32_t flags)
     return -1;
 }
 
+/* ---- over-the-air updates: the boot ROM's side (src/ota.c runs as on the device) ---- */
+static qmi_hw_t s_qmi; static xip_ctrl_hw_t s_xipc;
+qmi_hw_t *qmi_hw = &s_qmi;
+xip_ctrl_hw_t *xip_ctrl_hw = &s_xipc;
+
+int rom_get_uf2_target_partition(uint8_t *work, uint32_t n, uint32_t family, resident_partition_t *out)
+{
+    (void)work; (void)n; (void)family;
+    uint32_t w[3];
+    if (rom_get_partition_table_info(w, 3, PT_INFO_SINGLE_PARTITION | PT_INFO_PARTITION_LOCATION_AND_FLAGS | (1u << 24)) != 3) return -1;
+    out->permissions_and_location = w[1]; out->permissions_and_flags = w[2];
+    return 1;                                                    /* running from A: an update goes to B */
+}
+int  rom_explicit_buy(uint8_t *work, uint32_t n) { (void)work; (void)n; return 0; }
+bool rom_get_boot_info(boot_info_t *out) { memset(out, 0, sizeof *out); out->partition = 0; return true; }
+int  rom_get_last_boot_type(void) { return BOOT_TYPE_NORMAL; }
+int  rom_reboot(uint32_t flags, uint32_t delay_ms, uint32_t p0, uint32_t p1)
+{
+    (void)flags; (void)delay_ms; (void)p1;
+    printf("sim: the update is in slot B at 0x%06lx and checked out; a Mac can't start an RP2350 image, "
+           "so the simulator restarts on this firmware (slot B is cleared at boot, as on the device)\n",
+           (unsigned long)(p0 - (uint32_t)XIP_BASE));
+    sim_reboot("over-the-air update");
+}
+
 /* ---- the board id: fixed, so Tesserae sees one simulator, not a new one each run ---- */
 
 void pico_get_unique_board_id(pico_unique_board_id_t *id)

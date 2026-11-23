@@ -15,7 +15,7 @@ Starts its own simulator (the AddressSanitizer build, its own flash file, port
   - the process is still alive
 Findings go to DIR/report.md with pictures (glass | intended | difference).
 """
-import argparse, json, os, re, signal, struct, subprocess, sys, time, traceback, urllib.request, zlib
+import argparse, json, os, random, re, shutil, signal, socket, socketserver, ssl, struct, subprocess, sys, threading, time, traceback, urllib.request, zlib
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 W, H, ROWB = 1872, 1404, 936
@@ -24,11 +24,11 @@ DEVICE_JSON_BUF = 10240          # net.c: s_json[10240] holds the /api/state rep
 # ---------------------------------------------------------------------------------------------
 class Sim:
     def __init__(self, out, port=8091, binary=None):
-        self.out, self.port = out, port
+        self.out, self.port = os.path.abspath(out), port   # absolute: the simulator runs from the repo root
         self.base = "http://127.0.0.1:%d" % port
         self.bin = binary or os.path.join(ROOT, "sim", "build-san", "bedside-sim")
-        self.flash = os.path.join(out, "flash.bin")
-        self.logpath = os.path.join(out, "sim.log")
+        self.flash = os.path.join(self.out, "flash.bin")
+        self.logpath = os.path.join(self.out, "sim.log")
         self.proc = None
         self.log_mark = 0
         self.warped = False
@@ -174,8 +174,14 @@ BAD_LOG = [
     (re.compile(r"\b(FAILED|failed|error|overflow|truncated|too large|unknown|invalid|bad )", re.I), "log"),
     (re.compile(r"^stall: "), "stall"),
 ]
-LOG_OK = re.compile(r"https is not simulated|SomaFM|no address for|rest: connect failed|could not fetch|mqtt:|tap expired|"
-                    r"Updates can't|release list needs https|connect failed \(|no server", re.I)
+LOG_OK = re.compile(r"SomaFM|no address for|rest: connect failed|could not fetch|mqtt:|tap expired|"
+                    r"connect failed \(|no server|bind: unknown input|"
+                    r"radio: .*; retry \d+ in|radio: tcp error|radio: stopped \(|"
+                    r"sim: tls: handshake failed .*not correctly signed by the trusted CA", re.I)   # the radio and https scenarios' broken servers, on purpose
+
+# Network fetches that hold the main loop by design (radio.h: the SomaFM list
+# "blocks a few seconds"; the release list): a stall right after one is noted.
+KNOWN_WAIT = re.compile(r"radio: SomaFM list|could not fetch the SomaFM list|ota: \d+ release\(s\) on GitHub|ota: could not reach GitHub")
 
 class Run:
     def __init__(self, sim, out):
@@ -213,12 +219,17 @@ class Run:
                           "after: %s (%s)" % (step, scenario), key=("json-size",))
         except Exception as e:
             self.find("web", "/api/state is not valid JSON", "after %s: %s" % (step, e), key=("json", step))
+        recent = []                                                      # the lines just before, for KNOWN_WAIT
         for line in sim.new_log():
             for rx, kind in BAD_LOG:
                 if rx.search(line) and not LOG_OK.search(line):
                     if kind == "stall" and sim.warped: continue          # a clock jump reads as a stall
+                    hit = [l for l in recent if KNOWN_WAIT.search(l)]
+                    if kind == "stall" and hit:                          # a fetch the firmware makes in the loop on purpose
+                        self.notes.append("known wait: %s after \"%s\"" % (line.strip(), hit[-1].strip()[:60])); continue
                     self.find(scenario if kind != "sanitizer" else "memory", "%s line: %s" % (kind, line.strip()[:110]),
                               "during: %s" % step, key=(kind, re.sub(r"\d+", "#", line.strip())[:80]))
+            recent = (recent + [line])[-8:]
         sim.warped = False
         if not paint: return
         try:
@@ -431,6 +442,18 @@ def sc_alarm(run):
     sim.key(0, "tap"); time.sleep(2)
     run.check("key 1 while ringing", "alarm")
     st, _ = sim.state()
+    if st["local"]["phase"] != 2:
+        # key 1 snoozed: switching the alarm off has to take its snooze with it
+        sim.set("alarm", "0,6,30,0,127,15"); time.sleep(1)
+        st, _ = sim.state()
+        snz = (st.get("ui", {}).get("chorus") or st.get("chorus") or {}).get("snooze_s", 0)
+        if snz: run.find("alarm", "the snooze is still pending after its alarm was switched off", "snooze_s=%s" % snz)
+        sim.warp(snooze * 60 + 30); time.sleep(3)
+        st, _ = sim.state()
+        if st["local"]["phase"] == 2: run.find("alarm", "a snoozed alarm rang after it was switched off", "phase=2")
+        run.check("snoozed, then the alarm switched off", "alarm")
+        sim.set("alarm", "0,6,30,1,127,15"); time.sleep(1)
+        st, _ = sim.state()
     if st["local"]["phase"] == 2:
         sim.knob("hold"); time.sleep(2)
     st, _ = sim.state()
@@ -593,8 +616,206 @@ def sc_reset(run):
     if "Setup" not in m.get("title", ""): run.find("reset", "after a factory reset, first-run setup didn't start", json.dumps(m)[:200])
     run.check("after a factory reset", "reset")
 
+# ---------------------------------------------------------------------------------------------
+# The radio, against a stream server on this Mac: no internet, and every way a
+# stream can go wrong on demand. The audio is silent MP3 frames (MPEG-1 Layer
+# III, 128 kbps, 44.1 kHz, mono, empty main data): real frames the decoder
+# syncs to and decodes, without an encoder on the Mac.
+MP3_FRAME = bytes([0xFF, 0xFB, 0x90, 0xC0]) + bytes(417 - 4)
+RADIO_TITLE, RADIO_NAME = "Shakedown - Silence", "Shakedown FM"
+
+class StreamServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+    def __init__(self, tls=None):
+        self.hits, self.tls, self.tls_errors = {}, tls, []
+        super().__init__(("127.0.0.1", 0), StreamHandler)
+        self.port = self.server_address[1]
+        threading.Thread(target=self.serve_forever, daemon=True).start()
+
+class StreamHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        if self.server.tls:                                         # https: the handshake, then the same streams
+            try: self.request = self.server.tls.wrap_socket(self.request, server_side=True)
+            except (ssl.SSLError, OSError) as e: self.server.tls_errors.append(str(e)); return
+        req = b""
+        self.request.settimeout(5)
+        while b"\r\n\r\n" not in req:
+            d = self.request.recv(4096)
+            if not d: return
+            req += d
+        head = req.decode("latin-1")
+        path = head.split(" ")[1] if " " in head else "/"
+        srv = self.server
+        srv.hits[path] = srv.hits.get(path, 0) + 1
+        send = self.request.sendall
+        try:
+            if path == "/404":
+                send(b"HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\n\r\nno such stream"); return
+            if path == "/aac":
+                send(b"HTTP/1.0 200 OK\r\nContent-Type: audio/aac\r\n\r\n" + bytes(4096)); return
+            if path == "/ua" and "user-agent:" in head.lower():
+                send(b"HTTP/1.0 403 Forbidden\r\n\r\n"); return
+            if path == "/garbage":
+                send(b"HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\n\r\n")
+                rnd = random.Random(7)
+                for _ in range(120): send(bytes(rnd.getrandbits(8) for _ in range(2000))); time.sleep(0.05)
+                return
+            # a good stream; /drop ends after 3 s (a dropped connection)
+            metaint = 8192
+            send(("ICY 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: %s\r\nicy-br: 128\r\nicy-metaint: %d\r\n\r\n"
+                  % (RADIO_NAME, metaint)).encode())
+            meta = ("StreamTitle='%s';" % RADIO_TITLE).encode()
+            meta += bytes(-len(meta) % 16)
+            left, t0, sent = metaint, time.time(), 0
+            while not getattr(srv, "closing", False):
+                if path == "/drop" and time.time() - t0 > 3: return
+                buf = MP3_FRAME * 4
+                while buf:
+                    n = min(left, len(buf))
+                    send(buf[:n]); buf = buf[n:]; left -= n; sent += n
+                    if left == 0: send(bytes([len(meta) // 16]) + meta); left = metaint
+                ahead = sent / 16000.0 - (time.time() - t0)       # 128 kbps, a few seconds ahead at most
+                if ahead > 3: time.sleep(ahead - 3)
+        except OSError:
+            pass
+
+def sc_radio(run):
+    sim = run.sim
+    go_home(sim)
+    srv = StreamServer()
+    base = "http://127.0.0.1:%d" % srv.port
+    log_at = os.path.getsize(sim.logpath)
+    def log_since():
+        sim.logf.flush()
+        with open(sim.logpath, "rb") as f: f.seek(log_at); return f.read().decode("utf-8", "replace")
+    def radio(): return sim.state()[0]["ui"]["radio"]
+    def wait(pred, timeout):
+        t = time.time()
+        while time.time() - t < timeout:
+            r = radio()
+            if pred(r): return r
+            time.sleep(0.4)
+        return radio()
+    def play(path, name="Shakedown"):
+        nonlocal log_at
+        sim.set("rain_on", 0); time.sleep(2.5)                  # the radio stops 2 s after the sound
+        log_at = os.path.getsize(sim.logpath)
+        sim.cmd("radio", "6|%s|%s%s" % (name, base if not path.startswith(("http", "ftp")) else "", path))
+        sim.set("station", 6); sim.set("rain_kind", 5); sim.set("rain_on", 1)
+    try:
+        # 1. a good stream: plays, with the stream's name and song title
+        play("/good")
+        r = wait(lambda r: r["state"] == "playing" and r["title"], 20)
+        if r["state"] != "playing": run.find("radio", "a good MP3 stream didn't start playing", json.dumps(r)[:300])
+        else:
+            if r["title"] != RADIO_TITLE: run.find("radio", "the stream's song title wasn't read", "title=%r" % r["title"])
+            if r["station"] != "Shakedown": run.find("radio", "the station isn't shown by its preset name", "station=%r" % r["station"])
+            if "radio: %s," % RADIO_NAME not in log_since(): run.find("radio", "the stream's icy-name wasn't read", log_since()[-300:])
+            if r["buf_ms"] <= 0: run.find("radio", "playing, but nothing decoded in hand", json.dumps(r)[:300])
+        run.check("radio: a good stream playing", "radio")
+        # 2. a server that refuses the device's User-Agent (SomaFM-like): retried without one
+        play("/ua")
+        r = wait(lambda r: r["state"] == "playing", 20)
+        if r["state"] != "playing" or "trying without a User-Agent" not in log_since():
+            run.find("radio", "a 403 wasn't retried without the User-Agent", "state=%s hits=%s" % (r["state"], srv.hits.get("/ua")))
+        run.check("radio: 403, then playing without a User-Agent", "radio")
+        # 3. the connection drops mid-stream: it reconnects by itself
+        play("/drop")
+        wait(lambda r: r["state"] == "playing", 15)
+        t = time.time()
+        while srv.hits.get("/drop", 0) < 2 and time.time() - t < 15: time.sleep(0.5)
+        r = wait(lambda r: r["state"] == "playing", 10)
+        if srv.hits.get("/drop", 0) < 2: run.find("radio", "a dropped stream didn't reconnect", "connections=%s state=%s" % (srv.hits.get("/drop"), r["state"]))
+        run.check("radio: a dropped stream reconnects", "radio")
+        # 4-6. streams that can't play: a clear reason, no crash, no sound engine stuck
+        for path, want in (("/aac", "not MP3"), ("/404", "HTTP 404"), ("http://127.0.0.1:9/", "")):
+            play(path)
+            r = wait(lambda r: r["err"] or r["state"] in ("failed",), 12)
+            if r["state"] == "playing" or not r["err"] or (want and want not in r["err"]):
+                run.find("radio", "a bad stream (%s) didn't fail with a clear reason" % path, json.dumps(r)[:300])
+            run.check("radio: bad stream %s" % path, "radio")
+        # 7. noise sent as audio/mpeg: the decoder hunts for frames; nothing breaks
+        play("/garbage"); time.sleep(6)
+        run.check("radio: random bytes as MP3", "radio")
+        # 8. off: the stream stops
+        sim.set("rain_on", 0)
+        r = wait(lambda r: r["state"] == "off", 8)
+        if r["state"] != "off": run.find("radio", "the radio didn't stop when the sound was turned off", json.dumps(r)[:200])
+        # 9. a URL the firmware refuses to save
+        sim.cmd("radio", "6|Bad|ftp://example.com/x"); time.sleep(0.5)
+        if "preset 6 rejected" not in log_since(): run.find("radio", "a non-http station URL was accepted", log_since()[-300:])
+        run.check("radio: off, and a bad URL refused", "radio")
+        run.notes.append("radio: local stream server; connections %s" % json.dumps(srv.hits))
+    finally:
+        srv.closing = True; srv.shutdown(); srv.server_close()
+        sim.set("rain_on", 0)
+
+# ---------------------------------------------------------------------------------------------
+# https: the simulator's TLS is the device's mbedTLS with its config and trusted
+# roots. A local https server with a certificate of its own must be refused; the
+# real services (SomaFM, GitHub) must work. Those need the internet: offline,
+# they are skipped with a note, not reported.
+def online(host):
+    try: socket.getaddrinfo(host, 443); return True
+    except OSError: return False
+
+def sc_https(run):
+    sim = run.sim
+    go_home(sim)
+    log_at = [os.path.getsize(sim.logpath)]
+    def log_since():
+        sim.logf.flush()
+        with open(sim.logpath, "rb") as f: f.seek(log_at[0]); return f.read().decode("utf-8", "replace")
+    def radio(): return sim.state()[0]["ui"]["radio"]
+    def play(url):
+        sim.set("rain_on", 0); time.sleep(2.5)
+        log_at[0] = os.path.getsize(sim.logpath)
+        sim.cmd("radio", "6|Shakedown|" + url); sim.set("station", 6); sim.set("rain_kind", 5); sim.set("rain_on", 1)
+    # 1. a server with a certificate the device doesn't trust: no handshake, no sound, a clear log line
+    if shutil.which("openssl"):
+        d = os.path.join(sim.out, "tls"); os.makedirs(d, exist_ok=True)
+        key, crt = os.path.join(d, "key.pem"), os.path.join(d, "crt.pem")
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes",
+                        "-keyout", key, "-out", crt, "-days", "2", "-subj", "/CN=127.0.0.1"], check=True, capture_output=True)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(crt, key)
+        srv = StreamServer(tls=ctx)
+        try:
+            play("https://127.0.0.1:%d/good" % srv.port); time.sleep(8)
+            r, log = radio(), log_since()
+            if r["state"] == "playing": run.find("https", "a stream with an untrusted certificate played", json.dumps(r)[:300])
+            if "sim: tls: handshake failed" not in log: run.find("https", "no TLS handshake failure for an untrusted certificate", log[-400:])
+            elif "trusted CA" not in log:
+                run.notes.append("https: untrusted certificate refused, but the reason wasn't 'not trusted': " +
+                                 [l for l in log.splitlines() if "handshake failed" in l][0])
+            run.check("https: an untrusted certificate is refused", "https")
+        finally:
+            srv.closing = True; srv.shutdown(); srv.server_close(); sim.set("rain_on", 0)
+    else:
+        run.notes.append("https: openssl not found, the untrusted-certificate check was skipped")
+    # 2. the real services over the device's TLS
+    if not online("api.somafm.com"):
+        run.notes.append("https: offline, SomaFM and GitHub checks skipped"); return
+    log_at[0] = os.path.getsize(sim.logpath)
+    sim.cmd("somafm", "1"); time.sleep(10)
+    r = radio()
+    if not r["soma_live"]: run.find("https", "SomaFM's channel list (https) didn't load", log_since()[-400:])
+    play("https://ice1.somafm.com/groovesalad-128-mp3")
+    t = time.time()
+    while time.time() - t < 25 and radio()["state"] != "playing": time.sleep(0.5)
+    r = radio()
+    if r["state"] != "playing": run.find("https", "an https radio stream didn't play", json.dumps(r)[:300] + "\n" + log_since()[-400:])
+    run.check("https: SomaFM list and an https stream", "https")
+    sim.set("rain_on", 0); time.sleep(2.5)
+    log_at[0] = os.path.getsize(sim.logpath)
+    sim.cmd("otacheck", "1"); time.sleep(12)
+    log = log_since()
+    if not re.search(r"ota: \d+ release\(s\) on GitHub", log): run.find("https", "the GitHub release list (https) didn't load", log[-400:])
+    run.check("https: the GitHub release list", "https")
+    run.notes.append("https: " + "; ".join(sorted(set(l.split("sim: tls: ")[1] for l in log_since().splitlines() if "sim: tls: TLS" in l))) )
+
 SCENARIOS = [("boot", sc_boot), ("wizard", sc_wizard), ("keys", sc_keys), ("alarm", sc_alarm), ("sleep", sc_sleep),
-             ("night", sc_night), ("web", sc_web), ("menus", sc_menus), ("settings", sc_settings), ("reboot", sc_reboot),
+             ("night", sc_night), ("radio", sc_radio), ("https", sc_https), ("web", sc_web), ("menus", sc_menus), ("settings", sc_settings), ("reboot", sc_reboot),
              ("wifi", sc_wifi_setup), ("reset", sc_reset)]
 
 # ---------------------------------------------------------------------------------------------

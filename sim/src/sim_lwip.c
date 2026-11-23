@@ -6,6 +6,12 @@
  * sleep_ms() (net_rest.c's request loop) or polls (cyw43_arch_poll), and both
  * end up in sim_lwip_pump(), which polls the sockets and calls back.
  *
+ * https: a TLS pcb is a TCP socket with an mbedTLS session on it (the SDK's
+ * mbedTLS, built with the firmware's config: its ciphers, its memory through
+ * the PSRAM heap, its trusted roots from tls_roots.h, a certificate that
+ * doesn't check out ends the handshake as lwIP's altcp_tls_mbedtls.c does on
+ * the device: the error callback with ERR_CLSD).
+ *
  * Time warp: the wall clock comes from the Date header of the server's replies
  * (net_rest.c). When the simulator's clock has been jumped forward, the header
  * is moved forward by the same amount on its way in, so the server keeps the
@@ -26,6 +32,12 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "mbedtls/ssl.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/x509_crt.h"
+#include "mbedtls/net_sockets.h"   /* only its error codes for the socket callbacks */
 
 cyw43_t cyw43_state;
 
@@ -176,17 +188,18 @@ err_t dns_gethostbyname(const char *name, ip_addr_t *addr, dns_found_callback fo
 struct altcp_pcb {
     int fd;
     bool connecting, eof, dead, rx_seen;
+    bool tls, handshaking, want_write;   /* https: the session below, until its handshake is done */
+    mbedtls_ssl_context ssl;
     void *arg;
     altcp_connected_fn on_conn;
     altcp_recv_fn on_recv;
     altcp_sent_fn on_sent;
     altcp_err_fn on_err;
     altcp_poll_fn on_poll; uint32_t poll_ms, polled_ms;
-    buf_t tx;
+    buf_t tx;                            /* plain text waiting to go (TLS encrypts it on the way out) */
     struct altcp_pcb *next;
 };
 static struct altcp_pcb *s_pcbs;
-struct altcp_tls_config { int unused; };
 
 struct altcp_pcb *altcp_tcp_new_ip_type(u8_t t)
 {
@@ -198,15 +211,70 @@ struct altcp_pcb *altcp_tcp_new_ip_type(u8_t t)
     return p;
 }
 
+/* ---- TLS (mbedTLS) ---- */
+struct altcp_tls_config {
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt ca;
+};
+static mbedtls_entropy_context  s_entropy;     /* one generator for all connections, as lwIP's layer */
+static mbedtls_ctr_drbg_context s_drbg;
+
+struct altcp_tls_config *altcp_tls_create_config_client(const u8_t *ca, size_t len)
+{
+    static bool seeded;
+    if (!seeded) {
+        mbedtls_entropy_init(&s_entropy); mbedtls_ctr_drbg_init(&s_drbg);
+        int r = mbedtls_ctr_drbg_seed(&s_drbg, mbedtls_entropy_func, &s_entropy, NULL, 0);
+        if (r) { printf("sim: tls: random generator seed failed -0x%04x\n", -r); return NULL; }
+        seeded = true;
+    }
+    struct altcp_tls_config *c = calloc(1, sizeof *c);
+    if (!c) return NULL;
+    mbedtls_ssl_config_init(&c->conf); mbedtls_x509_crt_init(&c->ca);
+    int r = mbedtls_ssl_config_defaults(&c->conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+    if (!r && ca) r = mbedtls_x509_crt_parse(&c->ca, ca, len);
+    if (r < 0) {
+        printf("sim: tls: config failed -0x%04x\n", -r);
+        mbedtls_x509_crt_free(&c->ca); mbedtls_ssl_config_free(&c->conf); free(c);
+        return NULL;
+    }
+    if (r > 0) printf("sim: tls: %d of the trusted roots didn't parse\n", r);
+    mbedtls_ssl_conf_authmode(&c->conf, MBEDTLS_SSL_VERIFY_REQUIRED);    /* lwipopts.h: ALTCP_MBEDTLS_AUTHMODE */
+    mbedtls_ssl_conf_rng(&c->conf, mbedtls_ctr_drbg_random, &s_drbg);
+    mbedtls_ssl_conf_ca_chain(&c->conf, ca ? &c->ca : NULL, NULL);
+    return c;
+}
+
+static int bio_send(void *ctx, const unsigned char *b, size_t n)
+{
+    struct altcp_pcb *p = ctx;
+    ssize_t k = send(p->fd, b, n, 0);
+    if (k >= 0) return (int)k;
+    if (errno == EAGAIN) { p->want_write = true; return MBEDTLS_ERR_SSL_WANT_WRITE; }
+    return MBEDTLS_ERR_NET_SEND_FAILED;
+}
+static int bio_recv(void *ctx, unsigned char *b, size_t n)
+{
+    struct altcp_pcb *p = ctx;
+    ssize_t k = recv(p->fd, b, n, 0);
+    if (k >= 0) return (int)k;                                     /* 0: the far end closed */
+    if (errno == EAGAIN) return MBEDTLS_ERR_SSL_WANT_READ;
+    return MBEDTLS_ERR_NET_RECV_FAILED;
+}
+
 struct altcp_pcb *altcp_tls_new(struct altcp_tls_config *c, u8_t t)
 {
-    (void)c; (void)t;
-    static bool said;
-    if (!said) { printf("sim: https is not simulated (no TLS): GitHub releases and https streams can't be reached\n"); said = true; }
-    return NULL;
+    if (!c) return NULL;
+    struct altcp_pcb *p = altcp_tcp_new_ip_type(t);
+    if (!p) return NULL;
+    p->tls = true;
+    mbedtls_ssl_init(&p->ssl);
+    int r = mbedtls_ssl_setup(&p->ssl, &c->conf);               /* the record buffers: from the PSRAM heap */
+    if (r) { printf("sim: tls: session setup failed -0x%04x (memory?)\n", -r); p->dead = true; return NULL; }
+    mbedtls_ssl_set_bio(&p->ssl, p, bio_send, bio_recv, NULL);
+    return p;
 }
-struct altcp_tls_config *altcp_tls_create_config_client(const u8_t *cert, size_t len) { (void)cert; (void)len; static struct altcp_tls_config c; return &c; }
-void *altcp_tls_context(struct altcp_pcb *p) { (void)p; return NULL; }
+void *altcp_tls_context(struct altcp_pcb *p) { return p && p->tls ? &p->ssl : NULL; }
 
 void altcp_arg(struct altcp_pcb *p, void *arg)            { if (p) p->arg = arg; }
 void altcp_recv(struct altcp_pcb *p, altcp_recv_fn f)     { if (p) p->on_recv = f; }
@@ -254,6 +322,61 @@ static void pcb_fail(struct altcp_pcb *p, err_t e)
     if (f) f(a, e);
 }
 
+/* Received plain text, to the firmware: Date header warped, in pbufs of at most 64 KB. */
+static void deliver(struct altcp_pcb *p, uint8_t *b, ssize_t n)
+{
+    if (!p->rx_seen) { p->rx_seen = true; warp_date((char *)b, (size_t)n); }
+    for (ssize_t off = 0; off < n && !p->dead; off += 65535) {       /* pbufs carry 16-bit lengths */
+        size_t m = (size_t)(n - off) < 65535 ? (size_t)(n - off) : 65535;
+        struct pbuf *pb = pbuf_make(b + off, m);
+        if (p->on_recv) p->on_recv(p->arg, p, pb, ERR_OK); else pbuf_free(pb);
+    }
+}
+static void closed_by_peer(struct altcp_pcb *p)
+{
+    p->eof = true;
+    if (p->on_recv) p->on_recv(p->arg, p, NULL, ERR_OK);
+}
+
+static void tls_service(struct altcp_pcb *p, short rev)
+{
+    p->want_write = false;
+    if (p->handshaking) {
+        int r = mbedtls_ssl_handshake(&p->ssl);
+        if (r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) return;
+        if (r) {
+            char why[160] = "";
+            uint32_t v = mbedtls_ssl_get_verify_result(&p->ssl);
+            if (v && v != (uint32_t)-1) { mbedtls_x509_crt_verify_info(why, sizeof why, "", v); why[strcspn(why, "\n")] = 0; }
+            printf("sim: tls: handshake failed -0x%04x%s%s\n", -r, why[0] ? ": " : "", why);
+            pcb_fail(p, ERR_CLSD);                                  /* as altcp_tls_mbedtls.c */
+            return;
+        }
+        p->handshaking = false;
+        printf("sim: tls: %s, %s\n", mbedtls_ssl_get_version(&p->ssl), mbedtls_ssl_get_ciphersuite(&p->ssl));
+        if (p->on_conn) p->on_conn(p->arg, p, ERR_OK);
+        if (p->dead) return;
+    }
+    while (p->tx.n) {
+        int r = mbedtls_ssl_write(&p->ssl, p->tx.b, p->tx.n);
+        if (r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) break;
+        if (r < 0) { pcb_fail(p, ERR_RST); return; }
+        buf_drop(&p->tx, (size_t)r);
+        if (p->on_sent) p->on_sent(p->arg, p, (u16_t)r);
+        if (p->dead) return;
+    }
+    if (p->eof || !((rev & (POLLIN | POLLHUP)) || mbedtls_ssl_get_bytes_avail(&p->ssl))) return;
+    for (int i = 0; i < 64 && !p->dead && !p->eof; i++) {
+        uint8_t b[16384];
+        int r = mbedtls_ssl_read(&p->ssl, b, sizeof b);
+        if (r > 0) { deliver(p, b, r); continue; }
+        if (r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) break;
+        if (r == 0 || r == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY || r == MBEDTLS_ERR_SSL_CONN_EOF) { closed_by_peer(p); break; }
+        printf("sim: tls: read failed -0x%04x\n", -r);
+        pcb_fail(p, ERR_RST); return;
+    }
+}
+
 static void pcb_service(struct altcp_pcb *p, short rev)
 {
     if (p->dead || p->fd < 0) return;
@@ -262,9 +385,11 @@ static void pcb_service(struct altcp_pcb *p, short rev)
         bool ok; connect_done(p->fd, &ok);
         p->connecting = false;
         if (!ok) { pcb_fail(p, ERR_RST); return; }
-        if (p->on_conn) p->on_conn(p->arg, p, ERR_OK);
+        if (p->tls) { p->handshaking = true; rev = POLLIN | POLLOUT; }   /* connected once the handshake is done */
+        else if (p->on_conn) p->on_conn(p->arg, p, ERR_OK);
         if (p->dead) return;
     }
+    if (p->tls) { tls_service(p, rev); return; }
     if (p->tx.n && (rev & POLLOUT)) {
         ssize_t n = send(p->fd, p->tx.b, p->tx.n, 0);
         if (n > 0) { buf_drop(&p->tx, (size_t)n); if (p->on_sent) p->on_sent(p->arg, p, (u16_t)n); if (p->dead) return; }
@@ -273,17 +398,9 @@ static void pcb_service(struct altcp_pcb *p, short rev)
     if (!p->eof && (rev & (POLLIN | POLLHUP))) {
         uint8_t b[16384];
         ssize_t n = recv(p->fd, b, sizeof b, 0);
-        if (n > 0) {
-            if (!p->rx_seen) { p->rx_seen = true; warp_date((char *)b, (size_t)n); }
-            for (ssize_t off = 0; off < n && !p->dead; off += 65535) {       /* pbufs carry 16-bit lengths */
-                size_t m = (size_t)(n - off) < 65535 ? (size_t)(n - off) : 65535;
-                struct pbuf *pb = pbuf_make(b + off, m);
-                if (p->on_recv) p->on_recv(p->arg, p, pb, ERR_OK); else pbuf_free(pb);
-            }
-        } else if (n == 0) {
-            p->eof = true;
-            if (p->on_recv) p->on_recv(p->arg, p, NULL, ERR_OK);           /* the far end closed */
-        } else if (errno != EAGAIN) pcb_fail(p, ERR_RST);
+        if (n > 0) deliver(p, b, n);
+        else if (n == 0) closed_by_peer(p);                              /* the far end closed */
+        else if (errno != EAGAIN) pcb_fail(p, ERR_RST);
     }
 }
 
@@ -477,7 +594,7 @@ void sim_lwip_pump(uint32_t wait_ms)
     struct pollfd fds[64]; void *who[64]; bool is_mqtt[64]; int n = 0;
     for (struct altcp_pcb *p = s_pcbs; p && n < 64; p = p->next) {
         if (p->dead || p->fd < 0) continue;
-        fds[n] = (struct pollfd){ .fd = p->fd, .events = (short)((p->eof ? 0 : POLLIN) | (p->connecting || p->tx.n ? POLLOUT : 0)) };
+        fds[n] = (struct pollfd){ .fd = p->fd, .events = (short)((p->eof ? 0 : POLLIN) | (p->connecting || p->tx.n || p->want_write ? POLLOUT : 0)) };
         who[n] = p; is_mqtt[n] = false; n++;
     }
     for (mqtt_client_t *c = s_mqtt; c && n < 64; c = c->next) {
@@ -485,6 +602,8 @@ void sim_lwip_pump(uint32_t wait_ms)
         fds[n] = (struct pollfd){ .fd = c->fd, .events = (short)(POLLIN | (c->state == 1 || c->tx.n ? POLLOUT : 0)) };
         who[n] = c; is_mqtt[n] = true; n++;
     }
+    for (struct altcp_pcb *p = s_pcbs; p; p = p->next)              /* decrypted bytes already in hand: don't wait */
+        if (!p->dead && p->tls && !p->handshaking && !p->eof && mbedtls_ssl_get_bytes_avail(&p->ssl)) { wait_ms = 0; break; }
     if (n) poll(fds, (nfds_t)n, (int)wait_ms);
     else if (wait_ms) usleep(wait_ms * 1000u);
 
@@ -501,7 +620,7 @@ void sim_lwip_pump(uint32_t wait_ms)
     /* free what was closed, now that no callback is using it */
     for (struct altcp_pcb **pp = &s_pcbs; *pp; ) {
         struct altcp_pcb *p = *pp;
-        if (p->dead) { *pp = p->next; free(p->tx.b); free(p); } else pp = &p->next;
+        if (p->dead) { *pp = p->next; if (p->tls) mbedtls_ssl_free(&p->ssl); free(p->tx.b); free(p); } else pp = &p->next;
     }
     for (mqtt_client_t **pp = &s_mqtt; *pp; ) {
         mqtt_client_t *c = *pp;

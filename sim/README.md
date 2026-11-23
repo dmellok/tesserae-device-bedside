@@ -9,7 +9,9 @@ make -C sim run            # build, start, then open http://localhost:8080/sim
 ```
 
 `make -C sim` only builds (`sim/build/bedside-sim`). It needs the Xcode
-command line tools and Python 3, and nothing else. PlatformIO isn't needed.
+command line tools, Python 3, and the Pico SDK's mbedTLS, which PlatformIO
+downloads the first time it builds the firmware (pass `MBED=<path>` if it is
+somewhere else).
 
 ## What runs
 
@@ -17,24 +19,47 @@ This is the real firmware, not a model of it. The application files in `src/`
 compile unchanged: `main.c`, the whole UI (`ui_*.c`), painting (`paint.c`,
 `screens.c`, `painter.c` with core 1 as a thread), inputs (`inputs.c`),
 settings and files in flash (`config.c`, `store.c`), the Tesserae client
-(`tesserae.c`, `net_rest.c`), Home Assistant (`ha.c`), the radio, and the
-sound engine. Only the hardware underneath is replaced, in `sim/src`:
+(`tesserae.c`, `net_rest.c`), Home Assistant (`ha.c`), the radio, updates
+(`ota.c`) and the sound engine. Only the hardware underneath is replaced, in
+`sim/src`:
 
 | On the device | In the simulator |
 |---|---|
 | IT8951 controller and glass (`it8951.c`) | `sim_panel.c`: the image memory and the glass. Refreshes take the device's measured times. GC16 and INIT flash, and DU and A2 show two levels until a full-quality pass. A full GC16 does an INIT first when the controller's comparison image is out of date. |
 | NeoKey 1x4 and rotary encoder (`seesaw.c`) | `sim_keys.c`: the seesaw boards, with latched key flags and the LED colours the firmware sends |
 | WiFi and the web server (`net.c`) | `sim_web.c`: the same routes on a Mac socket, plus `/sim` |
-| lwIP, mbedTLS, cyw43 | `sim_lwip.c`: DNS, TCP and an MQTT 3.1.1 client on Mac sockets |
+| lwIP, cyw43 | `sim_lwip.c`: DNS, TCP and an MQTT 3.1.1 client on Mac sockets |
+| mbedTLS | the same: the Pico SDK's copy, built with `include/bedside_mbedtls_config.h`, on those sockets (see https below) |
 | I2S amp (`audio.c`) | `sim_audio.c`: the same render loop into the same ring, played through the Mac's output |
 | Flash | `sim/build/flash.bin`, 16 MB, kept between runs |
 | PSRAM | an 8 MB array (`override/psram.h`) |
 | Pico SDK | `include/sim_sdk.h` and one-line stand-ins for each SDK header |
-| OTA, battery monitor | stubs (`sim_stubs.c`) |
+| The boot ROM's A/B slots | `sim_sdk.c`: running from A, updates go to B |
+| Battery monitor | a stub (`sim_stubs.c`): mains, 100 % |
 
-`net_rest.c` and `tesserae.c` are compiled inside two small wrappers
-(`wrap_*.c`). They start the wall clock and time zone from the Mac's when no
-server has answered yet. On the device both come from the server.
+A few firmware files are compiled inside small wrappers (`wrap_*.c`):
+`net_rest.c` and `tesserae.c` start the wall clock and time zone from the
+Mac's when no server has answered yet (on the device both come from the
+server), `ui_menu.c` adds `/sim/menu` and `/sim/text` for scripts, and `ota.c`
+has its one Arm-only barrier swapped for the Mac's.
+
+## https
+
+https is the device's own TLS: mbedTLS from the Pico SDK with the firmware's
+config, its trusted roots (`tls_roots.h`), certificate checking required, and
+its memory from the same PSRAM heap the device uses. The SomaFM channel list,
+https radio streams, the GitHub release list and an update's download all
+work, and a server whose certificate doesn't check out is refused as on the
+device (the log says why: `sim: tls: handshake failed ...`).
+
+An update downloads into slot B and its checksum is checked, exactly as on the
+device. The last step can't happen: a Mac can't run an RP2350 image, so the
+simulator restarts on the same firmware and, like the device finding an image
+it didn't boot, clears slot B.
+
+The Mac is much faster at the handshake than the RP2350, so a fetch that holds
+the main loop (the SomaFM list, the release list) holds it for longer on the
+device.
 
 ## The simulator page
 
@@ -72,6 +97,27 @@ Restarting from the page, the settings menu, or the firmware's own reboot
 starts the process again with the same flash file, as a power cycle would. A
 jump of the clock carries over a restart. A new run starts at the Mac's time.
 
+## Shakedown
+
+```sh
+make -C sim SAN=1 && python3 sim/tools/shakedown.py      # about 25 minutes
+python3 sim/tools/shakedown.py --only radio,https       # some scenarios (boot always runs)
+```
+
+`shakedown.py` starts its own simulator (the AddressSanitizer build, its own
+flash, port 8091) and drives it through setup, the keys, alarms and snooze,
+the sleep timer, night mode, the radio, https, the web app, every menu, every
+setting (good values and junk), restarts, WiFi setup and a factory reset.
+After each step it checks that the glass matches what the firmware drew, that
+`/api/state` is valid and fits the device's buffer, that the log has no
+errors, stalls or sanitizer reports, and that the process is alive. Findings
+go to `sim/build-san/shakedown/report.md` with pictures.
+
+The radio runs against a stream server inside the script (good, dropped,
+refused, 403, 404, AAC and garbage streams). The https scenario checks that a
+self-signed server is refused, then uses the real SomaFM and GitHub, which it
+skips with a note when offline.
+
 ## A Tesserae server and Home Assistant
 
 These are set up as on the device: the server under Settings in the phone
@@ -85,8 +131,9 @@ Test these on the device before a release:
 
 - **The look of e-paper:** grey levels, ghosting and fading. The glass shows
   the waveform's result, not its artefacts.
-- **https:** there is no TLS. The GitHub release list, OTA and https radio
-  streams fail as if unreachable. Tesserae and MQTT over plain TCP work.
+- **Installing an update:** the download and checksum are real; booting the
+  new image isn't (see https above).
+- **TLS speed:** handshakes take a fraction of the device's time.
 - **WiFi:** joining always succeeds. The setup page is served at
   `http://localhost:8080/` in setup mode, and the network list is made up.
 - **Hardware faults:** I2C glitches, flash stalls, the battery and the

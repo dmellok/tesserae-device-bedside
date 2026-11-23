@@ -47,6 +47,7 @@ void        sim_web_poll(void);
 
 /* ---- the menus (wrap_ui_menu.c) ---- */
 size_t sim_menu_json(char *b, size_t cap);
+size_t sim_text_json(char *b, size_t cap);   /* the words each layer draws */
 
 /* ---- sound (sim_audio.c) ---- */
 size_t sim_audio_json(char *b, size_t cap);

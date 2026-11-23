@@ -180,6 +180,26 @@ int  rom_get_partition_table_info(uint32_t *out, uint32_t words, uint32_t flags)
 #define PICOBIN_PARTITION_LOCATION_FIRST_SECTOR_BITS 0x00001fffu
 #define PICOBIN_PARTITION_LOCATION_LAST_SECTOR_LSB   13
 #define PICOBIN_PARTITION_LOCATION_LAST_SECTOR_BITS  0x03ffe000u
+/* over-the-air updates (src/ota.c): the simulator runs from slot A; an update
+ * goes to B; a "reboot into the new image" restarts the simulator on the same
+ * firmware (a Mac can't run an RP2350 image), which then clears slot B as the
+ * device does when it finds an image it didn't boot. */
+typedef struct { uint32_t permissions_and_location, permissions_and_flags; } resident_partition_t;
+typedef struct { int8_t partition; uint8_t tbyb_and_update_info; int8_t recent_boot_partition, recent_boot_type; } boot_info_t;
+#define RP2350_ARM_S_FAMILY_ID                 0xe48bff59u
+#define BOOT_TYPE_NORMAL                       0
+#define BOOT_TYPE_FLASH_UPDATE                 4
+#define REBOOT2_FLAG_REBOOT_TYPE_FLASH_UPDATE  0x4
+int  rom_get_uf2_target_partition(uint8_t *work, uint32_t work_size, uint32_t family, resident_partition_t *out);
+int  rom_explicit_buy(uint8_t *work, uint32_t work_size);
+bool rom_get_boot_info(boot_info_t *out);
+int  rom_get_last_boot_type(void);
+int  rom_reboot(uint32_t flags, uint32_t delay_ms, uint32_t p0, uint32_t p1);
+typedef struct { volatile uint32_t timing, rfmt, rcmd, wfmt, wcmd, pad[3]; } qmi_mem_hw_t;
+typedef struct { qmi_mem_hw_t m[2]; } qmi_hw_t;
+typedef struct { volatile uint32_t ctrl; } xip_ctrl_hw_t;
+extern qmi_hw_t *qmi_hw;
+extern xip_ctrl_hw_t *xip_ctrl_hw;
 
 /* ---- the board's unique id: fixed, so the simulator is one device ---------- */
 #define PICO_UNIQUE_BOARD_ID_SIZE_BYTES 8

@@ -5,8 +5,8 @@
  * Only what net_rest.c, radio.c and ha.c use: DNS, TCP connections through
  * lwIP's "altcp" API (callbacks for connected / received / sent / error), and
  * lwIP's MQTT client. Callbacks run on the main thread from sleep_ms() and
- * cyw43_arch_poll(), where the firmware waits for them. TLS is not simulated:
- * an https connection fails the way an unreachable server would.
+ * cyw43_arch_poll(), where the firmware waits for them. https is mbedTLS
+ * itself (the SDK's copy, the firmware's config) over the same sockets.
  */
 #pragma once
 
@@ -98,11 +98,6 @@ static inline void cyw43_arch_lwip_end(void) {}
 void sim_lwip_pump(uint32_t wait_ms);
 static inline void cyw43_arch_poll(void) { sim_lwip_pump(0); }
 static inline int  cyw43_wifi_get_rssi(cyw43_t *s, int32_t *rssi) { (void)s; *rssi = -48; return 0; }
-
-/* ---- mbedTLS: only the names net_rest.c and radio.c mention ---- */
-typedef int64_t mbedtls_ms_time_t;
-typedef struct mbedtls_ssl_context mbedtls_ssl_context;
-static inline int mbedtls_ssl_set_hostname(mbedtls_ssl_context *ssl, const char *hostname) { (void)ssl; (void)hostname; return 0; }
 
 /* ---- lwIP's MQTT client (MQTT 3.1.1 on a host socket) ---- */
 typedef struct mqtt_client_s mqtt_client_t;

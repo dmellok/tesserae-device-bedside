@@ -23,7 +23,7 @@ VERSION := $(shell git -C $(ROOT) describe --tags --always 2>/dev/null | sed 's/
 
 # The firmware's own sources, unchanged. Left out (replaced by sim/src): the
 # panel driver (it8951, epd_io), the key boards' I2C (seesaw), WiFi and the web
-# server (net), audio output, OTA, the battery monitor, PSRAM bring-up, the
+# server (net), audio output, the battery monitor, PSRAM bring-up, the
 # paint test, and lwIP / DHCP / DNS server code.
 FW_SRC := main commands paint screens painter menu inputs live config store psram_heap draw boot_logo \
           patterns alarm_sched birds rainsynth spk_dsp pcm_resample sha256 soma soma_snapshot http_chunked \
@@ -43,11 +43,20 @@ DEFS    := -DSIM=1 -DSTORE_HOST -DFW_VERSION=\"$(VERSION)\" \
 # The header mirror comes first: the firmware's headers, with sim/override in
 # place of the ones that name hardware addresses (psram.h).
 INC     := -I$(OUT)/inc -Iinclude -I$(ROOT)/src
-FW_CFLAGS := $(CFLAGS) $(DEFS) $(INC) -include prelude.h
+# mbedTLS: the Pico SDK's copy, as the device builds it (scripts/build_mbedtls.py),
+# with the firmware's config: https in the simulator is the device's TLS.
+MBED    ?= $(HOME)/.platformio/packages/framework-picosdk/lib/mbedtls
+ifeq ($(wildcard $(MBED)/include/mbedtls/ssl.h),)
+  $(error mbedTLS not found at $(MBED): build the firmware once with PlatformIO, or pass MBED=<path to mbedtls>)
+endif
+MBED_DEF := -DMBEDTLS_CONFIG_FILE=\"bedside_mbedtls_config.h\"
+INC     += -I$(MBED)/include
+FW_CFLAGS := $(CFLAGS) $(DEFS) $(MBED_DEF) $(INC) -include prelude.h
 LDLIBS  := -framework AudioToolbox -framework CoreFoundation -lm -lpthread
 
 FW_OBJ  := $(patsubst $(ROOT)/src/%.c,$(OUT)/fw/%.o,$(FW_FILES))
 SIM_OBJ := $(patsubst src/%.c,$(OUT)/sim/%.o,$(SIM_FILES)) $(OUT)/sim/assets.o
+MBED_OBJ := $(patsubst $(MBED)/library/%.c,$(OUT)/mbedtls/%.o,$(wildcard $(MBED)/library/*.c))
 BIN     := $(OUT)/bedside-sim
 
 all: $(BIN)
@@ -63,7 +72,7 @@ $(OUT)/inc/.stamp: $(wildcard $(ROOT)/include/*.h) $(wildcard override/*.h)
 $(OUT)/fw/main.o: $(ROOT)/src/main.c $(OUT)/inc/.stamp
 	@mkdir -p $(dir $@)
 	$(CC) $(FW_CFLAGS) -Dmain=firmware_main -MMD -c $< -o $@
-# net_rest.c and tesserae.c are compiled inside small wrappers (sim/src/wrap_*.c)
+# net_rest.c, tesserae.c, ui_menu.c and ota.c are compiled inside small wrappers (sim/src/wrap_*.c)
 # that add the simulator's clock and time zone hooks next to their statics.
 $(OUT)/fw/%.o: $(ROOT)/src/%.c $(OUT)/inc/.stamp
 	@mkdir -p $(dir $@)
@@ -75,6 +84,11 @@ $(OUT)/sim/assets.o: src/assets.S $(ROOT)/assets/birds/birds.ulaw
 	@mkdir -p $(dir $@)
 	$(CC) -isysroot $(SYSROOT) -I$(ROOT) -c $< -o $@
 
+# mbedTLS's own files: its warnings are its own
+$(OUT)/mbedtls/%.o: $(MBED)/library/%.c $(ROOT)/include/bedside_mbedtls_config.h
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) -w $(MBED_DEF) -I$(ROOT)/include -I$(MBED)/include -I$(MBED)/library -c $< -o $@
+
 # The WiFi setup page lives in src/net.c as a C string; lift it out so the
 # simulator serves the same page.
 $(OUT)/setup_page.inc: $(ROOT)/src/net.c
@@ -85,15 +99,15 @@ $(OUT)/setup_page.inc: $(ROOT)/src/net.c
 www:
 	@python3 tools/build_www_host.py
 
-$(BIN): www $(FW_OBJ) $(SIM_OBJ)
-	$(CC) $(CFLAGS) $(FW_OBJ) $(SIM_OBJ) $(LDLIBS) -o $@
+$(BIN): www $(FW_OBJ) $(SIM_OBJ) $(MBED_OBJ)
+	$(CC) $(CFLAGS) $(FW_OBJ) $(SIM_OBJ) $(MBED_OBJ) $(LDLIBS) -o $@
 	@echo "built $@ ($(VERSION))"
 
 run: $(BIN)
 	./$(BIN) --port $(PORT)
 
 clean:                   # keeps build/flash.bin: the simulated panel's settings
-	rm -rf $(OUT)/fw $(OUT)/sim $(OUT)/inc $(OUT)/setup_page.inc $(BIN)
+	rm -rf $(OUT)/fw $(OUT)/sim $(OUT)/mbedtls $(OUT)/inc $(OUT)/setup_page.inc $(BIN)
 
 -include $(FW_OBJ:.o=.d) $(SIM_OBJ:.o=.d)
 .PHONY: all fw run clean www

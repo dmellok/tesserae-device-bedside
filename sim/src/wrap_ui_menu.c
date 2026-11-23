@@ -1,6 +1,7 @@
 /*
  * wrap_ui_menu.c: src/ui_menu.c as it is, plus a read-only dump of the menu
- * the panel is showing (/sim/menu), so a script can walk the menus by name.
+ * the panel is showing (/sim/menu), so a script can walk the menus by name,
+ * and the words each layer draws (/sim/text), so it can read the home page.
  */
 #include "ui_menu.c"
 #include "sim.h"
@@ -37,6 +38,28 @@ size_t sim_menu_json(char *b, size_t cap)
             esc(ev, sizeof ev, v); esc(el, sizeof el, r[i].label ? r[i].label : "");
             n += (size_t)snprintf(b + n, cap - n, "%s{\"label\":\"%s\",\"kind\":\"%s\",\"value\":\"%s\",\"id\":%d}", i ? "," : "", el,
                                   KINDS[r[i].kind < 7 ? r[i].kind : 6], ev, (int)r[i].id);
+        }
+        n += (size_t)snprintf(b + n, cap - n, "]");
+    }
+    n += (size_t)snprintf(b + n, cap - n, "}");
+    return n;
+}
+
+/* The text ops of each layer as the firmware built them (not what the glass
+ * shows): {"body":["06:30","in 9 min",...],"top":[...],"bar":[...],"card":[...]} */
+size_t sim_text_json(char *b, size_t cap)
+{
+    const layer_t *L[4] = { &L_body, &L_top, &L_sb, &L_ring };
+    static const char *const NAMES[4] = { "body", "top", "bar", "card" };
+    size_t n = (size_t)snprintf(b, cap, "{");
+    for (int k = 0; k < 4 && n < cap; k++) {
+        n += (size_t)snprintf(b + n, cap - n, "%s\"%s\":[", k ? "," : "", NAMES[k]);
+        int m = 0;
+        for (int i = 0; L[k]->on && i < L[k]->n && n + 300 < cap; i++) {
+            const op_t *o = &L[k]->ops[i];
+            if (o->kind != OP_TEXT || !o->text[0] || (unsigned char)o->text[0] > 0x80) continue;   /* icons are one glyph above 0x80 */
+            char t[200]; esc(t, sizeof t, o->text);
+            n += (size_t)snprintf(b + n, cap - n, "%s\"%s\"", m++ ? "," : "", t);
         }
         n += (size_t)snprintf(b + n, cap - n, "]");
     }

@@ -14,6 +14,7 @@
  *   /sim/time           add=SECONDS or to=HH:MM: jump the clock forward
  *   /sim/speed          instant=1: refreshes take no time; 0: the panel's timings
  *   /sim/menu           the menu showing: title, rows, values, the highlight
+ *   /sim/text           the words each layer draws: body, top bar, status bar, card
  *   /sim/reboot         restart (the flash file stays)
  * The firmware is single-threaded on this side: all of this runs from
  * net_poll() on the main thread, as the device's deferred work does.
@@ -314,6 +315,7 @@ static void handle(conn_t *c)
     if (!strcmp(path, "/sim/time"))   { sim_time(c, query); return; }
     if (!strcmp(path, "/sim/speed"))  { char v[4]; if (query_get(query, "instant", v, sizeof v)) sim_opt.instant = atoi(v) != 0; respond_json(c, sim_opt.instant ? "{\"instant\":1}" : "{\"instant\":0}"); return; }
     if (!strcmp(path, "/sim/menu"))   { size_t n = sim_menu_json(s_json, sizeof s_json); respond(c, 200, "application/json", s_json, n); return; }
+    if (!strcmp(path, "/sim/text"))   { size_t n = sim_text_json(s_json, sizeof s_json); respond(c, 200, "application/json", s_json, n); return; }
     if (!strcmp(path, "/sim/reboot")) { respond_json(c, "{\"ok\":true}"); send(c->fd, c->tx, c->tx_len, 0); sleep_ms(50); sim_reboot("restart asked for from the simulator page"); }
 
     if (s_setup) {
