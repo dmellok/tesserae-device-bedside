@@ -12,7 +12,7 @@
   html { scroll-behavior:smooth; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; }
   a { color:var(--accent); }
-  .wrap { display:grid; grid-template-columns:minmax(0, 560px) minmax(0, 1fr); gap:28px; max-width:1400px; margin:0 auto; padding:0 24px; }
+  .wrap { display:grid; grid-template-columns:560px minmax(0, 1fr); gap:28px; padding:0 24px; }
   .text { padding:28px 0 80px; min-width:0; }
   .view { position:sticky; top:0; height:100vh; padding:16px 0; }
   .view iframe { width:100%; height:100%; border:1px solid var(--line); border-radius:14px; background:#0b0d12; display:block; }
@@ -58,7 +58,7 @@
 
   <h2 id="before">Before you start</h2>
   <p><b>Printed parts:</b> frame plate, base tray and plinth in black; front bezel, rear shell and access cover in beige. Which way up to print each one is on the <a href="./printing.html">printing page</a>.</p>
-  <p><b>Tools:</b> hex keys for M2, M2.5, M3 and M4 socket cap screws, a small spanner or pliers for the encoder, switch and speaker nuts, two small cable ties, and a soft cloth to lay the screen on.</p>
+  <p><b>Tools:</b> hex keys for M2, M2.5, M3 and M4 socket cap screws, a small spanner or pliers for the encoder, switch and speaker nuts, light double-sided tape for the battery, and a soft cloth to lay the screen on.</p>
   <table>
     <tr><th>Screw</th><th>Count</th><th>Where</th></tr>
     <tr><td class="n">M3 x 8</td><td class="n">19</td><td>Bezel 6, gusset heels under the base 5, back of the shell 6, shell corners 2</td></tr>
@@ -72,7 +72,7 @@
   <p class="small">Every screw threads straight into the plastic. Stop turning as soon as the head seats: a stripped hole will not hold again. Also needed: four self-adhesive rubber feet, about 12 mm across and 2 mm thick, and single-sided EVA foam tape, 2 mm thick and 5 mm wide, to seat the panel.</p>
 
   <h2 id="assembly">Assembly</h2>
-  <p class="small">20 steps, in the order the model builds. Click a step to see it on the model, or open it in the full viewer.</p>
+  <p class="small">21 steps, in the order the model builds. Click a step to see it on the model, or open it in the full viewer.</p>
   <div id="steps"></div>
 
   <h2 id="flashing">Flashing the Pico</h2>
@@ -98,9 +98,10 @@ const STEPS = [
   { id: 'power-and-amp-board', t: 'Power and amp board', d: 'Sit the power and amp protoboard, with the PowerBoost and amplifier already soldered on, on its four posts beside the driver stack.', fix: '4 x M2 x 6', off: 'Undo the four screws and lift the board off its posts.' },
   { id: 'key-module', t: 'Key module', d: 'Lower the NeoKey board, with its four switches fitted, onto the two fins at the top of the plate so the switches point up. Its two front holes drop over the pegs beside the plate; its two back holes sit on the bosses. Screw down through the back holes only.', fix: '2 x M2.5 x 8', off: 'Undo the two screws from above and lift the NeoKey off its pegs.' },
   { id: 'rotary-encoder', t: 'Rotary encoder', d: 'Push the encoder\'s threaded bushing out through the hole in the bracket on the side of the plate and tighten its nut on the outside. Leave both STEMMA QT sockets clear.', fix: 'the encoder\'s own nut', off: 'Undo the nut on the bushing and pull the encoder back out of its bracket.' },
-  { id: 'base-tray', t: 'Base tray', d: 'Stand the plate\'s foot on the base tray, behind the tray\'s front wall. Tip the two onto the plate\'s face on the cloth and screw up through the tray from underneath: the longer screws go into the foot along the front, the shorter ones into the heel of each rib.', fix: '4 x M3 x 12 into the foot, 5 x M3 x 8 into the heels', off: 'Lay it face down and undo the nine remaining screws under the base. The tray lifts away from the plate\'s foot.' },
-  { id: 'speaker', t: 'Speaker', d: 'Hold the speaker against the wall standing at one end of the tray, cone facing the side grille. Bolt it through its two lugs with two washers under each screw head and a nut behind the wall.', fix: '2 x M4 x 10, 4 washers, 2 nuts', off: 'Hold each nut behind the wall and undo the two bolts.' },
-  { id: 'battery', t: 'Battery', d: 'Lay the battery on its raised pad on the tray and hold it down with two cable ties through the tunnels under the pad. Do not plug it in yet.', fix: '2 cable ties', off: 'Cut the two cable ties, keeping the cutters well away from the cell, and lift the battery out.' },
+  { id: 'base-tray', t: 'Base tray', d: 'Put the black base tray on the bench on its own, open side up. The speaker goes onto it before the tray meets the frame plate, while there is still room to reach its bolts and nuts.', off: '' },
+  { id: 'speaker', t: 'Speaker', d: 'Hold the speaker against the wall standing at one end of the tray, cone facing the side grille. Bolt it through its two lugs with two washers under each screw head and a nut behind the wall.', fix: '2 x M4 x 10, 4 washers, 2 nuts', off: 'With the tray off the plate, hold each nut behind the wall and undo the two bolts.' },
+  { id: 'frame-onto-the-base-tray', t: 'Frame onto the base tray', d: 'Stand the plate\'s foot on the base tray, behind the tray\'s front wall, with the speaker already in place beside the end rib. Tip the two onto the plate\'s face on the cloth and screw up through the tray from underneath: the longer screws go into the foot along the front, the shorter ones into the heel of each rib.', fix: '4 x M3 x 12 into the foot, 5 x M3 x 8 into the heels', off: 'Lay it face down and undo the nine remaining screws under the base. The tray lifts away from the plate\'s foot with the speaker still on it.' },
+  { id: 'battery', t: 'Battery', d: 'Stick the battery down on its raised pad on the tray with two or three strips of light double-sided tape. Use tape that peels cleanly, not strong foam tape, so the cell can come out again without being bent. The two slots under the pad were meant for cable ties, but the pad sits too close to the back of the tray to thread them, so leave them empty. Do not plug the battery in yet.', fix: 'light double-sided tape', off: 'Peel the battery slowly up off its tape, lifting from one end. Do not lever under it with a tool or bend the cell.' },
   { id: 'usb-c-inlet-and-power-switch', t: 'USB-C inlet and power switch', d: 'Screw the USB-C breakout down onto its pedestal at the back of the tray, port facing out. Push the toggle switch\'s bushing through the hole beside it and tighten its nut on the outside.', fix: '2 x M2.5 x 8, the switch\'s own nut', off: 'Undo the switch\'s nut and the two screws through the breakout.' },
   { id: 'wiring', t: 'Wiring', d: 'Make the connections below, then switch on and check the panel boots before closing the case.', list: ['The loom from the power board plugs onto the GPIO splitter with its 2x20 plug.', 'USB-C inlet wires and the power switch wires go to the power board.', 'Speaker leads go to the amplifier\'s terminals.', 'One STEMMA QT cable from the Pico to the encoder (200 mm), a second from the encoder on to the key module.', 'The battery plugs into the PowerBoost last.'], small: 'Pin by pin detail is in <code>docs/wiring-guide.html</code> in the repository.', off: 'Unplug the battery from the PowerBoost first. Then unplug the STEMMA QT cables, the speaker leads and the 2x20 plug on the splitter.' },
   { id: 'rear-shell', t: 'Rear shell', d: 'Slide the beige shell on from the back, over the keys and around the encoder, until it meets the bezel. Screw through its back into the six posts, then up through its floor at the two bottom corners. Every head sits in a recess.', fix: '6 x M3 x 8 in the back, 2 x M3 x 8 under the corners', off: 'Undo the six screws in the back and the two under the bottom corners, then slide the shell straight back.' },
@@ -134,7 +135,7 @@ STEPS.forEach((s, i) => {
   steps.appendChild(card(i + 1, s.t, body, 'step=' + s.id));
 });
 const apart = document.getElementById('apart'); let k = 1;
-[...STEPS].reverse().forEach((s, i) => { if (i > 0 && i < STEPS.length - 1 && s.id !== 'foam-tape') apart.appendChild(card(k++, s.t, `<p>${s.off}</p>`, 'step=' + s.id + '&way=apart')); });
+[...STEPS].reverse().forEach((s, i) => { if (i > 0 && i < STEPS.length - 1 && s.off && s.id !== 'foam-tape') apart.appendChild(card(k++, s.t, `<p>${s.off}</p>`, 'step=' + s.id + '&way=apart')); });
 document.getElementById('flash').appendChild(card('USB', 'Cover off, cable in', `
   <ul>
     <li>Pull the access cover straight back off the hump. The Pico's USB-C port is underneath, pointing up the back of the frame.</li>

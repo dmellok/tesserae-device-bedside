@@ -460,8 +460,9 @@ const BUILD = [
   ['Power and amp board', ['Power and amp protoboard', 'Adafruit PowerBoost 1000C', 'Adafruit MAX98357A amplifier', 'Headers, resistors, capacitors and diode', 'Power board screws, M2 x 6'], along(WN, 150)],
   ['Key module', ['Adafruit NeoKey 1x4 QT', 'Cherry MX Brown switches', 'Key module screws, M2.5 x 8'], along(VN, 120)],
   ['Rotary encoder', ['Adafruit I2C rotary encoder'], [-70, 60, 0]],
-  ['Base tray', ['Base tray', 'Frame screws, M3'], [0, 0, -130]],
-  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40]],
+  ['Base tray', ['Base tray'], [0, 0, -130]],
+  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40]],      // onto the tray before the tray meets the plate: its bolts are hard to reach afterwards
+  ['Frame onto the base tray', ['Frame screws, M3'], [0, 0, -130]],
   ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
   ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
   ['Wiring', ['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables'], [0, 60, 30]],
