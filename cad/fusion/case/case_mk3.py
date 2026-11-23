@@ -44,9 +44,10 @@ def adapter_bodies():
             ('Panel FPC connector 40p', obox(FAC[0] - 15, v0 + 0.9, 16.1, FAC[0] + 15, v0 + 6.3, 18.1), BEIGE),
             ('FFC connector 40p', obox(FAC[0] - 15, v1 - 6.3, 16.1, FAC[0] + 15, v1 - 0.9, 18.1), BEIGE)]
 # Foam tape between the back of the glass and the front of the plate: single-sided EVA, 2 mm thick and 20 mm wide, squashed to the 1.75 mm gap.
-# Strips as (u0, v0, u1, v1): one down each side, one across the top and a half-width one across the middle. They stay above the panel's folded flex
+# Strips as (u0, v0, u1, v1), all the tape's full 20 mm width: one down each side, one across the top and one across the middle, with 2 mm between
+# the ends of the cross strips and the side strips so each reads as its own piece. They stay above the panel's folded flex
 # at the bottom, and clear of the openings in the plate for the key module and the encoder.
-FOAM = [(15, 32, 35, 169), (203, 32, 223, 169), (35, 149, 203, 169), (35, 95, 203, 105)]
+FOAM = [(15, 32, 35, 169), (203, 32, 223, 169), (37, 149, 201, 169), (37, 90, 201, 110)]
 def foam_bodies():
     out = []
     for i, (u0, v0, u1, v1) in enumerate(FOAM):
@@ -363,4 +364,4 @@ def run(_context: str):
     add_bodies(o.component, foam_bodies(), design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: foam tape behind the panel, adhesive side blue'))
+    print('save', case.save('MK III case: foam tape as four separate full-width strips'))
