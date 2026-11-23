@@ -8,3 +8,6 @@ tests/build/
 sim/build/
 sim/build-san/
 __pycache__/
+
+# Vendor CAD models (also in the Fusion project "Default Project / Bedside components")
+cad/components/

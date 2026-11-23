@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Dashboard printing</title>
+<meta name="description" content="Recommended print orientation for each printed part of the Bedside Dashboard MK III case, shown on a print bed with overhangs marked and the layers building up.">
+<style>
+  :root { --bg:#f4f2ee; --card:#ffffff; --ink:#1d1f24; --dim:#636a78; --line:#dedad2; --accent:#c85a1e; --accent-ink:#ffffff; --chip:#ece8e0; --warn:#fff4e2; --warn-line:#e8c98f; --stage:#e6e3dc; --bed:#cfcbc2; --grid:#b9b4a9; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e1015; --card:#171a22; --ink:#e9ecf3; --dim:#939bad; --line:#272c38; --accent:#e2783c; --accent-ink:#14100c; --chip:#212633; --warn:#2a2213; --warn-line:#5c4a22; --stage:#12151c; --bed:#1d222d; --grid:#323949; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; }
+  a { color:var(--accent); }
+  .wrap { display:grid; grid-template-columns:minmax(0, 560px) minmax(0, 1fr); gap:28px; max-width:1400px; margin:0 auto; padding:0 24px; }
+  .text { padding:28px 0 80px; min-width:0; }
+  .view { position:sticky; top:0; height:100vh; padding:16px 0; }
+  .stage { position:relative; width:100%; height:100%; border:1px solid var(--line); border-radius:14px; background:var(--stage); overflow:hidden; }
+  .stage canvas { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+  .hud { position:absolute; left:12px; right:12px; bottom:12px; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:13px; }
+  .hud input[type=range] { flex:1 1 140px; min-width:100px; accent-color:var(--accent); }
+  .hud button { font:inherit; font-size:13px; font-weight:600; border:1px solid var(--line); border-radius:8px; padding:5px 10px; background:var(--chip); color:var(--ink); cursor:pointer; }
+  .hud button[aria-pressed=true] { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  #layer { font-variant-numeric:tabular-nums; min-width:150px; }
+  .tag { position:absolute; left:12px; top:12px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:6px 12px; font-size:13px; font-weight:600; }
+  .key { position:absolute; right:12px; top:12px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:6px 12px; font-size:12px; color:var(--dim); }
+  .key i { display:inline-block; width:10px; height:10px; border-radius:2px; background:#e2783c; margin-right:6px; vertical-align:-1px; }
+  h1 { font-size:28px; line-height:1.2; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size:20px; margin:36px 0 6px; }
+  .lede { color:var(--dim); margin:0 0 18px; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }
+  nav a { text-decoration:none; background:var(--chip); color:var(--ink); padding:5px 12px; border-radius:999px; font-size:13px; }
+  .note { background:var(--warn); border:1px solid var(--warn-line); border-radius:10px; padding:10px 14px; margin:14px 0; font-size:14px; }
+  .part { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:10px 0; cursor:pointer; }
+  .part.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .part h3 { margin:0 0 2px; font-size:16px; display:flex; gap:8px; align-items:center; }
+  .part h3 i { width:12px; height:12px; border-radius:6px; border:1px solid var(--line); flex:none; }
+  .part .how { font-weight:600; margin:4px 0; }
+  .part p { margin:6px 0; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; margin:8px 0 0; font-size:13.5px; }
+  dt { color:var(--dim); }
+  dd { margin:0; font-variant-numeric:tabular-nums; }
+  .small { color:var(--dim); font-size:13px; }
+  ul { padding-left:20px; margin:6px 0; }
+  @media (max-width: 900px) {
+    .wrap { display:flex; flex-direction:column; gap:0; padding:0 16px; }
+    .view { order:-1; height:48vh; padding:8px 0; z-index:2; background:var(--bg); }
+    .text { padding-top:12px; }
+    h1 { font-size:23px; }
+    .key { display:none; }
+  }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div class="wrap">
+<main class="text">
+  <h1>Bedside Dashboard printing</h1>
+  <p class="lede">Which way up to print each of the six MK III case parts, the keycaps and the knob. Pick a part to see it on the bed, with its layers building up.</p>
+  <nav><a href="./assembly.html">Assembly guide</a><a href="./#mk=3">Full 3D viewer</a></nav>
+  <div class="note">These orientations come from the model's geometry: the largest flat face on the bed, the least overhang, and screw posts standing upright. None of them has been sliced or printed yet, so check each in your slicer before committing filament.</div>
+
+  <h2>The parts</h2>
+  <div id="parts"></div>
+
+  <h2>Reading the view</h2>
+  <ul>
+    <li>The square is a 256 x 256 mm bed with a 10 mm grid. The two largest parts are 244 mm wide, so they need a bed of at least 250 mm.</li>
+    <li>Orange marks every surface that faces down at more than 45 degrees from vertical and is not sitting on the bed. Those are the places a slicer would put supports.</li>
+    <li>The overhang figure on each card is the area of those orange surfaces, measured from the model. Holes that are bridged, such as screw recesses, count towards it even though they usually print without support.</li>
+    <li>The layer slider cuts the part at that height; press play to watch it build.</li>
+  </ul>
+</main>
+<aside class="view">
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="tag" id="tag">Loading model…</div>
+    <div class="key"><i></i>Overhang past 45°</div>
+    <div class="hud">
+      <button id="play" type="button" aria-pressed="true">Pause</button>
+      <input id="h" type="range" min="0" max="1" step="0.001" value="1" aria-label="Layer height">
+      <span id="layer"></span>
+      <button id="over" type="button" aria-pressed="true">Overhangs</button>
+    </div>
+  </div>
+</aside>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+// How each part goes on the bed, as a turn about the model's X axis (which runs across the case). The frame leans 15 degrees, so laying the frame's
+// own parts flat takes 105 or -75 degrees, not 90. The figures on this page (size, bed contact, overhang) are measured from the mesh after the turn.
+const PARTS = [
+  { name: 'Frame plate', colour: 'Black', turn: 105, how: 'Front face down, posts pointing up',
+    why: 'The flat front face gives the whole part one large first layer. Every post, fin and gusset then grows straight up off the plate, so the screw holes in the posts are round and the posts are as strong as they can be along their length.',
+    sup: 'Yes, in one place that matters: the lip along the whole width of the foot hangs 3 to 5 mm above the bed and needs support from the bed. The rest is small: the key module\'s screw bosses and the cable-tie anchors.' },
+  { name: 'Front bezel', colour: 'Beige', turn: 105, how: 'Front face down',
+    why: 'The face you look at takes the bed\'s finish, and the pocket for the glass is open to the top, so nothing overhangs at all. The bevel round the screen and the chamfer round the edge both rise at 45 degrees off the bed.',
+    sup: 'None.' },
+  { name: 'Rear shell', colour: 'Beige', turn: -75, how: 'Back face down, open side up',
+    why: 'The back is the largest flat face and the walls rise off it. The deep chamfer round the back edge climbs at 45 degrees, the side grilles and back slats run straight up, and the bosses behind the screw recesses sit on the back\'s inside face.',
+    sup: 'Very little: the roofs of the six screw recesses, which are short bridges, and a few short edges inside the two bottom corners. Try it without supports first.' },
+  { name: 'Base tray', colour: 'Black', turn: 0, how: 'As it stands, floor on the bed',
+    why: 'The underside is flat now that the feet are stick-on pads. The walls, the speaker wall, the battery pad and the screw bosses all stand up off the floor.',
+    sup: 'Little. The roofs of the eleven screw recesses and the two cable-tie tunnels under the battery pad are short bridges. The top of the speaker opening and its duct is the one real overhang, and is worth a support.' },
+  { name: 'Plinth', colour: 'Black', turn: 180, how: 'Upside down, roof on the bed',
+    why: 'Printed as it stands, the whole roof would be one long bridge. Upside down the roof is the first layer, the walls rise off it, and the two screw posts stand upright so their threads run across the layers.',
+    sup: 'Almost none. The ends of the two screw posts hang off the rear wall 42 mm above the bed and are the only places that may want a touch of support.' },
+  { name: 'Access cover', colour: 'Beige', turn: 180, how: 'Upside down, top on the bed',
+    why: 'The top is flat and takes the bed\'s finish. The two sprung tabs then lie along the layers instead of across them, so they bend when the cover clicks on instead of snapping off.',
+    sup: 'A little under the two tabs, which start about 3 mm above the bed.' },
+  { name: 'Keycaps', colour: 'Three grey, one orange', swatch: '#969696', turn: 195, how: 'Top face down',
+    why: 'The top takes the bed\'s finish and stays flat. The post that pushes onto the switch points straight up, so its cross-shaped socket prints cleanly with no bridging. The four are shown together; they print one at a time or as a set.',
+    sup: 'None. Print the stem-fit test piece first to check how tightly the socket grips a switch.' },
+  { name: 'Knob', colour: 'Grey', swatch: '#969696', turn: 90, axis: 'y', how: 'Outer face down',
+    why: 'The outer face takes the bed\'s finish, the knurl\'s grooves run straight up, and the socket for the encoder shaft points up so its flat prints true.',
+    sup: 'None.' },
+];
+const ORANGE = new THREE.Color('#e2783c');
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const $ = (id) => document.getElementById(id);
+
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.localClippingEnabled = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 5, 4000);
+camera.up.set(0, 0, 1);
+camera.position.set(260, -420, 300);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0, 20); controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 80; controls.maxDistance = 1500;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x50545f, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.7); sun.position.set(200, -400, 600); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xccd8ff, 0.6); fill.position.set(-300, 400, 200); scene.add(fill);
+
+// the bed: 256 mm square, 10 mm grid
+const BED = 256;
+const bed = new THREE.Mesh(new THREE.PlaneGeometry(BED, BED), new THREE.MeshBasicMaterial({ color: css('--bed') }));
+bed.position.z = -0.3; scene.add(bed);
+const grid = new THREE.GridHelper(BED, BED / 10, css('--grid'), css('--grid'));
+grid.rotation.x = Math.PI / 2; grid.position.z = -0.2; scene.add(grid);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { bed.material.color.set(css('--bed')); grid.material.color.set(css('--grid')); });
+
+const clip = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);      // keeps what is below the current layer
+const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.03, side: THREE.DoubleSide, clippingPlanes: [clip] });
+const ghost = new THREE.MeshBasicMaterial({ color: 0x8a909c, transparent: true, opacity: 0.09, depthWrite: false, side: THREE.DoubleSide });
+// Overhangs face the bed, so from above they are hidden by the part itself: they are drawn again on top of everything, see-through.
+const glow = new THREE.MeshBasicMaterial({ color: ORANGE, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, side: THREE.DoubleSide, clippingPlanes: [clip] });
+let mesh = null, shade = null, hot = null, top = 1, current = null, showOver = true, playing = true, t = 0;
+
+let meta, bin;
+function build(part) {
+  // one unindexed mesh for the part, turned onto the bed, with a colour per face: the part's own, or orange where it overhangs
+  const a = part.turn * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const R = part.axis === 'y' ? (x, y, z) => [x * c + z * s, y, -x * s + z * c] : (x, y, z) => [x, y * c - z * s, y * s + z * c];
+  const pos = [], nrm = [], flag = [], hang = [], tint = [];
+  let base = new THREE.Color(0.5, 0.5, 0.5);
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (const p of meta.parts) {
+    if (p.name !== part.name) continue;
+    base = new THREE.Color().setRGB(p.color[0] / 255, p.color[1] / 255, p.color[2] / 255, THREE.SRGBColorSpace);
+    if (base.r + base.g + base.b < 0.6) base.set('#6a707c');             // the black parts are drawn mid grey, so their shape reads on either theme
+    const P = new Float32Array(bin, p.pos, p.verts * 3), N = new Float32Array(bin, p.nrm, p.verts * 3), I = new Uint32Array(bin, p.idx, p.tris * 3);
+    for (let i = 0; i < I.length; i++) {
+      const k = I[i] * 3, v = R(P[k], P[k + 1], P[k + 2]), n = R(N[k], N[k + 1], N[k + 2]);
+      pos.push(...v); nrm.push(...n); tint.push(base);      // a part can be more than one colour, like the keycaps
+      for (let j = 0; j < 3; j++) { mn[j] = Math.min(mn[j], v[j]); mx[j] = Math.max(mx[j], v[j]); }
+    }
+  }
+  const off = [-(mn[0] + mx[0]) / 2, -(mn[1] + mx[1]) / 2, -mn[2]];
+  let bedArea = 0, overArea = 0;
+  for (let i = 0; i < pos.length; i += 9) {
+    for (let j = 0; j < 9; j++) pos[i + j] += off[j % 3];
+    const e1 = [pos[i + 3] - pos[i], pos[i + 4] - pos[i + 1], pos[i + 5] - pos[i + 2]], e2 = [pos[i + 6] - pos[i], pos[i + 7] - pos[i + 1], pos[i + 8] - pos[i + 2]];
+    const cr = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]], L = Math.hypot(...cr) || 1e-9;
+    const vn = [nrm[i] + nrm[i + 3] + nrm[i + 6], nrm[i + 1] + nrm[i + 4] + nrm[i + 7], nrm[i + 2] + nrm[i + 5] + nrm[i + 8]];
+    const nz = (Math.sign(cr[0] * vn[0] + cr[1] * vn[1] + cr[2] * vn[2]) || 1) * cr[2] / L, cz = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
+    const onBed = nz < -0.99 && cz < 0.05, over = !onBed && nz < -0.7072 && cz > 0.4;
+    if (onBed) bedArea += L / 2; if (over) overArea += L / 2;
+    for (let j = 0; j < 3; j++) flag.push(over ? 1 : 0);
+    if (over) for (let j = 0; j < 9; j++) hang.push(pos[i + j]);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
+  const hangGeo = new THREE.BufferGeometry(); hangGeo.setAttribute('position', new THREE.Float32BufferAttribute(hang, 3));
+  geo.userData = { tint, flag, hangGeo, size: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], bedArea, overArea };
+  return geo;
+}
+function paint(geo) {
+  const col = geo.attributes.color, { tint, flag } = geo.userData;
+  for (let i = 0; i < flag.length; i++) { const c = showOver && flag[i] ? ORANGE : tint[i]; col.setXYZ(i, c.r, c.g, c.b); }
+  col.needsUpdate = true;
+}
+const cache = new Map();
+function geoFor(part) { if (!cache.has(part.name)) cache.set(part.name, build(part)); return cache.get(part.name); }
+function show(part) {
+  if (mesh) { scene.remove(mesh); scene.remove(shade); scene.remove(hot); }
+  const geo = geoFor(part); paint(geo);
+  mesh = new THREE.Mesh(geo, solid); shade = new THREE.Mesh(geo, ghost);
+  hot = new THREE.Mesh(geo.userData.hangGeo, glow); hot.renderOrder = 5; hot.visible = showOver;
+  scene.add(shade); scene.add(mesh); scene.add(hot);
+  top = geo.userData.size[2]; current = part; t = 0; playing = true; $('play').textContent = 'Pause'; $('play').setAttribute('aria-pressed', 'true');
+  controls.target.set(0, 0, top / 2);
+  fitCamera(geo.userData.size);
+  $('tag').textContent = `${part.name}  ·  ${part.how.toLowerCase()}`;
+  for (const el of document.querySelectorAll('.part')) el.classList.toggle('on', el.dataset.name === part.name);
+}
+function fitCamera(size) {
+  // far enough back that the part's footprint fits the stage, whatever its shape
+  const box = canvas.parentElement.getBoundingClientRect(), aspect = box.width / Math.max(1, box.height);
+  const half = Math.tan((aspect < 1 ? 44 : 32) * Math.PI / 360), span = Math.hypot(size[0], size[1]) / 2 + size[2] / 2;
+  const dist = Math.max(160, span / (half * Math.min(1, aspect)) * 1.12);
+  camera.position.copy(controls.target).add(new THREE.Vector3(0.42, -0.72, 0.55).normalize().multiplyScalar(dist));
+}
+function setLayer(f) {
+  clip.constant = Math.max(0.01, f * top) + 0.001;
+  $('h').value = f;
+  $('layer').textContent = `Layer at ${(f * top).toFixed(1)} of ${top.toFixed(1)} mm`;
+}
+$('h').addEventListener('input', () => { playing = false; $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false'); setLayer(parseFloat($('h').value)); });
+$('play').addEventListener('click', () => {
+  playing = !playing; if (playing && parseFloat($('h').value) >= 0.999) t = 0; else if (playing) t = parseFloat($('h').value) * BUILD_S;
+  $('play').textContent = playing ? 'Pause' : 'Play'; $('play').setAttribute('aria-pressed', String(playing));
+});
+$('over').addEventListener('click', () => { showOver = !showOver; $('over').setAttribute('aria-pressed', String(showOver)); if (mesh) { paint(mesh.geometry); hot.visible = showOver; } });
+
+const BUILD_S = 7, HOLD_S = 2.5;       // seconds to build a part, and to hold it finished before starting again
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const box = canvas.parentElement.getBoundingClientRect();
+  if (canvas.width !== Math.round(box.width * renderer.getPixelRatio()) || canvas.height !== Math.round(box.height * renderer.getPixelRatio())) {
+    renderer.setSize(box.width, box.height, false); camera.aspect = box.width / box.height; camera.fov = box.width < box.height ? 44 : 32; camera.updateProjectionMatrix();
+  }
+  if (mesh && playing) { t += dt; if (t > BUILD_S + HOLD_S) t = 0; setLayer(Math.min(1, t / BUILD_S)); }
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+function cards() {
+  const host = $('parts');
+  for (const part of PARTS) {
+    const g = geoFor(part).userData, el = document.createElement('section');
+    el.className = 'part'; el.dataset.name = part.name;
+    el.innerHTML = `<h3><i style="background:${part.swatch || (part.colour === 'Black' ? '#26272a' : '#ded3ba')}"></i>${part.name}</h3>
+      <p class="how">${part.how}</p><p>${part.why}</p><p><b>Supports:</b> ${part.sup}</p>
+      <dl><dt>Filament</dt><dd>${part.colour}</dd>
+      <dt>On the bed</dt><dd>${g.size[0].toFixed(0)} x ${g.size[1].toFixed(0)} mm, ${g.size[2].toFixed(0)} mm tall</dd>
+      <dt>Bed contact</dt><dd>${(g.bedArea / 100).toFixed(0)} cm²</dd>
+      <dt>Overhang past 45°</dt><dd>${(g.overArea / 100).toFixed(1)} cm²</dd></dl>`;
+    el.addEventListener('click', () => { show(part); history.replaceState(null, '', '#' + part.name.toLowerCase().replace(/ /g, '-')); });
+    host.appendChild(el);
+  }
+}
+(async () => {
+  meta = await (await fetch('./data/bedside.json', { cache: 'no-cache' })).json();
+  // the .json holds offsets into the .bin, so the .bin is asked for by a tag made from the .json: a browser can't pair a new one with an old one
+  const last = meta.parts[meta.parts.length - 1];
+  bin = await (await fetch(`./data/bedside.bin?v=${meta.parts.length}-${last.idx}-${last.tris}`)).arrayBuffer();
+  cards();
+  const want = location.hash.slice(1);
+  show(PARTS.find((p) => p.name.toLowerCase().replace(/ /g, '-') === want) || PARTS[0]);
+  frame();
+})().catch((e) => { $('tag').textContent = 'The model failed to load: ' + e.message; });
+</script>
+</body>
+</html>

@@ -211,7 +211,7 @@ a:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
         <tr><td class="m">6</td><td>100 kΩ resistors</td><td>three 2:1 sense dividers (Bat, USB, LBO)</td></tr>
         <tr><td class="m">3</td><td>100 nF ceramic caps (optional)</td><td>ADC node filtering</td></tr>
         <tr><td class="m">1</td><td>Schottky diode SS14 / 1N5817</td><td>PowerBoost 5V into the header rail</td></tr>
-        <tr><td class="m">3</td><td>STEMMA QT cables, 100 mm</td><td>the I2C chain</td></tr>
+        <tr><td class="m">3</td><td>STEMMA QT cables: 100 mm, and one 200 mm for the run from the Pico to the encoder</td><td>the I2C chain</td></tr>
         <tr><td class="m">~10</td><td>female-to-bare jumpers or 22 AWG hookup wire</td><td>splitter to amp and PowerBoost</td></tr>
         <tr><td class="m">1</td><td>twisted pair, 24 AWG</td><td>amp to speaker</td></tr>
       </tbody>
@@ -299,7 +299,7 @@ strip('hat','IT8951 HAT (via splitter)',[
     s+=`<text x="${x+bw/2}" y="${y+42}" text-anchor="middle" font-size="11" fill="${muted()}">${b[1]}</text>`;
     if(i<boxes.length-1){ const x1=x+bw, x2=x+bw+gap; ['gnd','p3','i2c','i2c'].forEach((c,k)=>{const yy=y+14+k*10; s+=`<line x1="${x1}" y1="${yy}" x2="${x2}" y2="${yy}" stroke="${col(c)}" stroke-width="2.5"/>`;}); }
   });
-  s+=`<text x="14" y="${y+90}" font-size="11" fill="${muted()}">Each hop is one 100 mm STEMMA QT cable: GND, 3.3 V, SDA (GP4), SCL (GP5). Either socket on each board works.</text>`;
+  s+=`<text x="14" y="${y+90}" font-size="11" fill="${muted()}">Each hop is one STEMMA QT cable: GND, 3.3 V, SDA (GP4), SCL (GP5). In the printed case the Pico to encoder run is about 160 mm, so use a 200 mm cable there; 100 mm does the rest. Either socket on each board works.</text>`;
   s+='</svg>'; document.getElementById('qt').innerHTML=s;
 })();
 

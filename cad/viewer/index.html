@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedside Dashboard</title>
+<meta name="description" content="An interactive 3D model of the Bedside Dashboard: a 10.3 inch e-paper panel in a printed case, in four versions. Rotate it and pull it apart.">
+<meta name="theme-color" content="#0b0d12">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bedside Dashboard">
+<meta property="og:description" content="An interactive 3D model of the Bedside Dashboard. Rotate it and pull it apart.">
+<meta property="og:url" content="https://turtle.gg/bedside/">
+<meta property="og:image" content="https://turtle.gg/bedside/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://turtle.gg/bedside/preview.png">
+<style>
+  :root { --overlay:none; --bg0:#0b0d12; --bg1:#161a24; --ink:#e9ecf3; --dim:#8a92a6; --line:rgba(255,255,255,.09); --panel:rgba(18,21,30,.72); --accent:#e2783c; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg0); color:var(--ink); font:13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; overflow:hidden; }
+  body { background:var(--overlay), radial-gradient(ellipse at 50% 42%, var(--bg1) 0%, var(--bg0) 68%); }
+  canvas#scene { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+  canvas#scene:active { cursor:grabbing; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:14px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  /* Controls collapse to a round button that grows into the full panel */
+  #controls { left:16px; bottom:16px; padding:0; width:56px; max-height:56px; border-radius:28px; overflow:hidden;
+    transition:width .4s cubic-bezier(.3,.9,.3,1), max-height .4s cubic-bezier(.3,.9,.3,1), border-radius .4s cubic-bezier(.3,.9,.3,1); }
+  #controls.open { width:292px; max-height:calc(100% - 32px); border-radius:14px; overflow-y:auto; }
+  #fab { display:grid; place-items:center; position:absolute; left:0; top:0; width:54px; height:54px; padding:0; border:0; background:none; color:var(--ink); cursor:pointer; transition:opacity .2s .15s; }
+  #controls.open #fab { opacity:0; pointer-events:none; visibility:hidden; transition:opacity .12s, visibility 0s .12s; }
+  .content { position:relative; width:290px; padding:14px 14px 12px; opacity:0; visibility:hidden; transition:opacity .12s, visibility 0s .12s; }
+  #controls.open .content { opacity:1; visibility:visible; transition:opacity .28s .14s, visibility 0s; }
+  #closeControls { display:grid; place-items:center; position:absolute; right:9px; top:9px; width:26px; height:26px; padding:0; border-radius:13px; border:1px solid var(--line); background:rgba(128,128,128,.1); color:var(--ink); font-size:17px; line-height:1; cursor:pointer; }
+  #closeControls:hover { background:rgba(128,128,128,.22); }
+  #fab:focus-visible, #closeControls:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+  #controls h1 { font-size:13px; font-weight:600; letter-spacing:.02em; margin:0 0 2px; }
+  #controls .sub { color:var(--dim); font-size:11.5px; margin-bottom:12px; }
+  .group { margin-top:12px; }
+  .group > label { display:block; color:var(--dim); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; margin-bottom:6px; }
+  .seg { display:flex; flex-wrap:wrap; gap:4px; }
+  .seg button { appearance:none; border:1px solid var(--line); background:rgba(255,255,255,.035); color:var(--ink); padding:5px 9px; border-radius:8px; font:inherit; font-size:12px; cursor:pointer; transition:background .15s, border-color .15s; }
+  .seg button:hover { background:rgba(255,255,255,.08); }
+  .seg button[aria-pressed="true"] { background:rgba(226,120,60,.2); border-color:rgba(226,120,60,.6); }
+  .seg button:focus-visible, input[type=range]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .row { display:flex; align-items:center; gap:10px; margin-top:7px; }
+  .row span { flex:0 0 84px; color:var(--dim); font-size:12px; }
+  input[type=range] { flex:1; accent-color:var(--accent); height:18px; min-width:0; }
+  #tip { left:16px; top:16px; padding:10px 14px; min-width:200px; max-width:320px; pointer-events:none; opacity:0; transform:translateY(-4px); transition:opacity .15s, transform .15s; }
+  #tip.on { opacity:1; transform:none; }
+  #buildCap { left:50%; bottom:22px; transform:translateX(-50%); padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .3s; }
+  #buildCap.on { opacity:1; }
+  #tip .name { font-size:14px; font-weight:600; }
+  #tip .meta { color:var(--dim); font-size:12px; margin-top:1px; }
+  #tip i { width:9px; height:9px; border-radius:3px; display:inline-block; margin-right:6px; }
+  #note { right:16px; top:16px; color:var(--dim); font-size:11px; text-align:right; max-width:260px; position:fixed; }
+  html[data-embed] #controls, html[data-embed] #note { display:none; }
+  #loading { position:fixed; inset:0; display:grid; place-items:center; color:var(--dim); letter-spacing:.08em; font-size:12px; text-transform:uppercase; }
+  /* Callouts: a label per part, joined to it by a leader line */
+  #leaders { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; }
+  #leaders path { fill:none; stroke:var(--dim); stroke-width:1; }
+  #leaders circle { fill:var(--accent); }
+  #labels .lab { position:fixed; left:0; top:0; padding:3px 8px; border-radius:7px; background:var(--panel); border:1px solid var(--line); font-size:11.5px; line-height:1.4; white-space:nowrap; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); will-change:transform, opacity; cursor:default; }
+  #labels .lab.hot { border-color:var(--accent); }
+  body:not(.labels) #leaders, body:not(.labels) #labels, body:not(.labels) #labelCats { display:none; }
+  #labelCats button { font-size:11px; padding:3px 8px; }
+  /* Light backdrop, used with the black case */
+  html.light { --bg0:#c9cdd3; --bg1:#f4f5f7; --ink:#15171c; --dim:#59606e; --line:rgba(0,0,0,.12); --panel:rgba(255,255,255,.72); }
+  html.light .seg button { background:rgba(0,0,0,.035); }
+  html.light .seg button:hover { background:rgba(0,0,0,.08); }
+  html.light .seg button[aria-pressed="true"] { background:rgba(226,120,60,.22); border-color:rgba(226,120,60,.75); }
+  /* Backdrops. Night and Studio are the plain dark and light sets above; the rest change the colours or lay a gradient or grid over them. */
+  html[data-bg=paper] { --bg0:#e2dacb; --bg1:#fbf8f2; --panel:rgba(252,249,243,.74); }
+  html[data-bg=sky] { --overlay:linear-gradient(180deg, #8ec5f0 0%, #d7ecfa 58%, #f3efe6 100%); --panel:rgba(255,255,255,.66); }
+  html[data-bg=blueprint] { --bg0:#0a2146; --bg1:#16407c; --panel:rgba(10,28,60,.72); --dim:#9db4d6;
+    --overlay:linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px; }
+  html[data-bg=dusk] { --overlay:linear-gradient(180deg, #141433 0%, #4a2459 52%, #c9663f 88%, #f0a35e 100%); --panel:rgba(30,20,48,.7); --dim:#b9a9c9; }
+  /* The same backdrops as two stacked layers behind the canvas, so one can fade into the next */
+  .bd { position:fixed; inset:0; pointer-events:none; --overlay:none; background:var(--overlay), radial-gradient(ellipse at 50% 42%, var(--bg1) 0%, var(--bg0) 68%); }
+  .bd[data-bg=night] { --bg0:#0b0d12; --bg1:#161a24; }
+  .bd[data-bg=studio] { --bg0:#c9cdd3; --bg1:#f4f5f7; }
+  .bd[data-bg=paper] { --bg0:#e2dacb; --bg1:#fbf8f2; }
+  .bd[data-bg=sky] { --overlay:linear-gradient(180deg, #8ec5f0 0%, #d7ecfa 58%, #f3efe6 100%); }
+  .bd[data-bg=blueprint] { --bg0:#0a2146; --bg1:#16407c;
+    --overlay:linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px) 0 0 / 44px 44px; }
+  .bd[data-bg=dusk] { --overlay:linear-gradient(180deg, #141433 0%, #4a2459 52%, #c9663f 88%, #f0a35e 100%); }
+  @media (max-width:640px) {
+    #note { display:none; }
+    #controls { left:10px; bottom:calc(10px + env(safe-area-inset-bottom)); }
+    #controls.open { width:calc(100vw - 20px); max-height:46vh; border-radius:18px; }
+    .content { width:calc(100vw - 22px); padding:16px 16px 14px; }
+    #closeControls { width:34px; height:34px; border-radius:17px; font-size:20px; }
+    #tip { right:10px; left:10px; top:10px; min-width:0; max-width:none; }
+    .seg button { padding:8px 12px; font-size:13px; }
+    #labels .lab { font-size:10px; padding:2px 6px; }
+    .row { margin-top:10px; }
+    input[type=range] { height:26px; }
+  }
+  @media (prefers-reduced-motion: reduce) { #tip, .seg button, #controls, #fab, .content { transition:none !important; } }
+</style>
+<script>
+  // PostHog analytics (US cloud), same project as the brain viewer. The phc_ project token is a public, write-only key.
+  window.track = function (name, props) { if (window.posthog && posthog.__loaded) posthog.capture(name, props); };
+  (function () {
+    var s = document.createElement('script');
+    s.async = true; s.crossOrigin = 'anonymous';
+    s.src = 'https://us-assets.i.posthog.com/static/array.js';
+    s.onload = function () {
+      posthog.init('phc_vQqSfPwYLnw36EzaDLgTsp2ovMLxB7XCoUR3BYEvzbor', {
+        api_host: 'https://us.i.posthog.com', defaults: '2025-05-24', person_profiles: 'identified_only',
+        // Keep it to page views plus the named events sent through window.track(); switch off everything PostHog gathers by itself.
+        autocapture: false, rageclick: false, capture_dead_clicks: false, enable_heatmaps: false,
+        disable_session_recording: true, capture_performance: false, capture_exceptions: false,
+        disable_surveys: true, advanced_disable_flags: true, disable_external_dependency_loading: true
+      });
+    };
+    document.head.appendChild(s);
+  })();
+</script>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div class="bd" id="bdA"></div><div class="bd" id="bdB"></div>
+<canvas id="scene"></canvas>
+<div id="loading">Loading model…</div>
+<div id="buildCap" class="panel" aria-live="polite"></div>
+<div id="tip" class="panel"><div class="name"></div><div class="meta"></div></div>
+<div id="note">Work in progress: a 10.3 inch e-paper bedside dashboard.<br>Drag to rotate · scroll to zoom · hover a part to name it</div>
+<svg id="leaders" aria-hidden="true"></svg>
+<div id="labels"></div>
+<div id="controls" class="panel open">
+  <button id="fab" type="button" aria-label="Open controls" aria-expanded="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+  </button>
+  <div class="content">
+  <button id="closeControls" type="button" aria-label="Close controls">&times;</button>
+  <h1>Bedside Dashboard</h1>
+  <div class="sub">Every part of the build, in four versions of its printed case · <a href="./assembly.html" style="color:var(--accent)">Assembly guide</a> · <a href="./printing.html" style="color:var(--accent)">Printing</a></div>
+  <div class="group"><label>Take it apart</label>
+    <div class="row"><span>Explode</span><input id="explode" type="range" min="0" max="1" step="0.005" value="0" aria-label="Explode the case"></div>
+    <div class="row"><span>Components</span><input id="parts" type="range" min="0" max="1" step="0.005" value="0" aria-label="Explode the components"></div>
+  </div>
+  <div class="group"><label>Version</label><div class="seg" id="design"></div></div>
+  <div class="group"><label>Case colour</label><div class="seg" id="finish"></div></div>
+  <div class="group"><label>Key marks</label><div class="seg" id="marks"></div></div>
+  <div class="group"><label>Backdrop</label><div class="seg" id="backdrop"></div></div>
+  <div class="group"><label>Case</label>
+    <div class="seg" id="show"></div>
+    <div class="seg" style="margin-top:4px"><button id="wireToggle" type="button" aria-pressed="false">Wireframe</button><button id="elecToggle" type="button" aria-pressed="true">Electronics</button></div>
+  </div>
+  <div class="group"><label>View</label>
+    <div class="seg" id="views"></div>
+    <div class="seg" style="margin-top:4px"><button id="labelsToggle" type="button" aria-pressed="false">Labels</button></div>
+    <div class="seg" id="labelCats" style="margin-top:4px" aria-label="Which labels to show"></div>
+    <div class="row"><span>Rotation</span><input id="spin" type="range" min="0" max="12" step="0.1" value="0" aria-label="Rotation speed"></div>
+  </div>
+  <div class="group"><div class="seg"><button id="reset" type="button">Reset</button><button id="share" type="button">Copy link</button><button id="demo" type="button" aria-pressed="false">Play demo</button></div></div>
+  <div class="group"><div class="seg"><button id="build" type="button" aria-pressed="false">Build</button><button id="apart" type="button" aria-pressed="false">Take apart</button></div></div>
+  </div>
+</div>
+<script>
+  // Phones start with the controls collapsed. Done here, before first paint, so the panel never flashes open.
+  if (matchMedia('(max-width:640px)').matches) { document.getElementById('controls').classList.remove('open'); document.getElementById('fab').setAttribute('aria-expanded', 'false'); }
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+	"autodeskProduct": "Fusion",
+	"type": "script",
+	"author": "",
+	"description": {
+		"": "Uploads the bedside component models to the active project and inserts them into the open design"
+	},
+	"supportedOS": "windows|mac",
+	"editEnabled": true
+}
