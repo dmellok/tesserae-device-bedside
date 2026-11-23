@@ -23,8 +23,18 @@ the encoder's 6 mm D-shaft. The socket is 6.1 mm with its flat 0.05 mm clear of 
 
 ## Case parts
 
-`1-frame-plate-black-r2.stl` is the frame plate, front face down. The other case parts are not exported yet; `../fusion/case/print_export.py` makes
-them (run after `case_mk3.py` in the same script).
+The six case parts, each turned to the way it prints and numbered in the order to print them: black first, then beige.
+
+| File | Part | Prints |
+|---|---|---|
+| `1-frame-plate-black-r2.stl` | Frame plate | Front face down |
+| `2-base-tray-black-r1.stl` | Base tray | As it stands |
+| `3-plinth-black-r1.stl` | Plinth | Roof down |
+| `4-front-bezel-beige-r1.stl` | Front bezel | Front face down |
+| `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
+| `6-access-cover-beige-r1.stl` | Access cover | Top down |
+
+`../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
 Every case part has `MK3 R<n>` sunk into a face that is hidden once the case is together, and the same `r<n>` at the end of its file name. The number
 goes up whenever that part's shape changes, so a print can be matched to its file.
@@ -41,6 +51,7 @@ goes up whenever that part's shape changes, so a print can be matched to its fil
 Frame plate revisions:
 
 - R1 (no mark): the first print. The flex adapter's posts are too far from the flex slot for the panel's tail to reach.
-- R2: the flex adapter sits on two rails just above the slot, 2 mm closer to the plate, and can be moved up in 3.5 mm steps.
+- R2: the flex adapter sits on two rails just above the slot, 2 mm closer to the plate, and can be moved up in 3.5 mm steps. The gusset beside the
+  speaker is shorter, so it clears the speaker's basket by 5 mm, not 0.7 mm.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

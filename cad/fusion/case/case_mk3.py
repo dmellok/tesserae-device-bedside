@@ -12,7 +12,7 @@ def wcyl(u, v, w0, w1, r): return cyl(F(u, v, w0), F(u, v, w1), r)
 BZ = [(6.5, 20), (6.5, 100), (6.5, 180), (237.5, 20), (237.5, 100), (237.5, 180)]   # bezel screws (u, v)
 POSTS = [(60.0, YR - 8), (224.5, YR - 8)]                                          # plinth posts on the tray, against the rear wall
 FS = [(44, 12.4), (100, 12.4), (144, 12.4), (200, 12.4)]                           # frame plate to base tray screws (X, Y)                            # shell screws (X, Y)
-GUS = [(28.75, 36.0, 46.0), (49.75, 30.0, 36.0), (134.0, 36.0, 46.0), (149.75, 36.0, 46.0), (219.75, 36.0, 46.0)]   # gussets behind the frame plate (X, how far back the heel reaches, how far up the plate), in lanes clear of the speaker, the boards and the wiring
+GUS = [(28.75, 30.0, 36.0), (49.75, 30.0, 36.0), (134.0, 36.0, 46.0), (149.75, 36.0, 46.0), (219.75, 36.0, 46.0)]   # gussets behind the frame plate (X, how far back the heel reaches, how far up the plate), in lanes clear of the speaker, the boards and the wiring
 HS = [(x, y - 4.2) for x, y, z in GUS]                                             # a second row of tray screws, one under the heel of each gusset
 FEET = [(PI + 8, 12), (244 - PI - 8, 12), (PI + 8, YR - 8), (244 - PI - 22, YR - 8)]      # stick-on rubber feet, 12 mm across and 2 mm thick, as far apart as the base allows; the back right one sits inboard of the plinth screw beside it
 CB, CBR, SEAT = 3.2, 3.1, 2.0                # every screw head on the outside sits in a recess this deep and this wide (an M3 socket cap head is 3 mm tall and 5.5 mm across), with this much plastic left under it
