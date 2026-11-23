@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261123l';
+  const DATA_V = '20261123m';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -719,7 +719,7 @@ const DETAILS = {
   'E-paper flex adapter': 'Joins the panel flex to the ribbon for the HAT.',
   'Adafruit NeoKey 1x4 QT': 'Four key sockets with backlights, on I2C.',
   'Cherry MX Brown switches': 'Tactile, quiet enough for a bedroom.',
-  'Keycaps': 'Three grey, one orange for the menu.',
+  'Keycaps': 'Printed, flat-topped, 17.5 x 16 mm: three grey, one orange for the menu. Each pushes onto its switch\'s cross.',
   'Adafruit I2C rotary encoder': 'Detented, with a push switch.',
   'Knob': 'Volume, scrolling and select.',
 };

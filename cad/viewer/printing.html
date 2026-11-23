@@ -55,7 +55,7 @@
 <div class="wrap">
 <main class="text">
   <h1>Bedside Dashboard printing</h1>
-  <p class="lede">Which way up to print each of the six MK III case parts. Pick a part to see it on the bed, with its layers building up.</p>
+  <p class="lede">Which way up to print each of the six MK III case parts and the keycaps. Pick a part to see it on the bed, with its layers building up.</p>
   <nav><a href="./assembly.html">Assembly guide</a><a href="./#mk=3">Full 3D viewer</a></nav>
   <div class="note">These orientations come from the model's geometry: the largest flat face on the bed, the least overhang, and screw posts standing upright. None of them has been sliced or printed yet, so check each in your slicer before committing filament.</div>
 
@@ -109,6 +109,9 @@ const PARTS = [
   { name: 'Access cover', colour: 'Beige', turn: 180, how: 'Upside down, top on the bed',
     why: 'The top is flat and takes the bed\'s finish. The two sprung tabs then lie along the layers instead of across them, so they bend when the cover clicks on instead of snapping off.',
     sup: 'A little under the two tabs, which start about 3 mm above the bed.' },
+  { name: 'Keycaps', colour: 'Three grey, one orange', swatch: '#969696', turn: 195, how: 'Top face down',
+    why: 'The top takes the bed\'s finish and stays flat. The post that pushes onto the switch points straight up, so its cross-shaped socket prints cleanly with no bridging. The four are shown together; they print one at a time or as a set.',
+    sup: 'None. Print the stem-fit test piece first to check how tightly the socket grips a switch.' },
 ];
 const ORANGE = new THREE.Color('#e2783c');
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -148,20 +151,20 @@ function build(part) {
   // one unindexed mesh for the part, turned onto the bed, with a colour per face: the part's own, or orange where it overhangs
   const a = part.turn * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
   const R = (x, y, z) => [x, y * c - z * s, y * s + z * c];
-  const pos = [], nrm = [], flag = [], hang = [];
+  const pos = [], nrm = [], flag = [], hang = [], tint = [];
   let base = new THREE.Color(0.5, 0.5, 0.5);
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (const p of meta.parts) {
     if (p.name !== part.name) continue;
     base = new THREE.Color().setRGB(p.color[0] / 255, p.color[1] / 255, p.color[2] / 255, THREE.SRGBColorSpace);
+    if (base.r + base.g + base.b < 0.6) base.set('#6a707c');             // the black parts are drawn mid grey, so their shape reads on either theme
     const P = new Float32Array(bin, p.pos, p.verts * 3), N = new Float32Array(bin, p.nrm, p.verts * 3), I = new Uint32Array(bin, p.idx, p.tris * 3);
     for (let i = 0; i < I.length; i++) {
       const k = I[i] * 3, v = R(P[k], P[k + 1], P[k + 2]), n = R(N[k], N[k + 1], N[k + 2]);
-      pos.push(...v); nrm.push(...n);
+      pos.push(...v); nrm.push(...n); tint.push(base);      // a part can be more than one colour, like the keycaps
       for (let j = 0; j < 3; j++) { mn[j] = Math.min(mn[j], v[j]); mx[j] = Math.max(mx[j], v[j]); }
     }
   }
-  if (base.r + base.g + base.b < 0.6) base.set('#6a707c');             // the black parts are drawn mid grey, so their shape reads on either theme
   const off = [-(mn[0] + mx[0]) / 2, -(mn[1] + mx[1]) / 2, -mn[2]];
   let bedArea = 0, overArea = 0;
   for (let i = 0; i < pos.length; i += 9) {
@@ -180,12 +183,12 @@ function build(part) {
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
   const hangGeo = new THREE.BufferGeometry(); hangGeo.setAttribute('position', new THREE.Float32BufferAttribute(hang, 3));
-  geo.userData = { base, flag, hangGeo, size: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], bedArea, overArea };
+  geo.userData = { tint, flag, hangGeo, size: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], bedArea, overArea };
   return geo;
 }
 function paint(geo) {
-  const col = geo.attributes.color, { base, flag } = geo.userData;
-  for (let i = 0; i < flag.length; i++) { const c = showOver && flag[i] ? ORANGE : base; col.setXYZ(i, c.r, c.g, c.b); }
+  const col = geo.attributes.color, { tint, flag } = geo.userData;
+  for (let i = 0; i < flag.length; i++) { const c = showOver && flag[i] ? ORANGE : tint[i]; col.setXYZ(i, c.r, c.g, c.b); }
   col.needsUpdate = true;
 }
 const cache = new Map();
@@ -240,7 +243,7 @@ function cards() {
   for (const part of PARTS) {
     const g = geoFor(part).userData, el = document.createElement('section');
     el.className = 'part'; el.dataset.name = part.name;
-    el.innerHTML = `<h3><i style="background:${part.colour === 'Black' ? '#26272a' : '#ded3ba'}"></i>${part.name}</h3>
+    el.innerHTML = `<h3><i style="background:${part.swatch || (part.colour === 'Black' ? '#26272a' : '#ded3ba')}"></i>${part.name}</h3>
       <p class="how">${part.how}</p><p>${part.why}</p><p><b>Supports:</b> ${part.sup}</p>
       <dl><dt>Filament</dt><dd>${part.colour}</dd>
       <dt>On the bed</dt><dd>${g.size[0].toFixed(0)} x ${g.size[1].toFixed(0)} mm, ${g.size[2].toFixed(0)} mm tall</dd>
