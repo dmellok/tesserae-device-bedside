@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 2, 'Access cover': 1}
+REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 3, 'Access cover': 1}
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -171,30 +171,33 @@ def stamp(text, o, ex, ey):
                 c = c1
     return out
 # A doodle hidden inside the rear shell, in the manner of the drawings chip designers leave on silicon: two pixel cats, one sitting up and one asleep,
-# sunk into the inside of the back beside the revision mark. Nobody sees them once the case is together. '#' is a sunk dot.
+# sunk into the middle of the inside of the back, whiskers and all. Nobody sees them once the case is together. '#' is a sunk dot.
 CATS = {'sitting': """
-.#....#.....
-.##..##.....
-.######.....
-.#.##.#.....
-.######.....
-..####......
-.######.....
-########....
-########..##
-########..#.
-########..#.
-###.####..#.
-###.#######.""".split(), 'asleep': """
-.......#####....
-.....#########..
-.#.#.##########.
-.###.###########
-#####.##########
-#.#.#.##########
-#####.##########
-.###...........#
-..##############""".split()}
+....#....#......
+...###..###.....
+...########.....
+...#.####.#.....
+##.########.##..
+...###..###.....
+##.########.##..
+....######......
+...########.....
+..##########....
+..##########..##
+..##########..#.
+..##########..#.
+..####.#####..#.
+..####.########.""".split(), 'asleep': """
+.............######....
+....#...#..###########.
+...###.###.############
+...#######.############
+...#..#..#.############
+##.#######...##########
+...###.###.############
+##.#######...##########
+....#####.............#
+.....##################""".split()}
 def doodle(rows, o, ex, ey):
     # as stamp(), for a picture: o is its bottom left corner
     n = (-(ex[1]*ey[2] - ex[2]*ey[1]), -(ex[2]*ey[0] - ex[0]*ey[2]), -(ex[0]*ey[1] - ex[1]*ey[0]))
@@ -210,7 +213,7 @@ def doodle(rows, o, ex, ey):
             out.append(tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*p), adsk.core.Vector3D.create(*ex), adsk.core.Vector3D.create(*ey), L*MM, PXL*MM, (STAMP_D + 0.1)*MM)))
             c = c1
     return out
-def cats(): return doodle(CATS['sitting'], F(92, 120, WSO - T), U_, V_) + doodle(CATS['asleep'], F(107.3, 120, WSO - T), U_, V_)
+def cats(): return doodle(CATS['sitting'], F(102.5, 121, WSO - T), U_, V_) + doodle(CATS['asleep'], F(120.8, 121, WSO - T), U_, V_)      # together 39 mm wide, in the middle of the clear part of the back
 def cats_volume(): return sum(row.count('#') for rows in CATS.values() for row in rows)*PXL*PXL*STAMP_D/1000
 def stamp_volume(text): return sum(row.count('1') for ch in text for row in FONT[ch].split())*PXL*PXL*STAMP_D/1000      # cm3 the mark should remove
 def marks(part):
