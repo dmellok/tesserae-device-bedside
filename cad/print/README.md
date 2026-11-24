@@ -32,7 +32,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r1.stl` | Access cover | Top down |
+| `6-access-cover-beige-r2.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -64,6 +64,17 @@ Frame plate revisions:
   with four places for the board. The wide strip stays between the glass and the plate, in a pocket 0.6 mm deep in the plate's front, and
   its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
   `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
+
+Access cover revisions:
+
+- R1: the first print. Loose: the barbs on its two tabs ended in front of the rear shell's wall and stood only 0.7 mm past the edges of the
+  opening, so the cover rattled and fell off at a touch.
+- R2: each barb's back face is a 45 degree ramp that crosses the back of the wall, so the wall's inner corner sits on the ramp and pulls the
+  cover forward onto the shell with no play. The barb stands 1.5 mm proud, 1.2 mm past the edge, so each tab bends 1.2 mm as the cover comes
+  off: about 10 N of pull in PLA, by hand, straight back off the hump. The tabs are inside the hump and are never squeezed. A pad behind each
+  barb stands 0.2 mm into the edge of the opening, so the tab still bears on the edge if the corner prints round. The cover's side walls are cut
+  back 0.5 mm beside the tabs: R1 left 0.3 mm there, too little to be sure the tabs print free. `../test-fits/13a-access-cover.stl` is the
+  same cover; print `13b-access-cover-opening.stl` to try its grip without the rear shell.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. Decoration like this does not change a part's revision.

@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 2}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -404,18 +404,33 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
+# The access cover's tabs. Each hangs about 27 mm forward from the inside of the cover's back, 0.3 mm in from the edge of the opening in the rear shell's
+# back wall (that wall runs from w = WSO - T to WSO), and comes off by pulling it straight back: nothing needs squeezing, which the tabs, hidden inside the
+# hump, could not be anyway. On R1 the barb ended 0.3 mm in front of the wall and stood only 0.7 mm past the edge, so the cover rattled 0.5 mm before it
+# met anything and let go at a touch. From R2 the barb's back face is a 45 degree ramp that crosses the back of the wall: the wall's inner corner sits on
+# it, pulling the cover forward onto the shell, and each tab must bend 1.2 mm for the cover to come off (about 10 N of pull in PLA). A pad behind the
+# barb stands 0.2 mm into the edge of the opening, so the tab still bears on the edge if the corner prints round. The cover's side wall is cut back
+# beside each tab, because the 0.3 mm left between them on R1 is too little to be sure of printing as a gap.
+TW0, TWP, TWR, TB = 30.6, 32.35, 33.85, 1.5     # the tab's front end, the barb's peak, where its back ramp runs out (w), and how far the barb stands proud of the tab
+TPW, TPH = (33.0, 35.0), 0.5                    # the side pad: from the back of the wall to 0.5 mm short of its face, 0.75 mm clear of the cover's side wall (w), and how proud of the tab it stands
+TG = 0.5                                        # how far the side wall is cut back beside the tab, leaving 0.8 mm between them and 2 mm of wall
 def cover():
-    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two sprung tabs click behind the edges of the opening in the frame.
+    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two sprung tabs click behind the edges of the opening in the rear shell.
     c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
-    add = []
+    add = []; cut = []
     for sgn, uin, ztop in ((-1, BU0 + T, 77.2), (1, BU1 - T, 75.5)):          # the right tab stops short of the HAT's 13-pin header
         zbox = lambda: box(-10, -80, 68.5, 260, 200, ztop)
         u0 = uin - sgn*0.3                                                   # tab face next to the opening's edge
-        add.append(INTER(obox(min(u0, u0 - sgn*2.0), -300, 30.6, max(u0, u0 - sgn*2.0), 500, WBT - T + 0.5), zbox()))
-        barb = INTER(obox(min(u0, u0 + sgn*1.0), -300, 30.6, max(u0, u0 + sgn*1.0), 500, 32.7), zbox())
-        a, b = F(0, 0, 30.6), F(0, 0, 32.7)
-        add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn*1.3, -W_[1], -W_[2])), halfspace((u0, b[1], b[2]), (sgn*0.8, W_[1], W_[2]))]))
-    return U([c] + add)
+        span = lambda d: (min(u0, u0 + sgn*d), max(u0, u0 + sgn*d))          # from the tab face d outwards, towards the edge
+        add.append(INTER(obox(min(u0, u0 - sgn*2.0), -300, TW0, max(u0, u0 - sgn*2.0), 500, WBT - T + 0.5), zbox()))
+        (b0, b1), a, r = span(TB), F(0, 0, TW0), F(0, 0, TWR)
+        barb = INTER(obox(b0, -300, TW0, b1, 500, TWR), zbox())
+        k = TB/(TWP - TW0)                                                   # lead-in slope, about 40 degrees to the way the cover slides on
+        add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn, -k*W_[1], -k*W_[2])), halfspace((u0, r[1], r[2]), (sgn, W_[1], W_[2]))]))
+        p0, p1 = span(TPH)
+        add.append(INTER(obox(p0, -300, TPW[0], p1, 500, TPW[1]), zbox()))
+        cut.append(INTER(obox(min(uin, uin + sgn*TG), -300, WSO, max(uin, uin + sgn*TG), 500, WBT - T), box(-10, -80, 68.0, 260, 200, ztop + 0.5)))
+    return U([SUB(c, cut)] + add)
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)
