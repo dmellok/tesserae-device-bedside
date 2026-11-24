@@ -35,7 +35,8 @@ def run(_context: str):
         ('13b-access-cover-opening', 'Rear shell', obox(118, 52, 26, 205, 86, 36), [], BACK),
         ('14a-shell-corner-floor', 'Rear shell', INTER(box(-1, 0, 9, 22, 60, 34), obox(-5, -60, 5, 30, 80, 36)), [], BACK),
         ('14b-frame-plate-corner', 'Frame plate', box(2, 4, 2.5, 34, 40, 34), [], PLATE()),                      # the corner boss and the first gusset
-        ('16-flex-slot-fixture', 'Frame plate', U([obox(150, 8, 6, 241.4, 108, 13.5), obox(2.6, 8, 6, 241.4, 40, 13.5)]), [], PLATE()),                 # the plate's bottom edge, the full width, and its corner by the flex, cut off just above the adapter's rails: it screws to the bezel through three of the plate's own holes, so the slot and the relief for the flex sit where they will on the whole plate
+        ('16-flex-slot-fixture', 'Frame plate', obox(150, 8, 6, 241.4, 108, 13.5), [], PLATE()),                 # the plate's lower corner by the flex, cut off just above the adapter's rails: it screws to the bezel through two of the plate's own holes, so the slot sits where it will on the whole plate
+        ('17-flex-relief-fixture', 'Frame plate', U([obox(150, 8, 6, 241.4, 108, 13.5), obox(2.6, 8, 6, 241.4, 40, 13.5)]), [], PLATE()),      # the same with the plate's bottom edge the full width, for the window and pocket under the wide part of the flex: three bezel screws
     ]
     for o in [o for o in rc.occurrences if o.name.startswith('Test fit coupons')]: o.deleteMe()
     occ = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); comp = occ.component; comp.name = 'Test fit coupons'

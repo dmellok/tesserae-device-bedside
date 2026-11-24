@@ -57,6 +57,6 @@ Frame plate revisions:
 - R3: the slot is 9 mm higher and 11 mm tall, where the narrow tail leaves the wide strip, and the adapter's rails are 11 mm higher to match,
   with four places for the board. The wide strip stays between the glass and the plate, in a pocket 0.6 mm deep in the plate's front, and
   its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
-  `../test-fits/16-flex-slot-fixture.stl`, screw it to the bezel and try it on the panel before printing the whole plate.
+  `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).
