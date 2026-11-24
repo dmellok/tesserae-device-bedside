@@ -31,7 +31,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r1.stl` | Front bezel | Front face down |
-| `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
+| `5-rear-shell-beige-r2.stl` | Rear shell | Back down |
 | `6-access-cover-beige-r1.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
@@ -58,5 +58,10 @@ Frame plate revisions:
   with four places for the board. The wide strip stays between the glass and the plate, in a pocket 0.6 mm deep in the plate's front, and
   its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
   `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
+
+Rear shell revisions:
+
+- R1: never printed.
+- R2: two pixel cats, one sitting and one asleep, sunk 0.4 mm into the inside of the back beside the revision mark. Hidden once the case is together.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}
+REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 2, 'Access cover': 1}
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -170,6 +170,48 @@ def stamp(text, o, ex, ey):
                 out.append(tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*p), adsk.core.Vector3D.create(*ex), adsk.core.Vector3D.create(*ey), L*MM, PXL*MM, (STAMP_D + 0.1)*MM)))
                 c = c1
     return out
+# A doodle hidden inside the rear shell, in the manner of the drawings chip designers leave on silicon: two pixel cats, one sitting up and one asleep,
+# sunk into the inside of the back beside the revision mark. Nobody sees them once the case is together. '#' is a sunk dot.
+CATS = {'sitting': """
+.#....#.....
+.##..##.....
+.######.....
+.#.##.#.....
+.######.....
+..####......
+.######.....
+########....
+########..##
+########..#.
+########..#.
+###.####..#.
+###.#######.""".split(), 'asleep': """
+.......#####....
+.....#########..
+.#.#.##########.
+.###.###########
+#####.##########
+#.#.#.##########
+#####.##########
+.###...........#
+..##############""".split()}
+def doodle(rows, o, ex, ey):
+    # as stamp(), for a picture: o is its bottom left corner
+    n = (-(ex[1]*ey[2] - ex[2]*ey[1]), -(ex[2]*ey[0] - ex[0]*ey[2]), -(ex[0]*ey[1] - ex[1]*ey[0]))
+    out = []
+    for r, row in enumerate(rows):
+        c = 0
+        while c < len(row):
+            if row[c] != '#': c += 1; continue
+            c1 = c
+            while c1 < len(row) and row[c1] == '#': c1 += 1
+            x, y, L = (c + c1)/2*PXL, (len(rows) - 0.5 - r)*PXL, (c1 - c)*PXL
+            p = tuple(o[k] + x*ex[k] + y*ey[k] + (STAMP_D/2 - 0.05)*n[k] for k in range(3))
+            out.append(tbm.createBox(adsk.core.OrientedBoundingBox3D.create(P(*p), adsk.core.Vector3D.create(*ex), adsk.core.Vector3D.create(*ey), L*MM, PXL*MM, (STAMP_D + 0.1)*MM)))
+            c = c1
+    return out
+def cats(): return doodle(CATS['sitting'], F(92, 120, WSO - T), U_, V_) + doodle(CATS['asleep'], F(107.3, 120, WSO - T), U_, V_)
+def cats_volume(): return sum(row.count('#') for rows in CATS.values() for row in rows)*PXL*PXL*STAMP_D/1000
 def stamp_volume(text): return sum(row.count('1') for ch in text for row in FONT[ch].split())*PXL*PXL*STAMP_D/1000      # cm3 the mark should remove
 def marks(part):
     # where each part's mark goes, always on an inside face: (corner, reading direction, up)
@@ -182,7 +224,8 @@ def marks(part):
           'Access cover': (F(145, 73.5, WBT - T), U_, V_)}[part]   # the inside of the hump's back
     return stamp(t, *at)
 def marked(part, body):
-    v0 = body.volume; b = SUB(body, marks(part)); cut, want = v0 - b.volume, stamp_volume('MK3 R%d' % REV[part])
+    extra = part == 'Rear shell'                                   # the rear shell carries the cats as well
+    v0 = body.volume; b = SUB(body, marks(part) + (cats() if extra else [])); cut, want = v0 - b.volume, stamp_volume('MK3 R%d' % REV[part]) + (cats_volume() if extra else 0)
     print('%-12s mark R%d: %.4f of %.4f cm3 cut%s' % (part, REV[part], cut, want, '' if abs(cut - want) < 0.0005 else '   <-- NOT ON A CLEAR FLAT FACE'))
     return b
 def mounts():
@@ -496,4 +539,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: relief in the plate for the wide part of the flex'))
+    print('save', case.save('MK III case: two pixel cats hidden inside the rear shell'))
