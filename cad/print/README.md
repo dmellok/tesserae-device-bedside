@@ -55,7 +55,8 @@ Frame plate revisions:
   speaker is shorter, so it clears the speaker's basket by 5 mm, not 0.7 mm. Its slot is too low: it sits behind the wide strip of the panel's
   flex, which cannot pass through it.
 - R3: the slot is 9 mm higher and 11 mm tall, where the narrow tail leaves the wide strip, and the adapter's rails are 11 mm higher to match,
-  with four places for the board. The wide strip stays between the glass and the plate. Placed from a photo of a panel, so print
-  `../test-fits/01-driver-hat-and-flex-adapter-posts.stl` and try it on the panel before printing the whole plate.
+  with four places for the board. The wide strip stays between the glass and the plate, in a pocket 0.6 mm deep in the plate's front, and
+  its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
+  `../test-fits/16-flex-slot-fixture.stl`, screw it to the bezel and try it on the panel before printing the whole plate.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

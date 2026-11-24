@@ -45,6 +45,11 @@ PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 
 # The photo is good to a couple of millimetres, so the slot is tall, and the board does not stand on four posts but on two rails with a row of holes
 # each, 3.5 mm apart: it can be screwed down in any of FAN places, from the lowest (drawn) upwards, wherever the tail reaches its connector without strain.
 FSL = (168, 23, 194, 34)                        # the slot for the flex tail (u0, v0, u1, v1)
+# Relief for the wide strip, which lies between the glass and the plate in a 1.62 mm gap. Its capacitors are in the last 20 mm at the far end from the
+# tail, so the plate has a window right through there (FCW), above the power board's post. The rest of the strip gets a pocket FCD deep in the plate's
+# front (FCP), from clear of the foot's screw holes up past the strip's top edge and across to the slot. The plate prints front down, so the pocket's
+# roof is a short bridge three layers off the bed.
+FCW, FCP, FCD = (50, 18.5, 77, 32.5), (50, 17, 194, 32.5), 0.6
 FAZ, FAP, FAN = 12.5, 3.5, 4                    # the w of the board's underside, the pitch of the holes in the rails, and how many places the board can sit
 FAC, FAL, FAW = (180.3, 43.25), 42.1, 20.5      # centred on the flex tail, in the lowest place: its bottom edge 1 mm short of the top of the slot
 FAU, FAV = (FAC[0] - 17.5, FAC[0] + 17.5), (FAC[1] - 7.0, FAC[1] + 7.0)
@@ -262,7 +267,7 @@ def plate():
     add, cut, _, _ = mounts()
     m = U([p, foot] + add)
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
-    cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(FSL[0], FSL[1], 5, FSL[2], FSL[3], 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
+    cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(FSL[0], FSL[1], 5, FSL[2], FSL[3], 9), obox(FCW[0], FCW[1], 5, FCW[2], FCW[3], 9), obox(FCP[0], FCP[1], 5, FCP[2], FCP[3], 6.05 + FCD), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
     cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 22.5), R3) for x, y in CS] + [lead((x, y, 10 + G + CB + SEAT + 0.3), (0, 0, 1), R3) for x, y in CS] + [cyl((x, y, 12), (x, y, 10 + G + CB + SEAT + 0.3), 4.8) for x, y in CS]      # with room for the shell's bosses under them
     cuts += [cyl((x, y, 2.9), (x, y, 15.8), R3) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 11.8), R3) for x, y in HS] + [lead((x, y, CB + SEAT + 0.15), (0, 0, 1), R3) for x, y in FS + HS]      # the foot takes M3 x 12, the heels M3 x 8
     cuts += [cyl((x, y, 2.9), (x, y, CB + SEAT + 0.15), 4.5) for x, y in FS + HS]      # pockets over the tray's bosses
@@ -491,4 +496,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: flex slot moved up to where the tail leaves the wide strip'))
+    print('save', case.save('MK III case: relief in the plate for the wide part of the flex'))
