@@ -27,7 +27,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 
 | File | Part | Prints |
 |---|---|---|
-| `1-frame-plate-black-r2.stl` | Frame plate | Front face down |
+| `1-frame-plate-black-r3.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r1.stl` | Front bezel | Front face down |
@@ -52,6 +52,10 @@ Frame plate revisions:
 
 - R1 (no mark): the first print. The flex adapter's posts are too far from the flex slot for the panel's tail to reach.
 - R2: the flex adapter sits on two rails just above the slot, 2 mm closer to the plate, and can be moved up in 3.5 mm steps. The gusset beside the
-  speaker is shorter, so it clears the speaker's basket by 5 mm, not 0.7 mm.
+  speaker is shorter, so it clears the speaker's basket by 5 mm, not 0.7 mm. Its slot is too low: it sits behind the wide strip of the panel's
+  flex, which cannot pass through it.
+- R3: the slot is 9 mm higher and 11 mm tall, where the narrow tail leaves the wide strip, and the adapter's rails are 11 mm higher to match,
+  with four places for the board. The wide strip stays between the glass and the plate. Placed from a photo of a panel, so print
+  `../test-fits/01-driver-hat-and-flex-adapter-posts.stl` and try it on the panel before printing the whole plate.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).

@@ -37,11 +37,16 @@ nW_ = tuple(-x for x in W_)
 PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 x 46 mm between centres. From a photo of the 70.18 mm long board with the perspective taken out; the holes take an M2 screw.
 # The e-paper adapter (the small board that joins the panel's flex to the ribbon for the HAT), measured from the real one: 42.1 mm long by caliper,
 # and from a photo scaled to that, 20.5 mm wide with 3.1 mm holes 35 x 14 mm apart. It sits long side across, its lower connector just above the slot
-# the panel's flex tail comes through. On the first printed plate it sat 21.5 mm higher and 2 mm further off the plate, and the tail could not reach it.
-# The tail's real length is not known, so the board does not stand on four posts but on two rails with a row of holes each, 3.5 mm apart: it can be
-# screwed down in any of FAN places, from the lowest (drawn) upwards, wherever the tail reaches its connector without strain.
-FAZ, FAP, FAN = 12.5, 3.5, 5                    # the w of the board's underside, the pitch of the holes in the rails, and how many places the board can sit
-FAC, FAL, FAW = (180.3, 32.25), 42.1, 20.5      # centred on the flex tail, in the lowest place: its bottom edge 2 mm above the slot
+# the panel's flex tail comes through. On the first printed plate (R1) it sat too high and the tail could not reach it.
+# The panel's flex, from a photo of a real panel with a caliper across it: a strip 137.6 mm wide is bonded along the bottom of the glass and folds flat
+# onto its back, reaching about 16.5 mm up from the glass's edge (v 12.6), with a few small capacitors on it. The tail, 20.5 mm wide, leaves the top
+# of that strip at its u 191 end and runs on about 22 mm. So the tail starts near v 29, and only the tail can turn back through the plate: R2's slot
+# at v 14 to 20 was behind the wide strip, which cannot pass. FSL is the slot from R3 on, around where the tail leaves the strip.
+# The photo is good to a couple of millimetres, so the slot is tall, and the board does not stand on four posts but on two rails with a row of holes
+# each, 3.5 mm apart: it can be screwed down in any of FAN places, from the lowest (drawn) upwards, wherever the tail reaches its connector without strain.
+FSL = (168, 23, 194, 34)                        # the slot for the flex tail (u0, v0, u1, v1)
+FAZ, FAP, FAN = 12.5, 3.5, 4                    # the w of the board's underside, the pitch of the holes in the rails, and how many places the board can sit
+FAC, FAL, FAW = (180.3, 43.25), 42.1, 20.5      # centred on the flex tail, in the lowest place: its bottom edge 1 mm short of the top of the slot
 FAU, FAV = (FAC[0] - 17.5, FAC[0] + 17.5), (FAC[1] - 7.0, FAC[1] + 7.0)
 FAH = sorted(set(round(v + FAP*j, 2) for v in FAV for j in range(FAN)))      # every hole in a rail (14 mm is four pitches, so the two rows share holes)
 def adapter_bodies():
@@ -136,7 +141,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 2, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}
+REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -257,7 +262,7 @@ def plate():
     add, cut, _, _ = mounts()
     m = U([p, foot] + add)
     cuts = [box(0, 0, 0, PI + T + 0.3, 60, 10 + G + T + 0.3), box(244 - PI - T - 0.3, 0, 0, 244, 60, 10 + G + T + 0.3)]      # bottom corners, clear of the rear shell's floor where it overhangs the tray
-    cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(168, 14, 5, 194, 20, 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
+    cuts += [obox(140, 171, 5, 222, 200, 9), obox(224.5, 134.8, 5, 238.1, 165.2, 9), obox(FSL[0], FSL[1], 5, FSL[2], FSL[3], 9), obox(-5, 186, 5, 9, 200, 9), obox(235, 186, 5, 250, 200, 9)]
     cuts += [wcyl(u, v, 5, 9, 1.7) for u, v in BZ] + [cyl((x, y, 12), (x, y, 22.5), R3) for x, y in CS] + [lead((x, y, 10 + G + CB + SEAT + 0.3), (0, 0, 1), R3) for x, y in CS] + [cyl((x, y, 12), (x, y, 10 + G + CB + SEAT + 0.3), 4.8) for x, y in CS]      # with room for the shell's bosses under them
     cuts += [cyl((x, y, 2.9), (x, y, 15.8), R3) for x, y in FS] + [cyl((x, y, 2.9), (x, y, 11.8), R3) for x, y in HS] + [lead((x, y, CB + SEAT + 0.15), (0, 0, 1), R3) for x, y in FS + HS]      # the foot takes M3 x 12, the heels M3 x 8
     cuts += [cyl((x, y, 2.9), (x, y, CB + SEAT + 0.15), 4.5) for x, y in FS + HS]      # pockets over the tray's bosses
@@ -486,4 +491,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: flex adapter on rails by the slot, revision marks'))
+    print('save', case.save('MK III case: flex slot moved up to where the tail leaves the wide strip'))
