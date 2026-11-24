@@ -24,7 +24,7 @@ def bezel():
     cuts = [obox(16.42, 25.87, -10, 227.58, 184.62, 10),            # window
             obox(13.25, 21.0, GLASS_W - 0.05, 230.75, 187.8, 7),      # glass pocket, open to the back: its floor is the lip the glass is pressed against
             obox(13.25, 12.6, 3.0, 230.75, 21.0, 7),                 # deeper along the bottom edge, for the driver chips and the flex bonded to the front of the glass there
-            obox(50, 11.2, 3.0, 195, 13, 7)]                         # flex wrap relief
+            obox(50, 10.2, 3.0, 195, 13, 7)]                         # flex wrap relief: the groove the fold of the panel's wide flex sits in, below the glass's bottom edge. From bezel R2 it is 1 mm taller, reaching 2.4 mm below the glass and not 1.4, so the fold has more room to turn in
     cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back: the M3 screws cut their own thread in the plastic
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
@@ -146,12 +146,12 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 1, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 1}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
         '6': '00110 01000 10000 11110 10001 10001 01110', '7': '11111 00001 00010 00100 01000 01000 01000', '8': '01110 10001 10001 01110 10001 10001 01110',
-        '9': '01110 10001 10001 01111 00001 00010 01100', ' ': '00000 00000 00000 00000 00000 00000 00000'}
+        '9': '01110 10001 10001 01111 00001 00010 01100', 'P': '11110 10001 10001 11110 10000 10000 10000', ' ': '00000 00000 00000 00000 00000 00000 00000'}
 PXL, STAMP_D = 0.9, 0.4                        # the side of one dot of the 5 x 7 lettering, and how deep it is sunk: letters are 4.5 x 6.3 mm
 def stamp(text, o, ex, ey):
     # cutting tools for text on a flat face. o: the bottom left corner of the text, on the face. ex: the way it reads; ey: up the letters, both as
@@ -216,20 +216,25 @@ def doodle(rows, o, ex, ey):
 def cats(): return doodle(CATS['sitting'], F(102.5, 121, WSO - T), U_, V_) + doodle(CATS['asleep'], F(120.8, 121, WSO - T), U_, V_)      # together 39 mm wide, in the middle of the clear part of the back
 def cats_volume(): return sum(row.count('#') for rows in CATS.values() for row in rows)*PXL*PXL*STAMP_D/1000
 def stamp_volume(text): return sum(row.count('1') for ch in text for row in FONT[ch].split())*PXL*PXL*STAMP_D/1000      # cm3 the mark should remove
+CODE = {'Frame plate': 'P1', 'Base tray': 'P2', 'Plinth': 'P3', 'Front bezel': 'P4', 'Rear shell': 'P5', 'Access cover': 'P6'}      # each part's code: the number its print file starts with
+def mark_text(part): return ['MK3 R%d' % REV[part], CODE[part]]
 def marks(part):
-    # where each part's mark goes, always on an inside face: (corner, reading direction, up)
-    t = 'MK3 R%d' % REV[part]; nU = neg(U_)
-    at = {'Frame plate': (F(118, 108, 8.0), nU, V_),             # the back of the plate, in the clear middle above the cable-tie anchors
-          'Front bezel': (F(3.4, 44, WB), V_, U_),               # the back of the left border, reading up it: the plate covers it
-          'Base tray': ((139.8, 44, 3.0), (0, 1, 0), (-1, 0, 0)),   # the floor, between the battery pad and the right bank of vents, reading front to back
-          'Plinth': ((30, 68.5, ZP - T), (1, 0, 0), (0, -1, 0)),    # the underside of its roof
-          'Rear shell': (F(50, 120, WSO - T), U_, V_),           # the inside of its back
-          'Access cover': (F(145, 73.5, WBT - T), U_, V_)}[part]   # the inside of the hump's back
-    return stamp(t, *at)
+    # where each part's mark goes, always on an inside face: (corner, reading direction, up, where the part's code goes). The code follows the
+    # revision on the same line where there is the length for it, and sits on a second line under or over it where there is not.
+    nU = neg(U_)
+    o, ex, ey, where = {'Frame plate': (F(118, 108, 8.0), nU, V_, 'under'),             # the back of the plate, in the clear middle above the cable-tie anchors
+          'Front bezel': (F(3.4, 44, WB), V_, U_, 'after'),               # the back of the left border, reading up it: the plate covers it
+          'Base tray': ((139.8, 44, 3.0), (0, 1, 0), (-1, 0, 0), 'over'),   # the floor, between the battery pad and the right bank of vents, reading front to back
+          'Plinth': ((30, 68.5, ZP - T), (1, 0, 0), (0, -1, 0), 'after'),    # the underside of its roof
+          'Rear shell': (F(50, 120, WSO - T), U_, V_, 'under'),           # the inside of its back
+          'Access cover': (F(137.2, 73.5, WBT - T), U_, V_, 'after')}[part]   # the inside of the hump's back
+    t, code = mark_text(part)
+    dx, dy = {'after': (6*(len(t) + 1)*PXL, 0), 'under': (0, -8.5*PXL), 'over': (0, 8.5*PXL)}[where]
+    return stamp(t, o, ex, ey) + stamp(code, tuple(o[k] + dx*ex[k] + dy*ey[k] for k in range(3)), ex, ey)
 def marked(part, body):
     extra = part == 'Rear shell'                                   # the rear shell carries the cats as well
-    v0 = body.volume; b = SUB(body, marks(part) + (cats() if extra else [])); cut, want = v0 - b.volume, stamp_volume('MK3 R%d' % REV[part]) + (cats_volume() if extra else 0)
-    print('%-12s mark R%d: %.4f of %.4f cm3 cut%s' % (part, REV[part], cut, want, '' if abs(cut - want) < 0.0005 else '   <-- NOT ON A CLEAR FLAT FACE'))
+    v0 = body.volume; b = SUB(body, marks(part) + (cats() if extra else [])); cut, want = v0 - b.volume, sum(stamp_volume(t) for t in mark_text(part)) + (cats_volume() if extra else 0)
+    print('%-12s mark %s R%d: %.4f of %.4f cm3 cut%s' % (part, CODE[part], REV[part], cut, want, '' if abs(cut - want) < 0.0005 else '   <-- NOT ON A CLEAR FLAT FACE'))
     return b
 def mounts():
     add, cut, tadd, tcut = [], [], [], []      # what stands on the frame plate, and what stands on the base tray
@@ -542,4 +547,4 @@ def run(_context: str):
     add_bodies(o.component, [('Knob', knob(), (150, 150, 150))], design)
     o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Rubber feet'
     add_bodies(o.component, feet(), design)
-    print('save', case.save('MK III case: two pixel cats hidden inside the rear shell'))
+    print('save', case.save('MK III case: part codes beside the revision marks, deeper groove in the bezel for the fold of the flex'))

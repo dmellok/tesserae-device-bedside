@@ -30,13 +30,14 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `1-frame-plate-black-r3.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
-| `4-front-bezel-beige-r1.stl` | Front bezel | Front face down |
+| `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
 | `6-access-cover-beige-r1.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
-Every case part has `MK3 R<n>` sunk into a face that is hidden once the case is together, and the same `r<n>` at the end of its file name. The number
+Every case part has `MK3 R<n>` sunk into a face that is hidden once the case is together, and the same `r<n>` at the end of its file name.
+Beside or under it is the part's code, `P1` to `P6`: the number its file name starts with. The number
 goes up whenever that part changes in a way that affects how it fits or works, so a print can be matched to its file.
 
 | Part | Where its mark is |
@@ -47,6 +48,11 @@ goes up whenever that part changes in a way that affects how it fits or works, s
 | Plinth | Underside of the roof, on the left |
 | Rear shell | Inside of the back, left of centre |
 | Access cover | Inside of the hump's back |
+
+Front bezel revisions:
+
+- R1: the first print.
+- R2: the groove under the glass's bottom edge, where the panel's wide flex folds over, is 1 mm taller: it reaches 2.4 mm below the glass, not 1.4.
 
 Frame plate revisions:
 
