@@ -31,13 +31,13 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r1.stl` | Front bezel | Front face down |
-| `5-rear-shell-beige-r3.stl` | Rear shell | Back down |
+| `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
 | `6-access-cover-beige-r1.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
 Every case part has `MK3 R<n>` sunk into a face that is hidden once the case is together, and the same `r<n>` at the end of its file name. The number
-goes up whenever that part's shape changes, so a print can be matched to its file.
+goes up whenever that part changes in a way that affects how it fits or works, so a print can be matched to its file.
 
 | Part | Where its mark is |
 |---|---|
@@ -59,9 +59,7 @@ Frame plate revisions:
   its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
   `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
 
-Rear shell revisions:
-
-- R1, R2: never printed.
-- R3: two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of the back. Hidden once the case is together.
+The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
+hidden once the case is together. Decoration like this does not change a part's revision.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).
