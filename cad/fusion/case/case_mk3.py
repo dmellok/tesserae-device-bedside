@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 2}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 3}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -404,32 +404,45 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
-# The access cover's tabs. Each hangs about 27 mm forward from the inside of the cover's back, 0.3 mm in from the edge of the opening in the rear shell's
-# back wall (that wall runs from w = WSO - T to WSO), and comes off by pulling it straight back: nothing needs squeezing, which the tabs, hidden inside the
-# hump, could not be anyway. On R1 the barb ended 0.3 mm in front of the wall and stood only 0.7 mm past the edge, so the cover rattled 0.5 mm before it
-# met anything and let go at a touch. From R2 the barb's back face is a 45 degree ramp that crosses the back of the wall: the wall's inner corner sits on
-# it, pulling the cover forward onto the shell, and each tab must bend 1.2 mm for the cover to come off (about 10 N of pull in PLA). A pad behind the
-# barb stands 0.2 mm into the edge of the opening, so the tab still bears on the edge if the corner prints round. The cover's side wall is cut back
-# beside each tab, because the 0.3 mm left between them on R1 is too little to be sure of printing as a gap.
-TW0, TWP, TWR, TB = 30.6, 32.35, 33.85, 1.5     # the tab's front end, the barb's peak, where its back ramp runs out (w), and how far the barb stands proud of the tab
-TPW, TPH = (33.0, 35.0), 0.5                    # the side pad: from the back of the wall to 0.5 mm short of its face, 0.75 mm clear of the cover's side wall (w), and how proud of the tab it stands
-TG = 0.5                                        # how far the side wall is cut back beside the tab, leaving 0.8 mm between them and 2 mm of wall
+# The access cover's latches. On R1 and R2 two tabs hung forward from the inside of the cover's back, where no finger could reach them. From R3 the front
+# part of each side wall is itself the spring: a slit under the roof frees a strip of the wall, 1.5 mm thick and joined to the cover only at the back, and
+# the hook that goes through the opening in the rear shell's back wall (w = WSO - T to WSO) is on the inside of the strip's front end. Squeezing the two
+# sides of the cover near the front pushes both hooks clear of the opening's edges, and the cover lifts straight back. Each hook's back face is a 45 degree
+# ramp that crosses the back of the wall, so the wall's inner corner sits on it and pulls the cover forward onto the shell with no play; without a squeeze
+# each strip must bend 1.2 mm, about 11 N of pull in PLA. A pad behind the barb stands 0.2 mm into the edge of the opening, in case the corner prints round.
+# The cover prints top down with no support: the hooks grow at 45 degrees from the strips, and each strip's first layer is a bridge from its root to a pip
+# across the front of the slit, which is cut or snapped once the print is off the bed.
+TW0, TWP, TWR, TB = 30.6, 32.35, 33.85, 1.5     # the hook's front end, the barb's peak, where its back ramp runs out (w), and how far the barb stands proud of the hook
+TPW, TPH = (33.0, 35.0), 0.5                    # the side pad: from the back of the wall to 0.5 mm short of its face (w), and how proud of the hook it stands
+TS, TSL, TZ, TSG, TSF = 1.5, 57.0, 77.2, 0.6, 0.3   # the sprung strip: thickness, where its root is (w), its top (z), the slit above it, and how far its foot is held off the plinth's roof
+THL, TPIP = 38.5, (0.6, 0.8)                    # how far back the block joining hook and strip runs (w), and the pip across the slit (u, w)
 def cover():
-    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two sprung tabs click behind the edges of the opening in the rear shell.
+    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two hooks click behind the edges of the opening in the rear shell; squeezing its sides lets them go.
     c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
-    add = []; cut = []
-    for sgn, uin, ztop in ((-1, BU0 + T, 77.2), (1, BU1 - T, 75.5)):          # the right tab stops short of the HAT's 13-pin header
+    add = []; cut = []; wf = WSO + G
+    sp = lambda a, b: (min(a, b), max(a, b))
+    for sgn, uin, ztop in ((-1, BU0 + T, TZ), (1, BU1 - T, TZ)):
         zbox = lambda: box(-10, -80, 68.5, 260, 200, ztop)
-        u0 = uin - sgn*0.3                                                   # tab face next to the opening's edge
-        span = lambda d: (min(u0, u0 + sgn*d), max(u0, u0 + sgn*d))          # from the tab face d outwards, towards the edge
-        add.append(INTER(obox(min(u0, u0 - sgn*2.0), -300, TW0, max(u0, u0 - sgn*2.0), 500, WBT - T + 0.5), zbox()))
+        uo = uin + sgn*T; us = uo - sgn*TS                                   # the side wall's outer face, and the strip's inner face
+        u0 = uin - sgn*0.3                                                   # hook face next to the opening's edge
+        (a0, a1), (t0, t1) = sp(uo + sgn, uin), sp(us, uin)
+        cut.append(INTER(obox(a0, -300, wf - 1, a1, 500, TSL), box(-10, -80, TZ, 260, 200, TZ + TSG)))               # the slit
+        cut.append(INTER(obox(t0, -300, wf - 1, t1, 500, TSL), box(-10, -80, 60, 260, 200, TZ + TSG)))               # the strip, thinned from inside
+        cut.append(INTER(obox(a0, -300, wf - 1, a1, 500, TSL), box(-10, -80, 60, 260, 200, ZP + TSF)))               # its foot, off the roof
+        p0, p1 = sp(us, us + sgn*TPIP[0])
+        add.append(INTER(obox(p0, -300, wf, p1, 500, wf + TPIP[1]), box(-10, -80, TZ - 0.05, 260, 200, TZ + TSG + 0.05)))
+        span = lambda d: sp(u0, u0 + sgn*d)                                  # from the hook face d outwards, towards the edge
+        h0, h1 = sp(us + sgn*0.2, u0 - sgn*2.0)
+        hook = [INTER(obox(h0, -300, wf, h1, 500, THL), zbox()), INTER(obox(min(u0, u0 - sgn*2.0), -300, TW0, max(u0, u0 - sgn*2.0), 500, THL), zbox())]
         (b0, b1), a, r = span(TB), F(0, 0, TW0), F(0, 0, TWR)
         barb = INTER(obox(b0, -300, TW0, b1, 500, TWR), zbox())
         k = TB/(TWP - TW0)                                                   # lead-in slope, about 40 degrees to the way the cover slides on
-        add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn, -k*W_[1], -k*W_[2])), halfspace((u0, r[1], r[2]), (sgn, W_[1], W_[2]))]))
-        p0, p1 = span(TPH)
-        add.append(INTER(obox(p0, -300, TPW[0], p1, 500, TPW[1]), zbox()))
-        cut.append(INTER(obox(min(uin, uin + sgn*TG), -300, WSO, max(uin, uin + sgn*TG), 500, WBT - T), box(-10, -80, 68.0, 260, 200, ztop + 0.5)))
+        hook.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn, -k*W_[1], -k*W_[2])), halfspace((u0, r[1], r[2]), (sgn, W_[1], W_[2]))]))
+        q0, q1 = span(TPH)
+        hook.append(INTER(obox(q0, -300, TPW[0], q1, 500, TPW[1]), zbox()))
+        # printed top down, so the hook may only grow 45 degrees inwards from the strip and 45 degrees forwards from the cover's front face
+        yf = wf*C + ((ztop - 12 + wf*S)/C)*S
+        add.append(SUB(U(hook), [halfspace((us, 0, ztop), (-sgn, 0, 1)), halfspace((0, yf, ztop), (0, -1, 1))]))
     return U([SUB(c, cut)] + add)
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
