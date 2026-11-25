@@ -31,7 +31,7 @@ def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
-R3, R25, R2 = 1.3, 1.075, 0.85                # holes the M3, M2.5 and M2 screws cut their own thread in: 2.6, 2.15 and 1.7 mm, about 85% of the screw. From test prints: an M2 would not start in 1.6 mm with no chamfer, was loose in 1.9 mm, and an M2.5 was tight but held in 1.9 mm.
+R3, R25, R2 = 1.3, 1.075, 0.9                 # holes the M3, M2.5 and M2 screws cut their own thread in: 2.6, 2.15 and 1.8 mm. From test prints: an M2 would not start in 1.6 mm with no chamfer, was loose in 1.9 mm, and an M2.5 was tight but held in 1.9 mm. In the printed frame plate (R3) an M2 was too tight in 1.7 mm, so from R4 it is 1.8.
 def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r)      # a 0.5 mm chamfer at a hole's mouth p, where d points into the hole, so the screw finds it and starts square
 nW_ = tuple(-x for x in W_)
 PBU, PBV = (60.25, 125.75), (14.0, 60.0)      # power and amp board posts: 65.5 x 46 mm between centres. From a photo of the 70.18 mm long board with the perspective taken out; the holes take an M2 screw.
@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 8}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 4, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 8}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',

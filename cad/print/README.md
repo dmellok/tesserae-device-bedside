@@ -27,7 +27,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 
 | File | Part | Prints |
 |---|---|---|
-| `1-frame-plate-black-r3.stl` | Frame plate | Front face down |
+| `1-frame-plate-black-r4.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
@@ -64,6 +64,8 @@ Frame plate revisions:
   with four places for the board. The wide strip stays between the glass and the plate, in a pocket 0.6 mm deep in the plate's front, and
   its capacitors sit in a window right through the plate. All placed from a photo of a panel, so print
   `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
+- R4: the four holes in the power and amp board's posts are 1.8 mm, not 1.7, which was too tight for an M2 screw to cut its thread in. On an
+  R3 plate, open those holes with a 1.8 mm drill instead of reprinting. `../test-fits/02-power-board-posts.stl` has the new holes.
 
 Access cover revisions:
 
