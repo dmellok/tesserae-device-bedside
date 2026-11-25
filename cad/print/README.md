@@ -53,10 +53,11 @@ The six case parts, each turned to the way it prints and numbered in the order t
 |---|---|---|
 | `1-frame-plate-black-r4.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
-| `3-plinth-black-r2.stl` | Plinth | Roof down |
+| `3-plinth-black-r3.stl` | Plinth | Roof down |
+| `3-plinth-with-lugs-black-r3.stl` | Plinth with lugs, to print in place of the plain one | As it stands |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r9.stl` | Access cover | Top down |
+| `6-access-cover-beige-r10.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -124,11 +125,28 @@ Access cover revisions:
   mark is still R9.) The cover no longer gives access to anything: the Pico sits facing down and its USB-C port cannot be reached
   with the case together, so flash it before assembly. `../test-fits/13a-access-cover.stl` is the same cover and
   `13b-access-cover-seat.stl` is the strip of the plinth's roof it screws to.
+- R10: for plinth R3, whose roof is cut away behind the driver stack right back to its rear wall. The two shoulders are joined by a step across
+  the back, so the hump stands on one low base that reaches the plinth's rear edge and closes the cut. The base is hollow behind the hump, and
+  the hump's back wall stops at that hollow's ceiling, so the stack has 3 mm more height there as well. Same screws and bosses as R9. Prints top
+  down, on support under the base, which is 10.8 mm above the bed. An R9 cover on an R3 plinth leaves a 4 mm strip of the cut open behind it.
 
 Plinth revisions:
 
 - R1: the first print.
-- R2: two bosses under the roof, one either side of the hump, for the access cover's screws.
+- R2: two bosses under the roof, one either side of the hump, for the access cover's screws. As built, the roof left behind the cutout for the
+  driver stack fouled the Pico's adapter board.
+- R3: that cutout goes right back to the inside of the rear wall, 7 mm further, so no roof is left behind the stack. The rear wall is whole. Needs
+  access cover R10 to close it.
+
+### Plinth with lugs
+
+`3-plinth-with-lugs-black-r3.stl` is the same plinth with a lug standing up from each end of its roof, against the back of the rear shell and
+over the shell's lowest pair of back screws. Print it in place of the plain plinth for two more fixings: leave the M3 x 8 out of those two holes
+and put an M3 x 12 through each lug, through the shell's hole and into the same post in the frame plate. The rear shell is not changed and either
+plinth fits it. Each lug is 8.4 mm wide and 5.2 mm thick, as thick as the access cover's base, with its screw head sunk the same way.
+
+It cannot lie on its roof, because the lugs stand 13 mm above it, so it prints as it stands, open side down. The whole roof is then a bridge and
+needs support underneath, which the plain plinth avoids; the lugs lean back 15 degrees and need none. The viewer's Plinth option shows it.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this
