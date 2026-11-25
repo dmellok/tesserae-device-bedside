@@ -1,6 +1,6 @@
 # Wiring: every cable in the device, in the colours of docs/power-amp-board.html. Builds the top-level component "Wiring".
 # The wires are soldered straight into the protoboard's bottom-edge holes (no J1/J3 headers), and plug onto the splitter's
-# right-angle header with single Dupont housings. ASSUMED: header pins 1 and 2 at the top end, odd pins in the row nearer the HAT;
+# right-angle header with single Dupont housings. As built, the stack is the other way up from how it was first drawn: header pins 1 and 2 are at the bottom end, and the Pico has its USB-C at the bottom and its Qw/ST socket at the top. ASSUMED: odd pins in the row farther from the HAT;
 # USB-C breakout VBUS and GND on the two pads nearest the board; the switch uses its centre and top terminals.
 S, C = math.sin(math.radians(15)), math.cos(math.radians(15))
 def F(u, v, w): return (u, w*C + v*S, 12 + v*C - w*S)
@@ -38,7 +38,7 @@ def ribbon(name, pts, spreads, cols, r=0.5, pitch=1.0):
         out.append(('%s %d' % (name, i + 1), tube(name, [tuple(p[j] + d[j]*k for j in range(3)) for p, d in zip(pts, spreads)], r), col))
     return out
 def hole(letter): return 73.92 + 2.54*(ord(letter) - ord('E'))
-def pin(n): return 68.83 - 2.54*((n - 1)//2), (46.5 if n % 2 else 44.0)
+def pin(n): return 20.57 + 2.54*((n - 1)//2), (44.0 if n % 2 else 46.5)
 def run(_context: str):
     case = doc_named('Bedside case'); case.activate()
     design = adsk.fusion.Design.cast(app.activeProduct); rc = design.rootComponent
@@ -60,10 +60,10 @@ def run(_context: str):
         if abs(vp - vt) > 6:
             pts += [F(126.0, vt, wl)]
             if vp < vt - 14: pts += [F(ul, vt - 7.0, wl)]                                                    # round the corner, then straight down
-            pts += [F(ul, min(vp, 62.5) + (5.0 if vp < vt else -2.0), wl)]
+            pts += [F(ul, vp + (5.0 if vp < vt else -2.0), wl)]
         else: pts += [F(127.5, (vt + vp)/2, wl)]
-        ve = min(vp, 62.5)                                                                                 # under the access cover's snap tab
-        pts += [F(132.4, ve, 31.8), F(133.6, (ve + vp)/2, 38.5), F(135.2, vp, wp), F(137.0, vp, wp)]
+        k = 0.8*(wp - 45.25)                                                                               # the two rows' wires come in one above the other, 2 mm apart
+        pts += [F(132.4, vp, 31.8 + k), F(133.6 + k/2, vp, 38.5 + k), F(135.2, vp, wp), F(137.0, vp, wp)]
         items.append(('GPIO pin %d, %s' % (n, what), tube('GPIO %d' % n, pts, R), col))
     items.append(('Dupont plug, 2x20', fbox(135.0, 19.3, 42.7, 149.0, 70.1, 47.8), (24, 24, 26)))
     def tie(k, lo, hi):
@@ -90,11 +90,13 @@ def run(_context: str):
     items.append(('Battery plug, JST-PH', fbox(71.3, 10.8, 23.9, 77.3, 14.4, 28.3), (236, 236, 230)))
     # --- STEMMA QT: Pico -> encoder -> keys ---
     QT = [BLK, RED, BLU, YEL]; Ux, Wx = (1, 0, 0), (0, C, -S)
-    p1 = [F(171.0, 32.0, 39.5), F(171.0, 27.0, 39.2), F(172.5, 22.0, 36.0), F(178.0, 20.5, 33.0), F(188.0, 22.0, 31.5), F(196.0, 30.0, 31.5), F(196.0, 54.0, 31.5), F(206.2, 64.0, 31.6), F(206.2, 74.5, 32.3), F(207.0, 84.0, 30.0),
+    # from the Pico's socket at the top of the board: up, forward through the opening in the shell's back wall, across behind the HAT below the tips of its
+    # 13-pin header, up past the end of that header and on to the encoder
+    p1 = [F(177.8, 66.4, 39.5), F(177.8, 70.5, 39.0), F(180.0, 72.8, 36.5), F(184.0, 73.3, 33.8), F(189.0, 73.3, 31.9), F(198.0, 73.3, 31.6), F(206.0, 74.0, 31.6), F(207.0, 79.0, 31.6), F(207.0, 86.0, 30.0),
           F(219.0, 108.0, 24.0), F(228.5, 126.0, 18.7), F(228.5, 131.0, 18.7), F(228.5, 136.0, 18.7)]
-    s1 = [Ux]*10 + [(0.7, 0.7*C, -0.7*S), Wx, Wx, Wx]
+    s1 = [Ux]*9 + [(0.7, 0.7*C, -0.7*S), Wx, Wx, Wx]
     items += ribbon('STEMMA QT, Pico to encoder', p1, s1, QT)
-    items.append(('STEMMA QT plug, Pico', fbox(168.0, 29.3, 37.6, 174.0, 33.3, 41.5), (236, 236, 230)))
+    items.append(('STEMMA QT plug, Pico', fbox(174.8, 65.1, 37.6, 180.8, 69.1, 41.5), (236, 236, 230)))
     items.append(('STEMMA QT plug, encoder in', fbox(227.2, 134.0, 15.9, 229.8, 137.4, 21.5), (236, 236, 230)))
     # the back post at (228, 178) leaves 2 mm behind the key module's socket, so this cable turns down as soon as it leaves the plug
     p2 = [F(228.5, 164.0, 18.7), F(228.5, 167.0, 18.5), F(226.6, 170.3, 17.6), F(224.0, 172.6, 16.2), F(223.4, 175.2, 15.0), F(222.2, 176.5, 14.6), F(220.5, 176.5, 14.6)]
