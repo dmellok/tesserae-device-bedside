@@ -87,4 +87,13 @@ The rear shell also has two pixel cats with whiskers, one sitting and one asleep
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this
 does not change a part's revision.
 
+## Foam tape jig
+
+`jig-foam-tape-left.stl` and `jig-foam-tape-right.stl` are two small corner gauges (90 x 88 x 4.5 mm, any colour, flat as exported with the lips
+up, no support) for sticking the panel's foam tape to the front of the frame plate. Each lies on the plate in a top corner with its lips hooked over
+the plate's side and top edges. Butt the foam against its inside edges: the long arm is the outer edge of the strip down that side, the band along
+the top is the top edge of the strip across the top and the top end of the side strips, and the small nub on the left jig is where the top strip
+starts. Slide the jig down the side edge to guide the rest of a long strip. The lower strip on the right starts 1 mm below the encoder's opening.
+`../fusion/case/tape_jig.py` makes them (run after `case_mk3.py` in the same script); the positions come from `FOAM` in `case_mk3.py`.
+
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).
