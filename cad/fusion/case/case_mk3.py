@@ -215,6 +215,18 @@ def doodle(rows, o, ex, ey):
     return out
 def cats(): return doodle(CATS['sitting'], F(102.5, 121, WSO - T), U_, V_) + doodle(CATS['asleep'], F(120.8, 121, WSO - T), U_, V_)      # together 39 mm wide, in the middle of the clear part of the back
 def cats_volume(): return sum(row.count('#') for rows in CATS.values() for row in rows)*PXL*PXL*STAMP_D/1000
+TURTLE = """
+........######........
+......##########......
+.....###.####.###.....
+....####.####.####.###
+...######.##.#####.#.#
+..####################
+##.###############.##.
+....###.......###.....
+....###.......###.....""".split()
+def turtle(): return doodle(TURTLE, (161.5 - 11*PXL, 66.3 + 4.5*PXL, ZB - T), (1, 0, 0), (0, -1, 0))      # 19.8 x 8.1 mm in the middle of the underside of the access cover's roof, its feet towards the cover's back
+def turtle_volume(): return sum(row.count('#') for row in TURTLE)*PXL*PXL*STAMP_D/1000
 def stamp_volume(text): return sum(row.count('1') for ch in text for row in FONT[ch].split())*PXL*PXL*STAMP_D/1000      # cm3 the mark should remove
 CODE = {'Frame plate': 'P1', 'Base tray': 'P2', 'Plinth': 'P3', 'Front bezel': 'P4', 'Rear shell': 'P5', 'Access cover': 'P6'}      # each part's code: the number its print file starts with
 def mark_text(part): return ['MK3 R%d' % REV[part], CODE[part]]
@@ -232,8 +244,8 @@ def marks(part):
     dx, dy = {'after': (6*(len(t) + 1)*PXL, 0), 'under': (0, -8.5*PXL), 'over': (0, 8.5*PXL)}[where]
     return stamp(t, o, ex, ey) + stamp(code, tuple(o[k] + dx*ex[k] + dy*ey[k] for k in range(3)), ex, ey)
 def marked(part, body):
-    extra = part == 'Rear shell'                                   # the rear shell carries the cats as well
-    v0 = body.volume; b = SUB(body, marks(part) + (cats() if extra else [])); cut, want = v0 - b.volume, sum(stamp_volume(t) for t in mark_text(part)) + (cats_volume() if extra else 0)
+    egg, egg_v = {'Rear shell': (cats, cats_volume), 'Access cover': (turtle, turtle_volume)}.get(part, (lambda: [], lambda: 0))      # the rear shell carries the cats as well, and the access cover a turtle
+    v0 = body.volume; b = SUB(body, marks(part) + egg()); cut, want = v0 - b.volume, sum(stamp_volume(t) for t in mark_text(part)) + egg_v()
     print('%-12s mark %s R%d: %.4f of %.4f cm3 cut%s' % (part, CODE[part], REV[part], cut, want, '' if abs(cut - want) < 0.0005 else '   <-- NOT ON A CLEAR FLAT FACE'))
     return b
 def mounts():

@@ -84,6 +84,7 @@ Access cover revisions:
   `13b-access-cover-opening.stl` to try its grip without the rear shell.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
-hidden once the case is together. Decoration like this does not change a part's revision.
+hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this
+does not change a part's revision.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).
