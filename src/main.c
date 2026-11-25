@@ -207,6 +207,8 @@ void on_input(input_event_t e)
     switch (e.kind) {
     case IN_TURN:
         /* the whole delta at once: the UI scales it by how fast it came */
+        if (local_state()->knob_click && local_state()->speaker)
+            for (int k = abs(e.value) > 3 ? 3 : abs(e.value); k > 0; k--) audio_click(local_state()->vol);
         if (!local_turn(e.value)) run_binding(e.value > 0 ? CONFIG_BIND_KNOB_CW : CONFIG_BIND_KNOB_CCW);
         local_flush();
         break;
@@ -408,6 +410,10 @@ static void ui_service(void)
         }
     }
     if (s_usb_flash) enter_usb_boot();
+    if (ota_state() == OTA_DOWNLOADING) {     /* the download holds the main loop: its card's bar moves from here */
+        if (local_ota_service()) local_flush();
+        paint_pump();
+    }
     drain_commands();
     audio_update();
     ha_poll();
@@ -581,7 +587,7 @@ int main(void)
         bool had_err = tesserae_last_error()[0] != '\0';
         if (!ota_busy()) tesserae_poll();           /* an update has the network to itself */
         ota_tick();
-        local_ota_service();
+        if (local_ota_service()) local_flush();
         PHASE("server");
         if (tesserae_state() != before || (tesserae_last_error()[0] != '\0') != had_err) banner_update();
         if (tesserae_local_time()[0]) local_set_time(tesserae_local_time());

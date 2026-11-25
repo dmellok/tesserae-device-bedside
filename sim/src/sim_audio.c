@@ -11,6 +11,7 @@
 #include "sim.h"
 #include "sim_sdk.h"
 #include "audio.h"
+#include "click.h"
 #include "rainsynth.h"
 
 #include <AudioToolbox/AudioToolbox.h>
@@ -70,6 +71,9 @@ static void *render_thread(void *arg)
     return NULL;
 }
 
+static click_t s_click;
+void audio_click(int level) { if (level > 0) click_ask(&s_click, level > 10 ? 10 : level); }
+
 /* The speaker: the AudioQueue asks for a buffer; give it what the ring holds. */
 static void aq_fill(void *u, AudioQueueRef q, AudioQueueBufferRef b)
 {
@@ -83,6 +87,10 @@ static void aq_fill(void *u, AudioQueueRef q, AudioQueueBufferRef b)
         for (uint32_t i = 0; i < n; i++) out[i] = s_ring[(s_play_pos + i) % s_ring_n];
         if (n < want) { memset(out + n, 0, (want - n) * 2); s_underruns++; }
         s_play_pos += n;
+    }
+    for (uint32_t i = 0; i < want; i++) {           /* the knob's click, whether or not anything else plays */
+        int v = click_next(&s_click);
+        if (v) { v += out[i]; out[i] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
     }
     b->mAudioDataByteSize = want * 2;
     AudioQueueEnqueueBuffer(q, b, 0, NULL);

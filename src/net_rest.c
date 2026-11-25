@@ -176,9 +176,10 @@ static err_t recv_cb(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err
     return ERR_OK;
 }
 
+static volatile int s_err_code;         /* lwIP's reason for the last transport error (err_t), 0: closed with nothing sent */
 static void err_cb(void *arg, err_t err)
 {
-    (void)arg; (void)err;
+    (void)arg; s_err_code = err;
     s_pcb = NULL;          /* lwIP has freed it */
     s_pcb_dead = true;
     s_err = true;
@@ -188,7 +189,7 @@ static void err_cb(void *arg, err_t err)
 static err_t connected_cb(void *arg, struct altcp_pcb *pcb, err_t err)
 {
     (void)arg;
-    if (err != ERR_OK) { s_err = true; s_done = true; return ERR_OK; }
+    if (err != ERR_OK) { s_err_code = err; s_err = true; s_done = true; return ERR_OK; }
     s_req_sent = 0;
     try_send(pcb);
     return ERR_OK;
@@ -325,7 +326,7 @@ static rest_status_t do_request(const char *method, const char *url,
     if (body) { memcpy(s_req + n, body, blen); n += (int)blen; }
     s_req_len = (size_t)n;
 
-    s_rx_len = 0; s_overflow = false; s_done = false; s_err = false;
+    s_rx_len = 0; s_overflow = false; s_done = false; s_err = false; s_err_code = 0;
     s_pcb_dead = false; s_dns = 0;
     s_sink = sink; s_sink_cap = sink_cap; s_sink_len = 0; s_sink_overflow = false;
     s_hdr_done = false; s_body_off = 0;
@@ -369,7 +370,7 @@ static rest_status_t do_request(const char *method, const char *url,
     s_sink = NULL;
 
     if (!s_done) { printf("rest: timeout after %ums\n", (unsigned)t); return REST_NET_ERR; }
-    if (s_err || s_rx_len == 0) { printf("rest: transport error\n"); return REST_NET_ERR; }
+    if (s_err || s_rx_len == 0) { printf("rest: transport error (lwIP %d, %u bytes in, after %u ms)\n", (int)s_err_code, (unsigned)s_rx_len, (unsigned)t); return REST_NET_ERR; }
     if (s_overflow) printf("rest: response truncated at %d bytes\n", REST_RX_MAX);
 
     s_rx[s_rx_len] = '\0';
@@ -673,6 +674,9 @@ bool rest_download(const char *url, uint8_t *dst, size_t cap, size_t *out_len, u
     printf("rest: downloaded %u bytes\n", (unsigned)s_sink_len);
     return true;
 }
+
+/* How much of the body being downloaded has arrived (a progress bar's). */
+size_t rest_sink_bytes(void) { return s_sink ? s_sink_len : 0; }
 
 /* GET bytes [off, off+len) of url into dst. Follows up to 5 redirects and
  * leaves the final URL in url (cap url_cap) so the next range skips them. A

@@ -44,7 +44,8 @@ static uint8_t  *s_buf;
 static size_t    s_cap;
 
 static ota_state_t s_state;
-static char      s_url[2048], s_err[80], s_ver[24];
+static char      s_url[2048], s_url0[512], s_err[80], s_ver[24];
+static bool      s_fetching;             /* a range of the image is coming down: ota_percent() counts what has arrived */
 static uint8_t   s_want[32];
 static uint32_t  s_size, s_done, s_slot_start, s_slot_size;
 static int       s_boot_part = -1;
@@ -141,6 +142,7 @@ bool ota_start(const char *url, uint32_t size, const char *sha_hex, const char *
     if (part < 0 || part == s_boot_part) { fail("no spare slot"); return false; }
     if (size == 0 || size > s_slot_size) { fail("image does not fit the slot"); return false; }
     snprintf(s_url, sizeof s_url, "%s", url);
+    snprintf(s_url0, sizeof s_url0, "%s", url);
     snprintf(s_ver, sizeof s_ver, "%s", version ? version : "");
     s_size = size; s_done = 0;
     s_state = OTA_DOWNLOADING;
@@ -171,12 +173,34 @@ static void verify_and_reboot(void)
     while (true) tight_loop_contents();
 }
 
+/* GitHub does not always answer: seen on the panel on 25 Nov 2026, three
+ * requests in four to github.com ending in a transport error while its CDN
+ * answered every time. One failed request must not be a failed update, so each
+ * is tried up to four times. url0, when given, is where to start again from
+ * (a signed redirect that was followed may have gone stale). */
+#define OTA_TRIES 4
+static bool fetch(char *url, size_t url_cap, const char *url0, uint32_t off, uint32_t len, size_t *got, uint32_t *total, uint32_t timeout_ms)
+{
+    for (int a = 0; a < OTA_TRIES; a++) {
+        if (a) {
+            printf("ota: no answer; trying again (%d of %d)\n", a + 1, OTA_TRIES);
+            sleep_ms(1500);
+            if (url0 && a >= 2) snprintf(url, url_cap, "%s", url0);
+        }
+        if (rest_download_range(url, url_cap, off, len, s_buf, got, total, timeout_ms)) return true;
+    }
+    return false;
+}
+
 void ota_tick(void)
 {
     if (s_state != OTA_DOWNLOADING) return;
     uint32_t want = s_size - s_done; if (want > s_cap) want = (uint32_t)s_cap;
     size_t got = 0; uint32_t total = 0;
-    if (!rest_download_range(s_url, sizeof s_url, s_done, want, s_buf, &got, &total, 60000)) { fail("download failed"); return; }
+    s_fetching = true;
+    bool ok = fetch(s_url, sizeof s_url, s_url0, s_done, want, &got, &total, 60000);
+    s_fetching = false;
+    if (!ok) { fail("No answer from GitHub"); return; }
     if (total && total != s_size) { fail("size differs from the release"); return; }
     if (got != want) { fail("short download"); return; }
     for (uint32_t o = 0; o < got; o += SECTOR) {
@@ -192,11 +216,55 @@ void ota_tick(void)
 
 /* ---- releases on GitHub ---------------------------------------------------------- */
 #include "cJSON.h"
+#include "psram_heap.h"
 static ota_release_t s_rel[OTA_REL_MAX];
 static int      s_nrel;
+static char    *s_notes;                /* OTA_REL_MAX notes of OTA_NOTES_MAX each */
 static uint32_t s_checked;
 static const char *s_running = "";
 void ota_set_version(const char *running) { s_running = running ? running : ""; }
+
+/* A release's notes as the panel can show them: GitHub's Markdown as plain
+ * lines ('\n' between them). From "What's new" when the notes have that
+ * heading, up to the next "## " after it; without the heading, all of them
+ * bar the generated "Full Changelog" link. Headings and bold lose their
+ * marks, a bullet becomes "- ", and what the panel's fonts lack (anything
+ * outside ASCII) becomes its nearest plain character or goes. */
+static void notes_from(const char *md, char *out, size_t cap)
+{
+    const char *p = strstr(md, "What's new");
+    if (p) { p = strchr(p, '\n'); if (!p) p = ""; } else p = md;
+    size_t n = 0;
+    bool bol = true, any = false;
+    while (*p && n + 2 < cap) {
+        if (bol) {
+            while (*p == ' ' || *p == '\r') p++;
+            if (!strncmp(p, "## ", 3) && any) break;                      /* the next section: developers' notes */
+            if (!strncmp(p, "**Full Changelog**", 18)) break;
+            while (*p == '#') p++;
+            if (*p == '*' && p[1] == ' ') { out[n++] = '-'; p++; }
+            while (*p == ' ') p++;
+            bol = false;
+            if (*p == '\n') { p++; bol = true; continue; }                /* blank lines go */
+        }
+        unsigned char c = (unsigned char)*p++;
+        if (c == '\r' || c == '`') continue;
+        if (c == '*' && *p == '*') { p++; continue; }
+        if (c == '\n') { if (n && out[n - 1] != '\n') out[n++] = '\n'; bol = true; continue; }
+        if (c >= 0x80) {                                                  /* UTF-8: quotes and dashes to ASCII, the rest dropped */
+            unsigned char c1 = (unsigned char)p[0], c2 = c1 ? (unsigned char)p[1] : 0;
+            char r = 0;
+            if (c == 0xE2 && c1 == 0x80) r = (c2 == 0x98 || c2 == 0x99) ? '\'' : (c2 == 0x9C || c2 == 0x9D) ? '"' : (c2 == 0x93 || c2 == 0x94) ? '-' : 0;
+            while (((unsigned char)*p & 0xC0) == 0x80) p++;
+            if (!r) continue;
+            c = (unsigned char)r;
+        }
+        if (c < 32 || c > 126) continue;
+        out[n++] = (char)c; any = true;
+    }
+    while (n && (out[n - 1] == '\n' || out[n - 1] == ' ')) n--;
+    out[n] = 0;
+}
 
 bool ota_releases_fetch(void)
 {
@@ -217,6 +285,7 @@ bool ota_releases_fetch(void)
         printf("\"\n");
         cJSON_Delete(r);
         return false; }
+    if (!s_notes) s_notes = psram_heap_calloc(OTA_REL_MAX, OTA_NOTES_MAX);      /* once; without PSRAM there are no notes */
     int n = 0; const cJSON *it;
     cJSON_ArrayForEach(it, r) {
         if (n >= OTA_REL_MAX) break;
@@ -229,6 +298,8 @@ bool ota_releases_fetch(void)
         const cJSON *pub = cJSON_GetObjectItemCaseSensitive(it, "published_at");
         if (cJSON_IsString(pub)) snprintf(e->date, sizeof e->date, "%.10s", pub->valuestring);
         e->pre = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(it, "prerelease"));
+        const cJSON *body = cJSON_GetObjectItemCaseSensitive(it, "body");
+        if (s_notes) { s_notes[(size_t)n * OTA_NOTES_MAX] = 0; if (cJSON_IsString(body)) notes_from(body->valuestring, s_notes + (size_t)n * OTA_NOTES_MAX, OTA_NOTES_MAX); }
         const cJSON *as = cJSON_GetObjectItemCaseSensitive(it, "assets"), *a;
         cJSON_ArrayForEach(a, as) {
             const cJSON *nm = cJSON_GetObjectItemCaseSensitive(a, "name");
@@ -242,6 +313,7 @@ bool ota_releases_fetch(void)
     return true;
 }
 int ota_release_count(void) { return s_nrel; }
+const char *ota_release_notes(int i) { return (s_notes && i >= 0 && i < s_nrel) ? s_notes + (size_t)i * OTA_NOTES_MAX : ""; }
 const ota_release_t *ota_release(int i) { return (i >= 0 && i < s_nrel) ? &s_rel[i] : NULL; }
 uint32_t ota_checked_ms(void) { return s_checked; }
 
@@ -253,7 +325,7 @@ bool ota_install(int i)
     static char url[2048];   /* the signed asset redirect is ~1 KB */
     snprintf(url, sizeof url, "https://github.com/%s/releases/download/%s/manifest.json", OTA_REPO, e->tag);
     size_t got = 0; uint32_t total = 0;
-    if (!rest_download_range(url, sizeof url, 0, 4095, s_buf, &got, &total, 30000)) { fail("could not fetch the manifest"); return false; }
+    if (!fetch(url, sizeof url, NULL, 0, 4095, &got, &total, 30000)) { fail("No answer from GitHub"); return false; }
     s_buf[got] = 0;
     cJSON *m = cJSON_Parse((const char *)s_buf);
     const cJSON *bin = cJSON_GetObjectItemCaseSensitive(m, "bin"), *size = cJSON_GetObjectItemCaseSensitive(m, "size"),
@@ -287,7 +359,12 @@ const char *ota_state_name(void)
     static const char *const N[] = { "idle", "downloading", "verifying", "restarting", "failed" };
     return N[s_state];
 }
-int  ota_percent(void) { return s_size ? (int)((uint64_t)s_done * 100 / s_size) : 0; }
+int  ota_percent(void)
+{
+    if (!s_size) return 0;
+    uint64_t have = s_done + (s_fetching ? rest_sink_bytes() : 0);     /* the range coming down counts as it arrives */
+    return have >= s_size ? 100 : (int)(have * 100 / s_size);
+}
 const char *ota_error(void) { return s_err; }
 const char *ota_target_version(void) { return s_ver; }
 bool ota_partitioned(void) { return s_parted; }

@@ -1269,3 +1269,37 @@ properly.
 - **Not run on the device**: the fault handler and the panic hook are built
   and linked (the vector table points at the handler) but no real fault has
   been taken. Run `crash=fault` once on the panel before relying on it.
+
+### The same day: an update that would not start, its progress, release notes, the knob's click
+
+- **What happened**: installing 0.8.0 from the panel sat on "Preparing to
+  update", then the card went and nothing was installed. The panel's log
+  (`/api/log`) had `rest: transport error` on the first request for the image
+  and `ota: failed: download failed`; the "Update failed" card was up for 3 s
+  only. The `https=` diagnostic on the panel showed the same on three of four
+  requests to github.com (6 to 9 s, then the error) while GitHub's CDN
+  answered every time. The same release installs in the simulator. **The cause
+  on the panel is not known**; `rest: transport error` now prints lwIP's error
+  code, the bytes received and the time, for the next occurrence.
+- **Retries** (`fetch()` in ota.c): the manifest and each range of the image
+  are tried up to four times, 1.5 s apart, going back to the release's own URL
+  after two failures of a signed one. Failure reads "No answer from GitHub".
+- **Failure cards stay**: `alert()` now holds its card in both themes until a
+  key or the knob is pressed (2 minutes for a failed update at most).
+- **Progress**: `ota_percent()` counts the range coming down as it arrives
+  (`rest_sink_bytes()`), and main.c's `ui_service()`, which the download calls
+  while it waits, redraws the card every 4% and pumps the painter. The card has
+  a bar (`s_toast_pct`); `showota=40` previews it.
+- **Release notes**: `ota_releases_fetch()` keeps each release's notes as plain
+  lines (`notes_from()`: from "What's new" to the next `## ` heading, Markdown
+  marks removed, 900 bytes each, in PSRAM) and the Software page shows the
+  highlighted release's in the preview. A release whose body is only GitHub's
+  "Full Changelog" link shows none: 0.8.0 is one. Write a "## What's new"
+  section in a release's notes for the panel to have something to show.
+- **Knob click**: Settings > Speaker > Knob click (off by default; `knob_click`
+  in the API and the web app, ext blob `rsv1[32]`). `include/click.h`: a 4 ms
+  tick mixed into the speaker's output buffers at the volume, up to three for a
+  fast turn. It wakes the amp when nothing is playing. The output buffers are
+  93 ms each, so the tick follows the detent by about a tenth of a second on
+  the device; not heard on the device yet (the simulator was run without
+  sound).

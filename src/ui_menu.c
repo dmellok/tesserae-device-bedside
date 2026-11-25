@@ -257,6 +257,34 @@ static int wrap_c(layer_t *l, int cx, int y, const bfont_t *f, uint8_t g, const 
     return y;
 }
 
+/* A release's notes in the preview, under its heading: their lines (ota.c
+ * made them plain) from the left, broken at words, as many as there is room
+ * for above the status bar. */
+static void notes_draw(layer_t *l, int y, const char *t)
+{
+    const bfont_t *f = F_S;
+    const int room = pv_room(120), x = LIST_W + (W - LIST_W - room) / 2, bottom = SB_Y - (sys7() ? 16 * U : 30);
+    char line[96];
+    while (*t && y + f->line_h <= bottom && l->n < MAX_OPS - 4) {
+        size_t best = 0, i = 0;
+        for (;;) {                                     /* the longest run of whole words of this line that fits */
+            while (t[i] && t[i] != ' ' && t[i] != '\n') i++;
+            if (i >= sizeof line) break;
+            memcpy(line, t, i); line[i] = 0;
+            if (draw_font_w(f, line) > room && best) break;
+            best = i;
+            if (!t[i] || t[i] == '\n') break;
+            i++;
+        }
+        if (!best) { if (*t) t++; continue; }
+        memcpy(line, t, best); line[best] = 0;
+        op_text(l, x, y, f, G_BLACK, line);
+        y += f->line_h + 2; t += best;
+        while (*t == ' ') t++;
+        if (*t == '\n') t++;
+    }
+}
+
 void build_list(layer_t *l)
 {
     node_t nd = s_stack[s_depth - 1].node;
@@ -286,7 +314,8 @@ void build_list(layer_t *l)
         wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 40, mf_lbl(), DIM_G, small, pv_room(120), 2);
         return;
     }
-    build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, r->icon, big, small);
+    int y = build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, r->icon, big, small);
+    if (r->id == A_RELEASE) { const char *nt = ota_release_notes(r->arg); if (nt[0]) notes_draw(l, y + 30, nt); }
 }
 
 void build_choice(layer_t *l)

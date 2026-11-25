@@ -75,6 +75,7 @@ typedef struct {
     int  load_1bpp;                    /* two-level loads one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental, it8951.h) */
     int  clean_min;                    /* a full clean refresh this many minutes after partials while idle (default 10) */
     int  wiz;                          /* first-run setup: the step showing (ui_wizard.c), -1 when it is not running */
+    bool knob_click;                   /* a tick from the speaker for each detent of the knob (default off) */
     bool stop_clean;                   /* a full clean refresh ~15 s after the user stops (knob, keys, web app) (default on) */
     bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
     bool auto_update;                  /* install the newest stable release overnight */
@@ -131,7 +132,8 @@ bool local_back_up(void);
 /* A new dashboard frame arrived: the "Loading" card of a pick goes. */
 void local_frame_arrived(void);
 /* main.c, every loop: the update's progress card, and the overnight check. */
-void local_ota_service(void);
+void local_ota_preview(int pct);
+bool local_ota_service(void);            /* true when it drew: flush */
 /* Screen updates setting (see local_state_t.refresh_mode). */
 int  local_refresh_mode(void);
 bool local_key(int i, bool hold);

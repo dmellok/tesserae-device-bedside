@@ -182,6 +182,7 @@ static void exec_command(const char *name, const char *value)
     }
     else if (!strcmp(name, "picks"))     tesserae_picks_fetch();          /* refresh the dashboard list */
     else if (!strcmp(name, "otacheck"))  ota_releases_fetch();
+    else if (!strcmp(name, "showota"))   { local_ota_preview(v); local_flush(); }   /* diagnostics: the update's card at that percentage */
     else if (!strcmp(name, "otainstall")) { if (ota_release(v)) local_ota_prepare(v); else printf("ota: no such release\n"); }   /* the panel says so first, then installs */
     else if (!strcmp(name, "https"))     {     /* diagnostics: GET a URL (http or https), print the status and the start */
         static char u[1024]; snprintf(u, sizeof u, "%s", value);

@@ -136,6 +136,7 @@ void rest_resolve_url(const char *u, char *out, size_t cap);
 
 /* GET a byte range into dst, following redirects (url is updated to the final
  * location). See net_rest.c. */
+size_t rest_sink_bytes(void);            /* of the download in progress: body bytes so far */
 bool rest_download_range(char *url, size_t url_cap, uint32_t off, uint32_t len, uint8_t *dst,
                          size_t *got, uint32_t *total, uint32_t timeout_ms);
 

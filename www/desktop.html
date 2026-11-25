@@ -585,6 +585,7 @@ h2{margin:6px 4px -8px}
     <div class="card">
     <div class="lbl">Knob and menus</div>
     <div class="row"><div style="flex:1">Turn counts in menus<small style="display:block;color:var(--sub);font-size:12px">Beside each row, the knob turns to reach it (+ is clockwise)</small></div><label class="sw"><input type="checkbox" id="turn_hints" data-set="turn_hints"><span></span></label></div>
+    <div class="row" style="margin-top:14px"><div style="flex:1">Knob click<small style="display:block;color:var(--sub);font-size:12px">A tick from the speaker for each step of the knob, at the volume (also under Settings, Speaker on the panel)</small></div><label class="sw"><input type="checkbox" id="knob_click" data-set="knob_click"><span></span></label></div>
     <div class="row" style="margin-top:14px"><div style="flex:1">Quick menu moves<small style="display:block;color:var(--sub);font-size:12px">Knob steps paint in black and white (about a quarter second); full quality once the knob rests</small></div><label class="sw"><input type="checkbox" id="quick_menus" data-set="quick_menus"><span></span></label></div>
     <div class="row" style="margin-top:14px"><div style="flex:1">Large menu text<small style="display:block;color:var(--sub);font-size:12px">The panel's menus one size up, eight rows to a page (also under Settings, Display on the panel)</small></div><label class="sw"><input type="checkbox" id="large_text" data-set="large_text"><span></span></label></div>
     <div class="lbl">Hardware</div>
@@ -1286,6 +1287,7 @@ function renderPanelSettings(){
   if(!held('auto_time'))$('#auto_time').checked=!!p.auto_time;
   if(!held('autoupdate'))$('#autoupdate').checked=!!p.auto_update;
   if(!held('turn_hints'))$('#turn_hints').checked=!!p.turn_hints;
+  if(!held('knob_click'))$('#knob_click').checked=!!p.knob_click;
   if(!held('quick_menus'))$('#quick_menus').checked=!!p.quick_menus;
   if(!held('large_text'))$('#large_text').checked=!!p.large_text;
   if(!held('live_demo'))$('#live_demo').checked=!!p.live_demo;

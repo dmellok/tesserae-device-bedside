@@ -2,6 +2,7 @@
  * audio.c: sleep sounds on core 1. See audio.h.
  */
 #include "audio.h"
+#include "click.h"
 
 #include <string.h>
 #include "pico/stdlib.h"
@@ -87,6 +88,7 @@ void audio_speaker_tune(const spk_tune_t *t)
 }
 uint32_t audio_speaker_dropouts(void) { return s_spk_dropouts; }
 
+static volatile bool s_spk_enabled_pub = true;      /* audio_speaker_enable(), for audio_click() above it */
 static void spk_fill(uint32_t *dst)
 {
     if (!s_spk_on) { memset(dst, 0, I2S_FRAMES * 4); s_spk_was_on = false; s_ramp = 0; return; }
@@ -133,12 +135,34 @@ uint32_t audio_i2s_diag(void)
     for (int i = 0; i < 2000; i++) { bool v = gpio_get(I2S_BCLK); if (v != last) { toggles++; last = v; } }
     return en | 2u | (PIO_NUM(s_i2s_pio) << 8) | (s_i2s_sm << 12) | ((uint32_t)toggles << 16);
 }
+/* The knob's click (click.h), added to a filled buffer. */
+static click_t s_click;
+static uint32_t s_click_ms;
+void audio_click(int level)
+{
+    if (!s_spk_enabled_pub || level <= 0) return;
+    click_ask(&s_click, level > 10 ? 10 : level);
+    s_click_ms = to_ms_since_boot(get_absolute_time()) | 1u;
+}
+static void click_mix(uint32_t *dst)
+{
+    for (int i = 0; i < I2S_FRAMES; i++) {
+        int v = click_next(&s_click);
+        if (!v) continue;
+        v += (int16_t)(dst[i] & 0xFFFFu);
+        v = v > 32767 ? 32767 : v < -32768 ? -32768 : v;
+        uint16_t u = (uint16_t)(int16_t)v;
+        dst[i] = (uint32_t)u << 16 | u;
+    }
+}
+
 static void __isr on_i2s_dma(void)
 {
     for (int k = 0; k < 2; k++) {
         if (s_dma[k] < 0 || !dma_channel_get_irq1_status((uint)s_dma[k])) continue;
         dma_channel_acknowledge_irq1((uint)s_dma[k]);
         spk_fill(s_i2s_buf[k]);                                   /* the other one is playing now */
+        if (s_spk_on) click_mix(s_i2s_buf[k]);
         s_i2s_fills++;
         dma_channel_set_read_addr((uint)s_dma[k], s_i2s_buf[k], false);
     }
@@ -201,13 +225,13 @@ static void i2s_clock(bool on)
 /* Core 0: the amp follows what's audible, with a tail so fades finish. */
 static bool     s_spk_enabled = true, s_spk_audible;
 static uint32_t s_spk_quiet_since;
-void audio_speaker_enable(bool on) { s_spk_enabled = on; }
+void audio_speaker_enable(bool on) { s_spk_enabled = on; s_spk_enabled_pub = on; }
 void audio_speaker_audible(bool audible) { s_spk_audible = audible; }
 bool audio_speaker_playing(void) { return s_spk_on; }
 void audio_speaker_tick(void)
 {
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    bool want = s_spk_enabled && s_spk_audible;
+    bool want = s_spk_enabled && (s_spk_audible || (s_click_ms && now - s_click_ms < 500));   /* a knob click wakes the amp */
     if (want) s_spk_quiet_since = 0;
     else if (s_spk_on && !s_spk_quiet_since) s_spk_quiet_since = now | 1u;
     bool on = want || (s_spk_on && s_spk_enabled && now - s_spk_quiet_since < 3000);   /* let the ~1.2 s fade out play */

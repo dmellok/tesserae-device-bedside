@@ -33,7 +33,9 @@ bool        ota_partitioned(void);    /* A/B partition table present */
 #define OTA_REPO "dmellok/tesserae-device-bedside"
 #endif
 #define OTA_REL_MAX 10
+#define OTA_NOTES_MAX 900                   /* of a release's notes: what the menu's preview has room for */
 typedef struct { char tag[24], ver[24], date[12]; bool pre, has_manifest; } ota_release_t;
+const char *ota_release_notes(int i);       /* its notes as plain lines, "" when it has none (kept in PSRAM) */
 bool  ota_releases_fetch(void);
 int   ota_release_count(void);
 const ota_release_t *ota_release(int i);

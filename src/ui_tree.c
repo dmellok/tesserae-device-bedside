@@ -162,6 +162,7 @@ int node_rows(node_t nd, row_def_t *r)
         break;
     case N_SPEAKER:
         r[n++] = (row_def_t){ T_SPEAKER, K_TOGGLE, "Speaker", NULL, 0 };
+        r[n++] = (row_def_t){ T_KNOBCLICK, K_TOGGLE, "Knob click", NULL, 0 };
         r[n++] = (row_def_t){ C_SPK_PRESET, K_CHOICE, "Preset", NULL, 0 };
         r[n++] = (row_def_t){ S_EQ, K_SUB, "Equaliser", NULL, 0 };
         r[n++] = (row_def_t){ C_SPK_SOFT, K_CHOICE, "Soften highs", NULL, 0 };
@@ -307,6 +308,7 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case A_RESTART:   snprintf(b, n, s_armed == A_RESTART ? "Press again to restart" : "Restarts the panel; it asks twice"); break;
     case C_RESET:     snprintf(b, n, "Back to factory settings; it asks first"); break;
     case T_SPEAKER:   snprintf(b, n, "Plays through the speaker"); break;
+    case T_KNOBCLICK: snprintf(b, n, "A tick for each step of the knob, at the volume"); break;
     case C_SPK_PRESET: snprintf(b, n, "A starting point; the bands below fine-tune it"); break;
     case S_EQ:        snprintf(b, n, "Five bands, 80 Hz to 7 kHz, and the level"); break;
     case V_SPK_EQ:    snprintf(b, n, "Boost or cut around %s", SPK_EQ_NAMES[r->arg]); break;
@@ -351,7 +353,7 @@ bool toggle_get(const row_def_t *r)
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus; case T_SETTLEFULL: return S.settle_full;
-    case T_STOPCLEAN: return S.stop_clean;
+    case T_STOPCLEAN: return S.stop_clean; case T_KNOBCLICK: return S.knob_click;
     case T_QUICK_A2: return S.quick_a2;
     case T_LARGE: return S.large_text;
     case T_DEMO: return S.live_demo;
@@ -376,6 +378,7 @@ void toggle_flip(const row_def_t *r)
     case T_QUICKMENU: S.quick_menus = !S.quick_menus; break;
     case T_SETTLEFULL: S.settle_full = !S.settle_full; break;
     case T_STOPCLEAN: S.stop_clean = !S.stop_clean; break;
+    case T_KNOBCLICK: S.knob_click = !S.knob_click; break;
     case T_QUICK_A2: S.quick_a2 = !S.quick_a2; break;
     case T_LARGE:   S.large_text = !S.large_text; break;
     case T_DEMO:    S.live_demo = !S.live_demo; break;

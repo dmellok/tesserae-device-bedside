@@ -47,6 +47,7 @@ void     audio_init_pins(void);
 void     audio_speaker_tune(const spk_tune_t *t);   /* the tone stage's settings (spk_dsp.h); core 0, any time */
 uint32_t audio_speaker_dropouts(void);              /* times the ring ran dry while playing (diagnostics) */
 void     audio_speaker_enable(bool on);
+void     audio_click(int level);         /* the knob's click, at volume 0..10 (click.h); core 0 */
 void     audio_speaker_audible(bool audible);
 void     audio_speaker_tick(void);
 bool     audio_speaker_playing(void);

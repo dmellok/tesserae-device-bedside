@@ -251,7 +251,8 @@ void build_overlay(layer_t *l)
  * 1.5 s; the dashboard underneath is repainted from the frame in PSRAM. */
 static char s_toast_txt[40], s_toast_val[44], s_alert_code[40];
 static const char *s_toast_icon;
-static bool s_toast_alert;               /* the card up is the System 7 theme's system error dialog */
+static bool s_toast_alert;               /* the card up is a system error: it stays, and any key sends it away (the System 7 theme: its dialog) */
+static int  s_toast_pct = -1, s_pct_next = -1;   /* a progress bar on the card, 0..100 (the update); -1: none */
 
 static void alert_mark(uint8_t mode) { mark(ALERT_X - 32, ALERT_Y - 32, ALERT_W + 64, ALERT_H + 64, mode); }
 
@@ -259,6 +260,7 @@ void toast(const char *icon, const char *txt, const char *val)
 {
     if (s_toast_alert) { s_toast_alert = false; alert_mark(IT8951_MODE_GL16); }   /* the dialog was larger than a card */
     s_toast_icon = icon;
+    s_toast_pct = s_pct_next; s_pct_next = -1;
     snprintf(s_toast_txt, sizeof s_toast_txt, "%s", txt);
     snprintf(s_toast_val, sizeof s_toast_val, "%s", val ? val : "");
     s_toast_until = (now_ms() + 3000u) | 1u;          /* long enough to read from the pillow */
@@ -267,22 +269,19 @@ void toast(const char *icon, const char *txt, const char *val)
 }
 
 /* Something went wrong with the system itself. The System 7 theme has its
- * dialog for that: the bomb, "Sorry, ...", what happened, and an OK button
- * that any key or the knob presses (it also goes by itself after s7_ms: this
- * is a clock, and has to become one again). The standard theme shows its
- * card: the title, and the code or the line. */
+ * dialog for that: the bomb, "Sorry, ...", what happened, and an OK button.
+ * The standard theme shows its card: the title, and the code or the line. In
+ * both it stays until a key or the knob is pressed, or its time is up (this
+ * is a clock, and has to become one again). */
 void alert(const char *icon, const char *title, const char *s7_title, const char *line, const char *code, uint32_t std_ms, uint32_t s7_ms)
 {
     if (!code) code = "";
-    if (!sys7()) {
-        toast(icon, title, code[0] ? code : line);
-        s_toast_until = (now_ms() + std_ms) | 1u;
-        return;
-    }
-    toast(S7_BOMB, s7_title, line);
+    bool s7 = sys7();
+    if (s7) toast(S7_BOMB, s7_title, line);
+    else    toast(icon, title, code[0] ? code : line);
     snprintf(s_alert_code, sizeof s_alert_code, "%s", code);
     s_toast_alert = true;
-    s_toast_until = (now_ms() + s7_ms) | 1u;
+    s_toast_until = (now_ms() + (s7 ? s7_ms : std_ms)) | 1u;
     rebuild();
     alert_mark(IT8951_MODE_GL16);
 }
@@ -326,6 +325,7 @@ void local_ota_prepare(int release)
     const ota_release_t *e = release >= 0 ? ota_release(release) : NULL;
     char v[40];
     if (e) snprintf(v, sizeof v, "%s " DOT " fetching", e->ver); else snprintf(v, sizeof v, "the newest release");
+    s_pct_next = 0;
     toast(ICON_GEAR, "Preparing to update", v);
     s_toast_loading = true; s_toast_until = (now_ms() + 90000u) | 1u;   /* until the download reports, or it fails */
     if (S.rain_on && S.rain_kind == RS_RADIO) {                          /* the radio would fight the download for the link */
@@ -334,6 +334,14 @@ void local_ota_prepare(int release)
     }
     s_req_arg = release; s_req = LREQ_INSTALL;
 }
+/* Diagnostics ("showota=40"): the update's card at that percentage, for 20 s. */
+void local_ota_preview(int pct)
+{
+    char v[40]; snprintf(v, sizeof v, "%s  %d%%", FW_VERSION, clampi(pct, 0, 100));
+    s_pct_next = clampi(pct, 0, 100);
+    toast(ICON_GEAR, "Updating", v);
+    s_toast_until = (now_ms() + 20000u) | 1u;
+}
 void local_ota_note(const char *txt, const char *val)
 {
     s_toast_loading = false; toast(ICON_GEAR, txt, val);
@@ -341,30 +349,36 @@ void local_ota_note(const char *txt, const char *val)
 
 /* The update in progress: a card with the percentage; a failure says why. The
  * overnight check: 03:10 local, auto-update on, no alarm within 90 minutes. */
-void local_ota_service(void)
+bool local_ota_service(void)
 {
+    bool drew = false;
     static int last_pct = -1; static ota_state_t last = OTA_IDLE;
     ota_state_t st = ota_state();
     if (st == OTA_DOWNLOADING || st == OTA_VERIFYING) {
         int pct = ota_percent();
-        if (pct != last_pct || st != last) {
-            char v[40]; snprintf(v, sizeof v, "%s  %d%%", ota_target_version(), st == OTA_VERIFYING ? 100 : pct);
+        if (st == OTA_VERIFYING) pct = 100;
+        if (pct >= last_pct + 4 || pct < last_pct || (pct == 100 && last_pct != 100) || st != last) {   /* a repaint every 4%, not every packet */
+            char v[40]; snprintf(v, sizeof v, "%s  %d%%", ota_target_version(), pct);
+            s_pct_next = pct;
             toast(ICON_GEAR, st == OTA_VERIFYING ? "Checking the update" : "Updating", v);
+            drew = true;
             s_toast_loading = true; s_toast_until = (now_ms() + 120000u) | 1u;
             last_pct = pct;
         }
     } else if (st == OTA_FAILED && last != OTA_FAILED) {
-        s_toast_loading = false; alert(ICON_GEAR, "Update failed", "Sorry, the update failed.", ota_error(), "", 3000u, 120000u); last_pct = -1;
+        s_toast_loading = false; alert(ICON_GEAR, "Update failed", "Sorry, the update failed.", ota_error(), "", 120000u, 120000u); last_pct = -1;
+        last = st; return true;
     }
     last = st;
-    if (!S.auto_update || ota_busy()) return;
+    if (!S.auto_update || ota_busy()) return drew;
     static int done_day = -1;
     int wd, sec; int64_t mn;
-    if (!clock_now(&wd, &sec, &mn) || sec / 60 != 3 * 60 + 10 || done_day == (int)(mn / 1440)) return;
+    if (!clock_now(&wd, &sec, &mn) || sec / 60 != 3 * 60 + 10 || done_day == (int)(mn / 1440)) return drew;
     done_day = (int)(mn / 1440);
     int ai; int32_t dl;
-    if (next_alarm(&ai, &dl) && dl >= 0 && dl < 90 * 60) { printf("ota: auto-update skipped, an alarm is due\n"); return; }
+    if (next_alarm(&ai, &dl) && dl >= 0 && dl < 90 * 60) { printf("ota: auto-update skipped, an alarm is due\n"); return drew; }
     local_ota_prepare(-1);
+    return true;
 }
 
 /* main.c: a new frame arrived, so the loading card goes with the repaint. */
@@ -409,6 +423,17 @@ void build_toast(layer_t *l)
         x += 210 + 64;
     }
     int ty = cy - (F_M->line_h + 8 + F_XL->line_h) / 2;
+    if (s_toast_pct >= 0) {                  /* the update: how far along, under the words */
+        const int bh = 8 * U, bx = x, bw = TOAST_X + TOAST_W - 56 - x, by = TOAST_Y + TOAST_H - 52 - bh;
+        int fill = (bw - 4 * U) * clampi(s_toast_pct, 0, 100) / 100;
+        ty -= 34;
+        if (s7) { op_frame(l, bx, by, bw, bh, U, G_BLACK); if (fill) op_fill(l, bx + 2 * U, by + 2 * U, fill, bh - 4 * U, G_BLACK); }
+        else {
+            op_rrect(l, bx, by, bw, bh, bh / 2, G_BLACK);
+            op_rrect(l, bx + 3, by + 3, bw - 6, bh - 6, bh / 2 - 3, G_WHITE);
+            if (fill >= bh - 4 * U) op_rrect(l, bx + 2 * U, by + 2 * U, fill, bh - 4 * U, (bh - 4 * U) / 2, G_BLACK);
+        }
+    }
     op_text(l, x, ty, F_M, DIM_G, s_toast_txt);
     const char *v = s_toast_val[0] ? s_toast_val : s_toast_txt;
     int room = TOAST_X + TOAST_W - 56 - x;
