@@ -10,7 +10,7 @@ def kept(top):
     for k, pre in KEPT.items():
         if top.startswith(pre): return k, top[len(pre):]
     return None, top
-SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base screws, M3 x 12', [0, 0, -45], Z3), 'Back': ('Back screws, M3 x 8', [0, 205, 0], Z3), 'Frame': ('Frame screws, M3 x 8', [0, 0, -45], Z3), 'Corner': ('Shell corner screws, M3 x 8', [0, 0, -45], Z3), 'Cover': ('Access cover screws, M3 x 8', [0, 215, 75], Z3),
+SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base screws, M3 x 12', [0, 0, -45], Z3), 'Back': ('Back screws, M3 x 8', [0, 205, 0], Z3), 'Frame': ('Frame screws, M3 x 8', [0, 0, -45], Z3), 'Corner': ('Shell corner screws, M3 x 8', [0, 0, -45], Z3),
           'HAT': ('Driver HAT screws, M2.5 x 8', Z3, mul(W, 12)), 'Board': ('Power board screws, M2 x 6', Z3, mul(W, 9)), 'Adapter': ('Flex adapter screws, M2.5 x 6', Z3, [0, 36, 0]),
           'Key': ('Key module screws, M2.5 x 8', Z3, mul(V, 9)), 'Speaker': ('Speaker screws and nuts, M4 x 8', Z3, [28, 0, 0]), 'USB': ('USB-C inlet screws, M2.5 x 8', Z3, [0, 70, 42])}
 def classify(path, bname=''):
