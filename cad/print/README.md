@@ -96,11 +96,12 @@ does not change a part's revision.
 
 ## Foam tape jig
 
-`jig-foam-tape-left.stl` and `jig-foam-tape-right.stl` are two small corner gauges (90 x 88 x 4.5 mm, any colour, flat as exported with the lips
-up, no support) for sticking the panel's foam tape to the front of the frame plate. Each lies on the plate in a top corner with its lips hooked over
-the plate's side and top edges. Butt the foam against its inside edges: the long arm is the outer edge of the strip down that side, the band along
-the top is the top edge of the strip across the top and the top end of the side strips, and the small nub on the left jig is where the top strip
-starts. Slide the jig down the side edge to guide the rest of a long strip. The lower strip on the right starts 1 mm below the encoder's opening.
-`../fusion/case/tape_jig.py` makes them (run after `case_mk3.py` in the same script); the positions come from `FOAM` in `case_mk3.py`.
+`jig-foam-tape-frame.stl` is a flat frame (243 x 181 x 3.5 mm, 28 cm3, any colour; print it flat as exported, lips up, no support) for sticking
+the panel's foam tape to the front of the frame plate. Lay the plate front face up and drop the frame onto it, numbers up, with its lips hooked over
+the plate's left, right and top edges. There is a slot through the frame wherever a strip of foam goes: one down the left, two down the right
+either side of the encoder's opening, and one across the top. Lay the tape in each slot, sticky side down, and cut it at each end of the slot,
+where a groove across the frame guides the knife. The number sunk beside each slot is that strip's length in mm (155, 102, 21 and 118), for
+cutting the tape beforehand instead. Lift the frame straight off afterwards.
+`../fusion/case/tape_jig.py` makes it (run after `case_mk3.py` in the same script); the slots come from `FOAM` in `case_mk3.py`.
 
 Regenerate the knob and keycaps with `../fusion/case/keycap_export.py` (run after `case_mk3.py` in the same script).
