@@ -21,18 +21,27 @@
  */
 #include "ui_internal.h"
 
-const ui_fonts_t UI_FONTS[2] = {
+/* Terminal and Blueprint have their own type (tools/gen_theme_fonts.py) and
+ * the standard icons; Instrument is the standard type on its own ground. */
+const ui_fonts_t UI_FONTS[N_THEMES] = {
     { &ui30, &ui34, &ui46, &ui60, &ui72, &ui96, &num180, &clock214, &num270, &icon34, &icon46, &icon40, &icon170 },
     { &s7_30, &s7_34, &s7_46, &s7_60, &s7_72, &s7_96, &s7_num180, &s7_clock214, &s7_num270, &s7_icon34, &s7_icon46, &s7_icon40, &s7_icon170 },
+    { &tm_30, &tm_34, &tm_46, &tm_60, &tm_72, &tm_96, &tm_num180, &tm_clock214, &tm_num270, &icon34, &icon46, &icon40, &icon170 },
+    { &bp_30, &bp_34, &bp_46, &bp_60, &bp_72, &bp_96, &bp_num180, &bp_clock214, &bp_num270, &icon34, &icon46, &icon40, &icon170 },
+    { &ui30, &ui34, &ui46, &ui60, &ui72, &ui96, &num180, &clock214, &num270, &icon34, &icon46, &icon40, &icon170 },
 };
-const char *const THEMES[2] = { "Standard", "System 7" };
+const char *const THEMES[N_THEMES] = { "Standard", "System 7", "Terminal", "Blueprint", "Instrument" };
 
-bool sys7(void) { return S.theme == 1; }
+bool sys7(void) { return S.theme == THEME_SYS7; }
+bool term(void) { return S.theme == THEME_TERM; }
+bool blue(void) { return S.theme == THEME_BLUE; }
+bool inst(void) { return S.theme == THEME_INST; }
+bool flat(void) { return S.theme == THEME_SYS7 || S.theme == THEME_BLUE; }
 
 /* Another theme: every page is drawn differently, so the whole screen is repainted, cleanly. */
 void theme_set(int k)
 {
-    k = k == 1 ? 1 : 0;
+    k = k >= 0 && k < N_THEMES ? k : 0;
     if (k == S.theme) return;
     S.theme = k;
     printf("local: theme %s\n", THEMES[k]);

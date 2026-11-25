@@ -69,13 +69,15 @@ typedef struct {
     int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
     bool turn_hints;                   /* menus: the turns needed to reach each row, beside it */
     bool large_text;                   /* menus: one size up (60 px rows, 8 to a page) */
-    int  theme;                        /* how the panel's own pages look: 0 standard, 1 System 7 (ui_theme.c) */
+    int  theme;                        /* how the panel's own pages look: 0 standard, 1 System 7, 2 Terminal, 3 Blueprint, 4 Instrument (ui_theme.c) */
     bool quick_menus;                  /* menus: knob steps paint black-and-white (fast), full quality once the knob rests */
     bool quick_a2;                     /* ...with the A2 waveform in the menus (API quick_a2, experiments only): faster, but on this panel it left old ink under new */
     int  load_1bpp;                    /* two-level loads one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental, it8951.h) */
     int  clean_min;                    /* a full clean refresh this many minutes after partials while idle (default 10) */
     int  wiz;                          /* first-run setup: the step showing (ui_wizard.c), -1 when it is not running */
     bool knob_click;                   /* a tick from the speaker for each detent of the knob (default off) */
+    int  throb;                        /* the loading lights' effect (inputs.h THROB_*; default the scanner) */
+    int  throb_col;                    /* ...and colour: 0 the keys' own, 1..palette, palette + 1 rainbow */
     bool stop_clean;                   /* a full clean refresh ~15 s after the user stops (knob, keys, web app) (default on) */
     bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
     bool auto_update;                  /* install the newest stable release overnight */

@@ -43,7 +43,7 @@ void build_status(layer_t *l, bool inv)
     uint8_t fg = inv ? G_WHITE : G_BLACK, bg = inv ? G_BLACK : G_WHITE, dim = inv ? G_LIGHT : 0x5, track = inv ? G_DARK : 0xD;
     bool live = S.dash_page == 0 && s_mode == M_HOME && S.phase != PHASE_RINGING;
     layer_reset(l, 0, SB_Y, W, SB_H, bg);
-    op_fill(l, 0, SB_Y, W, 3, inv ? G_DARK : G_BLACK);
+    if (!inst() || inv) op_fill(l, 0, SB_Y, W, 3, inv ? G_DARK : G_BLACK);   /* Instrument: no rule, the bar is the ground */
     if (sys7() && !inv) s7_corners(l, false);
     int cy = SB_Y + 3 + (SB_H - 3) / 2;
     char b[40];
@@ -188,7 +188,7 @@ static void tile_unset_note(layer_t *l, int x, int y, int w)
     op_text(l, x + 32, y + 170, lv_fit(how, w - 64, F_LBL, F_S, F_S), G_DARK, how);
 }
 
-bool live_dark_now(void) { return S.live_dark == 1 || (S.live_dark == 2 && S.night); }
+bool live_dark_now(void) { return !term() && (S.live_dark == 1 || (S.live_dark == 2 && S.night)); }   /* Terminal is white on black as it is */
 void live_layout_changed(void) { if (s_mode == M_HOME && S.dash_page == 0) mark_screen(); }
 
 /* The next alarm: time, early window (10 min when not set) and seconds away; demo: 06:30. */

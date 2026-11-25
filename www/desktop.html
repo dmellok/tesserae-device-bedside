@@ -504,7 +504,7 @@ h2{margin:6px 4px -8px}
     <div class="grid2">
       <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
       <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option><option value="2">Clock and alarm</option></select></label>
-      <label class="fld"><span>Theme</span><select data-pset="theme"><option value="0">Standard</option><option value="1">System 7</option></select></label>
+      <label class="fld"><span>Theme</span><select data-pset="theme"><option value="0">Standard</option><option value="1">System 7</option><option value="2">Terminal</option><option value="3">Blueprint</option><option value="4">Instrument</option></select></label>
       <label class="fld"><span>Clock updates</span><select data-pset="clock_du"><option value="0">Full quality</option><option value="1">Two-level at night</option><option value="2">Two-level always</option></select></label>
       <label class="fld"><span>Live layout</span><select data-pset="live_layout"><option value="0">Bento</option><option value="1">Big clock</option><option value="2">Weather</option><option value="3">Tonight</option></select></label>
       <label class="fld"><span>Live colours</span><select data-pset="live_dark"><option value="0">Light</option><option value="1">Dark</option><option value="2">Dark at night</option></select></label>
@@ -519,12 +519,15 @@ h2{margin:6px 4px -8px}
     <div class="grid2">
       <label class="fld"><span>Key colour</span><select data-pset="key_col"></select></label>
       <label class="fld"><span>Menu key colour</span><select data-pset="menu_col"></select></label>
+      <label class="fld"><span>Loading lights</span><select data-pset="throb"><option value="0">Off</option><option value="1">Scanner</option><option value="2">Chase</option><option value="3">Breathe</option><option value="4">Twinkle</option><option value="5">Wave</option></select></label>
+      <label class="fld"><span>Loading colour</span><select data-pset="throb_col"></select></label>
       <label class="fld"><span>Keys at night</span><select data-pset="night_keys"><option value="0">Dim</option><option value="1">Off</option></select></label>
       <label class="fld"><span>Auto night</span><select data-pset="auto_night"><option value="0">Off</option><option value="1">21:00 to 07:00</option><option value="2">22:00 to 07:00</option><option value="3">23:00 to 07:00</option></select></label>
       <label class="fld"><span>Clock</span><select data-pset="clock12"><option value="0">24-hour</option><option value="1">12-hour</option></select></label>
       <label class="fld"><span>Snooze</span><select data-pset="snooze"><option value="5">5 min</option><option value="9">9 min</option><option value="10">10 min</option><option value="15">15 min</option></select></label>
       <label class="fld"><span>Time zone</span><select data-pset="tz"></select></label>
     </div>
+    <div class="hint" style="text-align:left;margin-top:12px">Loading lights: the keys move while a page you asked for is on its way, so you can tell the panel is working. Choosing an effect or a colour plays it for a few seconds.</div>
     <div class="row" style="margin-top:16px"><div style="flex:1">Set time automatically<small style="display:block;color:var(--sub);font-size:12px">Off: set the time and date on the panel, Settings → Time and clock</small></div><label class="sw"><input type="checkbox" id="auto_time" data-set="auto_time"><span></span></label></div>
     <div class="row" style="margin-top:16px"><div style="flex:1">Knob light</div><label class="sw"><input type="checkbox" id="knob_light" data-set="knob_light"><span></span></label></div>
   </div>
@@ -1281,6 +1284,7 @@ function renderPanelSettings(){
   const p=ui&&ui.panel; if(!p)return;
   const ps=JSON.stringify(p.palette);
   if(ps!==palSig){palSig=ps;['key_col','menu_col'].forEach(k=>{$(`[data-pset="${k}"]`).innerHTML=p.palette.map((n,i)=>`<option value="${i}">${n}</option>`).join('')});
+    $('[data-pset="throb_col"]').innerHTML=['Same as keys',...p.palette,'Rainbow'].map((n,i)=>`<option value="${i}">${n}</option>`).join('');
     if(p.tzs)$('[data-pset="tz"]').innerHTML=p.tzs.map((n,i)=>`<option value="${i}">${i?n:'Automatic (from Tesserae)'}</option>`).join('')}
   $$('[data-pset]').forEach(sel=>{const k=sel.dataset.pset;if(held('pset_'+k)||sel===document.activeElement)return;sel.value=String(+p[k])});
   if(!held('knob_light'))$('#knob_light').checked=!!p.knob_light;

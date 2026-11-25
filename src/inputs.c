@@ -69,13 +69,120 @@ static void key_colour(int i, bool pressed, uint8_t out[3])
     out[0] = (uint8_t)(r * lvl / 255); out[1] = (uint8_t)(g * lvl / 255); out[2] = (uint8_t)(b * lvl / 255);
 }
 
+/* ---- the loading lights (inputs.h) ---- */
+static int      s_throb_fx = THROB_SCANNER, s_throb_cm = THROB_COL_KEYS;
+static uint8_t  s_throb_rgb[3] = { 255, 110, 10 };
+static bool     s_busy, s_throb_on;
+static uint32_t s_busy_t0, s_preview_until, s_throb_t0, s_throb_frame_ms;
+static float    s_glow[4];                /* each key's brightness, 0..1 */
+static int      s_head = -1;
+static uint32_t s_rand = 0x9E3779B9u;
+
+/* hue 0..1535 at full saturation */
+static void hue_rgb(uint32_t h, uint8_t out[3])
+{
+    h %= 1536u;
+    uint8_t f = (uint8_t)(h & 0xFF), q = (uint8_t)(255 - f);
+    switch (h >> 8) {
+    case 0:  out[0] = 255; out[1] = f;   out[2] = 0;   break;
+    case 1:  out[0] = q;   out[1] = 255; out[2] = 0;   break;
+    case 2:  out[0] = 0;   out[1] = 255; out[2] = f;   break;
+    case 3:  out[0] = 0;   out[1] = q;   out[2] = 255; break;
+    case 4:  out[0] = f;   out[1] = 0;   out[2] = 255; break;
+    default: out[0] = 255; out[1] = 0;   out[2] = q;   break;
+    }
+}
+
+/* 0..1 and back over `period` ms */
+static float tri(uint32_t t, uint32_t period)
+{
+    float x = (float)(t % period) / (float)period;
+    return x < 0.5f ? x * 2.0f : 2.0f - x * 2.0f;
+}
+
+static void throb_frame(uint32_t now)
+{
+    uint32_t t = now - s_throb_t0, dt = now - s_throb_frame_ms;
+    s_throb_frame_ms = now;
+    if (dt > 200) dt = 200;
+    /* a moving head leaves a tail: every key fades, the head's is relit */
+    float fade = 1.0f - (float)dt / (s_throb_fx == THROB_TWINKLE ? 420.0f : 230.0f);
+    if (fade < 0) fade = 0;
+    int head = -1;
+    switch (s_throb_fx) {
+    case THROB_SCANNER: { int p = (int)(t / 130u) % 6; head = p < 4 ? p : 6 - p; break; }      /* 0 1 2 3 2 1 */
+    case THROB_CHASE:   head = (int)(t / 150u) % 4; break;
+    case THROB_TWINKLE: if ((int)(t / 170u) != s_head) {
+                            s_head = (int)(t / 170u);
+                            s_rand = s_rand * 1664525u + 1013904223u;
+                            s_glow[(s_rand >> 24) & 3] = 1.0f;
+                        }
+                        break;
+    default: break;
+    }
+    for (int i = 0; i < 4; i++) {
+        if (s_throb_fx == THROB_BREATHE)   { float v = tri(t, 1500); s_glow[i] = 0.06f + 0.94f * v * v; }
+        else if (s_throb_fx == THROB_WAVE) { float v = tri(t + (uint32_t)(3 - i) * 260u, 1040); s_glow[i] = 0.04f + 0.96f * v * v; }
+        else { s_glow[i] *= fade; if (i == head) s_glow[i] = 1.0f; }
+    }
+    if (!s_keys) return;
+    /* Brighter than the keys at rest, so it reads through the panel; lower at night. */
+    uint32_t peak = (uint32_t)s_level * 2u + 70u;
+    if (peak > 255) peak = 255;
+    if (s_night) peak = peak * 35u / 100u;
+    uint8_t px[12];
+    for (int i = 0; i < 4; i++) {
+        uint8_t c[3];
+        if ((s_key_state >> i) & 1) { key_colour(i, true, px + i * 3); continue; }          /* a held key stays lit */
+        if (s_throb_cm == THROB_COL_RAINBOW)    hue_rgb(t * 1536u / 2600u + (uint32_t)i * 190u, c);
+        else if (s_throb_cm == THROB_COL_FIXED) memcpy(c, s_throb_rgb, 3);
+        else                                    memcpy(c, i == 3 ? s_col_menu : s_col_key, 3);
+        uint32_t lvl = (uint32_t)(s_glow[i] * (float)peak);
+        for (int k = 0; k < 3; k++) px[i * 3 + k] = (uint8_t)(c[k] * lvl / 255u);
+    }
+    seesaw_neopixel_set(NEOKEY_ADDR, px, 4);
+    s_lights_ms = now;                    /* the 2 s resend of the plain lights waits */
+}
+
+void inputs_throb_tick(void)
+{
+    uint32_t now = now_ms();
+    bool preview = s_preview_until && (int32_t)(s_preview_until - now) > 0;
+    if (!preview) s_preview_until = 0;
+    bool want = s_throb_fx != THROB_OFF && (preview || (s_busy && now - s_busy_t0 >= THROB_ONSET_MS));
+    if (!want) {
+        if (s_throb_on) { s_throb_on = false; lights_update(true); }
+        return;
+    }
+    if (!s_throb_on) {
+        s_throb_on = true; s_throb_t0 = s_throb_frame_ms = now; s_head = -1;
+        memset(s_glow, 0, sizeof s_glow);
+    } else if (now - s_throb_frame_ms < THROB_FRAME_MS) return;
+    throb_frame(now);
+}
+
+void inputs_set_throb(int effect, int colour_mode, const uint8_t rgb[3])
+{
+    s_throb_fx = (effect >= 0 && effect < THROB_EFFECTS) ? effect : THROB_OFF;
+    s_throb_cm = colour_mode;
+    if (rgb) memcpy(s_throb_rgb, rgb, 3);
+    if (s_throb_on) { s_throb_on = false; lights_update(true); }      /* a new effect starts from its beginning */
+}
+void inputs_set_busy(bool busy)
+{
+    if (busy && !s_busy) s_busy_t0 = now_ms();
+    s_busy = busy;
+}
+void inputs_throb_preview(uint32_t ms) { s_preview_until = now_ms() + ms; if (!s_preview_until) s_preview_until = 1; }
+bool inputs_throbbing(void) { return s_throb_on; }
+
 static void lights_update(bool force)
 {
     uint8_t lit = s_key_state;
     if (!force && lit == s_lit_prev) return;
     s_lit_prev = lit;
     s_lights_ms = now_ms();
-    if (s_keys) {
+    if (s_keys && !s_throb_on) {          /* the loading lights have the keys: their next frame shows a press */
         uint8_t px[12];
         for (int i = 0; i < 4; i++) key_colour(i, (lit >> i) & 1, px + i * 3);
         seesaw_neopixel_set(NEOKEY_ADDR, px, 4);

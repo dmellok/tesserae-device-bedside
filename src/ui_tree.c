@@ -123,6 +123,8 @@ int node_rows(node_t nd, row_def_t *r)
         r[n++] = (row_def_t){ C_KEYCOL, K_CHOICE, "Key colour", NULL, 0 };
         r[n++] = (row_def_t){ C_MENUCOL, K_CHOICE, "Menu key colour", NULL, 0 };
         r[n++] = (row_def_t){ T_KNOB, K_TOGGLE, "Knob light", NULL, 0 };
+        r[n++] = (row_def_t){ C_THROB, K_CHOICE, "Loading lights", NULL, 0 };
+        r[n++] = (row_def_t){ C_THROBCOL, K_CHOICE, "Loading colour", NULL, 0 };
         break;
     case N_MENUS:
         r[n++] = (row_def_t){ T_TURNHINTS, K_TOGGLE, "Turn counts", NULL, 0 };
@@ -287,6 +289,8 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case C_KEYCOL:    snprintf(b, n, "The colour of keys 1 to 3"); break;
     case C_MENUCOL:   snprintf(b, n, "The colour of the MENU key"); break;
     case T_KNOB:      snprintf(b, n, "Lights the ring around the knob"); break;
+    case C_THROB:     snprintf(b, n, "The keys move while a page is on its way"); break;
+    case C_THROBCOL:  snprintf(b, n, "The colour they move in"); break;
     case T_TURNHINTS: snprintf(b, n, "Beside each row: turns to reach it, + clockwise"); break;
     case T_QUICKMENU: snprintf(b, n, "Steps in black and white, full quality when you stop"); break;
     case T_QUICK_A2:  snprintf(b, n, "The fastest waveform for steps; faint ghosts until the clean refresh"); break;
@@ -465,6 +469,8 @@ int choice_opts(item_t id, const char *const **o)
                       *o = dash_opts(); return 1 + tesserae_pick_count();
     case C_SURFACE:   *o = SURFACES; return 4;
     case C_KEYCOL: case C_MENUCOL: case C_NIGHTCOL: *o = PAL_NAMES; return N_PAL;
+    case C_THROB:     *o = THROBS; return THROB_EFFECTS;
+    case C_THROBCOL:  *o = THROB_COLS; return N_PAL + 2;
     case C_AUTONIGHT: *o = AUTONIGHT; return 4;
     case C_CLOCK:     *o = CLOCKF; return 2;
     case C_SNOOZE:    *o = SNOOZES; return 4;
@@ -474,7 +480,7 @@ int choice_opts(item_t id, const char *const **o)
     case C_OVERLAY:   *o = OVERLAYS; return 4;
     case C_ATNIGHT:   *o = ATNIGHT; return 2;
     case C_CLOCKDU:   *o = CLOCKDU; return 3;
-    case C_THEME:     *o = THEMES; return 2;
+    case C_THEME:     *o = (const char *const *)THEMES; return N_THEMES;
     case C_STATION: {                                   /* the presets with a URL, by name */
         static const char *names[RADIO_PRESETS]; int k = 0;
         for (int i = 0; i < radio_preset_count(); i++) { const radio_preset_t *p = radio_preset(i); names[i] = p->name[0] ? p->name : (p->url[0] ? p->url : "(empty)"); if (p->url[0]) k = i + 1; }
@@ -513,6 +519,8 @@ int choice_get(item_t id)
     case C_KEYCOL:    return S.key_col;
     case C_MENUCOL:   return S.menu_col;
     case C_NIGHTCOL:  return S.night_col;
+    case C_THROB:     return S.throb;
+    case C_THROBCOL:  return S.throb_col;
     case C_AUTONIGHT: return S.auto_night;
     case C_CLOCK:     return S.clock12 ? 1 : 0;
     case C_SNOOZE:    for (int i = 0; i < 4; i++) if (SNOOZE_V[i] == S.snooze_min) return i; return 1;
@@ -563,6 +571,8 @@ void choice_set(item_t id, int k)
     case C_KEYCOL:    S.key_col = k; apply_colours(); break;
     case C_MENUCOL:   S.menu_col = k; apply_colours(); break;
     case C_NIGHTCOL:  S.night_col = k; apply_colours(); break;
+    case C_THROB:     S.throb = k; apply_throb(true); break;
+    case C_THROBCOL:  S.throb_col = k; apply_throb(true); break;
     case C_AUTONIGHT: S.auto_night = k; break;
     case C_CLOCK:     S.clock12 = k == 1; break;
     case C_SNOOZE:    S.snooze_min = SNOOZE_V[k]; break;

@@ -54,6 +54,11 @@ void tesserae_kick(bool drop_etag);
  * "left", "right", "refresh", or the key names set in Settings -> Devices. */
 void tesserae_button(const char *name);
 
+/* A key press, a dashboard pick or a refresh is on its way to the server or
+ * its frame is on its way back: from the request until that cycle has ended
+ * (the background polls do not count). */
+bool tesserae_waiting(void);
+
 /* Dashboard picker (frames.json, Tesserae 0.498+). Fetch the list now (a short
  * blocking request); afterwards tesserae_pick_count/title/id read it. Item 0
  * is "current". Picking asks the server for that dashboard on the next cycle

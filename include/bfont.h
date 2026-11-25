@@ -27,8 +27,10 @@ typedef struct {
     uint16_t        line_h;   /* ascent + descent */
     uint16_t        ascent;
     const uint8_t  *bits;
-    uint8_t         scale;    /* panel pixels per bitmap pixel; 0 or 1: as it is */
+    uint8_t         scale;    /* panel pixels per bitmap pixel; 0 or 1: as it is (the large Terminal and Blueprint sizes are stored at half size) */
 } bfont_t;
 
 extern const bfont_t ui30, ui34, ui46, ui60, ui72, ui96, num180, num270, clock214, icon34, icon40, icon46, icon170;
+extern const bfont_t tm_30, tm_34, tm_46, tm_60, tm_72, tm_96, tm_num180, tm_num270, tm_clock214;   /* Terminal: tools/gen_theme_fonts.py */
+extern const bfont_t bp_30, bp_34, bp_46, bp_60, bp_72, bp_96, bp_num180, bp_num270, bp_clock214;   /* Blueprint */
 extern const bfont_t s7_30, s7_34, s7_46, s7_60, s7_72, s7_96, s7_num180, s7_num270, s7_clock214, s7_icon34, s7_icon40, s7_icon46, s7_icon170, s7_face;

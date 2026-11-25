@@ -47,7 +47,7 @@ local_state_t S = {
     .dash_page = 0, .dash_count = 3,
     .patter = 60, .wash = 55, .tone = 50, .wind = 20, .surface = 0, .thunder = 0, .thunder_near = 35,
     .birds = BIRDS_ALL, .bird_vol = 6,
-    .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .auto_night = 0, .clock12 = false, .snooze_min = 9,
+    .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .throb = THROB_SCANNER, .throb_col = 0, .auto_night = 0, .clock12 = false, .snooze_min = 9,
     .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = false, .large_text = false, .quick_menus = true, .settle_full = false, .clean_min = 10, .stop_clean = true, .wiz = -1,
     .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 2, .tz = 0, .auto_time = true, .refresh_mode = 1,
     .alarm_tone = 3,                                                    /* Chime: gentle, after the chorus has built */
@@ -110,6 +110,23 @@ void apply_colours(void)
     uint8_t night[3] = { 0, 0, 0 };
     if (S.night_keys == 0) for (int i = 0; i < 3; i++) night[i] = (uint8_t)(k[i] * 12 / 100);
     inputs_set_colours(k, PAL[S.menu_col % N_PAL].rgb, night, S.knob_light);
+    apply_throb(false);
+}
+/* The loading lights (inputs.h). show: play the effect for a few seconds, so
+ * a choice just made can be seen. */
+const char *const THROBS[THROB_EFFECTS] = { "Off", "Scanner", "Chase", "Breathe", "Twinkle", "Wave" };
+const char *THROB_COLS[N_PAL + 2];
+void apply_throb(bool show)
+{
+    if (!THROB_COLS[0]) {
+        THROB_COLS[0] = "Same as keys";
+        for (int i = 0; i < N_PAL; i++) THROB_COLS[1 + i] = PAL[i].name;
+        THROB_COLS[N_PAL + 1] = "Rainbow";
+    }
+    S.throb = clampi(S.throb, 0, THROB_EFFECTS - 1); S.throb_col = clampi(S.throb_col, 0, N_PAL + 1);
+    inputs_set_throb(S.throb, S.throb_col == 0 ? THROB_COL_KEYS : S.throb_col > N_PAL ? THROB_COL_RAINBOW : THROB_COL_FIXED,
+                     S.throb_col >= 1 && S.throb_col <= N_PAL ? PAL[S.throb_col - 1].rgb : NULL);
+    if (show && S.throb) inputs_throb_preview(4000);
 }
 const char *const OVERLAYS[4]  = { "Strip", "Cards left", "Cards bottom", "Off" };
 const char *const ATNIGHT[3]   = { "Same", "Clock only", "Clock and alarm" };
@@ -466,7 +483,7 @@ void mark_screen(void)
 void mark_list(void)
 {
     rebuild();
-    mark_menu(S.quick_menus ? IT8951_MODE_DU : IT8951_MODE_GL16);
+    mark_menu(S.quick_menus && !inst() ? IT8951_MODE_DU : IT8951_MODE_GL16);
 }
 void mark_rows(int a, int b)
 {

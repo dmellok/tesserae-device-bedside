@@ -54,7 +54,7 @@
  * theme's Albert Sans and Phosphor icons (tools/gen_font.py), or the System 7
  * theme's pixel faces and icons (tools/gen_sys7.py). The sizes named are the
  * standard theme's; the System 7 fonts keep their line boxes. */
-#define TH      (&UI_FONTS[S.theme == 1])
+#define TH      (&UI_FONTS[S.theme >= 0 && S.theme < N_THEMES ? S.theme : 0])
 #define F_S     (TH->s)      /* 30 px: footnotes, meta, chips */
 #define F_LBL   (TH->lbl)    /* 34 px: key labels, sheet values */
 #define F_M     (TH->m)      /* 46 px: date, titles, menu rows, body */
@@ -75,7 +75,11 @@
 #define U           3
 #define S7_TITLE_H  (19 * U)             /* a window's title bar, with its line */
 #define S7_SCROLL_W (16 * U)             /* a scroll bar */
-enum { PAT_50 = 1, PAT_25, PAT_75, PAT_STRIPES };   /* OP_PAT: the greys as dither, and a title bar's lines */
+enum { PAT_50 = 1, PAT_25, PAT_75, PAT_STRIPES,     /* OP_PAT: the greys as dither, and a title bar's lines */
+       PAT_HATCH, PAT_GRID };                       /* Blueprint: a section's hatching, and the drawing's dotted grid */
+/* the themes (Settings > Display > Theme, ui_theme.c) */
+enum { THEME_STD, THEME_SYS7, THEME_TERM, THEME_BLUE, THEME_INST, N_THEMES };
+#define G_GROUND 0xD                     /* Instrument: the ground its white panels sit on */
 /* its faces (tools/sys7/faces32.txt): the panel itself, happy, sad or asleep. In F_IXL and s7_face only.
  * FACE(face, icon): the face in the System 7 theme, the standard theme's icon otherwise. */
 #define S7_HAPPY    "\xc0"
@@ -118,8 +122,8 @@ enum { WIN_PLAIN, WIN_ACTIVE, WIN_DARK };           /* s7_window: no stripes; st
 #define ACTION_COUNT ((int)(sizeof ACTIONS / sizeof ACTIONS[0]))
 
 /* menus */
-#define DIM_G   (crisp() || sys7() ? G_BLACK : G_DARK)
-#define LIGHT_G (crisp() || sys7() ? G_BLACK : G_LIGHT)
+#define DIM_G   (crisp() || flat() ? G_BLACK : G_DARK)
+#define LIGHT_G (crisp() || flat() ? G_BLACK : G_LIGHT)
 #define MAX_ALARMS 4
 #define LIST_W   (W / 2)
 #define LIST_Y   (TB_H + 14)
@@ -179,6 +183,7 @@ typedef struct {
     int  x, y, w, h;                 /* region this layer owns */
     uint8_t bg;
     bool on;
+    bool inv;                        /* painted white on black (the Terminal theme): every grey to its opposite as the row leaves */
 } layer_t;
 typedef struct { const bfont_t *s, *lbl, *m, *ml, *l, *xl, *num, *clock, *huge, *i, *im, *ir, *ixl; } ui_fonts_t;
 typedef struct { const char *name; uint8_t rgb[3]; } pal_t;
@@ -206,7 +211,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, C_CLEANMIN, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
-    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL, T_STOPCLEAN, T_KNOBCLICK,
+    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL, T_STOPCLEAN, T_KNOBCLICK, C_THROB, C_THROBCOL,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, C_SPK_PRESET, V_SPK_EQ, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
     C_CLOCKDU, T_DEMO, C_STATION,
@@ -282,6 +287,9 @@ extern const char *const KINDS[6];
 extern const char *const DASHES[3];
 extern const pal_t PAL[9];
 extern const char *PAL_NAMES[N_PAL];
+extern const char *const THROBS[];
+extern const char *THROB_COLS[N_PAL + 2];
+void apply_throb(bool show);
 extern const char *const AUTONIGHT[4];
 extern const char *const CLOCKF[2];
 extern const char *const SNOOZES[4];
@@ -397,9 +405,13 @@ void op_pat(layer_t *l, int x, int y, int w, int h, int pat, uint8_t g);
 void op_rrect_r(layer_t *l, int x, int y, int w, int h, int r, uint8_t g);   /* rounded in every theme */
 
 /* ui_theme.c: the themes' fonts, and the System 7 theme's windows and controls */
-extern const ui_fonts_t UI_FONTS[2];
-extern const char *const THEMES[2];
+extern const ui_fonts_t UI_FONTS[N_THEMES];
+extern const char *const THEMES[N_THEMES];
 bool sys7(void);
+bool term(void);                 /* Terminal: white on black, fixed-width */
+bool blue(void);                 /* Blueprint: line work, small capitals */
+bool inst(void);                 /* Instrument: white panels on a grey ground */
+bool flat(void);                 /* black and white only: System 7 and Blueprint */
 void theme_set(int k);
 void s7_window(layer_t *l, int x, int y, int w, int h, int style);
 void s7_title(layer_t *l, int x, int y, int w, int style, const char *icon, const char *title, const char *tail);

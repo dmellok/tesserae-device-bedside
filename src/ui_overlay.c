@@ -163,7 +163,7 @@ int clock_slots(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const cha
  * threshold to white. */
 bool clock_du_active(void)
 {
-    return S.clock_du == 2 || (S.clock_du == 1 && S.night);
+    return !inst() && (S.clock_du == 2 || (S.clock_du == 1 && S.night));   /* Instrument: its grey ground would threshold too */
 }
 
 bool strip_du(void)

@@ -30,6 +30,13 @@ This project is AGPL-3.0-or-later (see LICENSE). It bundles or ports:
   `src/fonts/` by `tools/gen_font.py`), Copyright 2022 The Albert Sans Project
   Authors, **SIL Open Font License 1.1**. https://github.com/usted/Albert-Sans
 
+- **IBM Plex Mono** (`tools/IBMPlexMono-*.ttf`, the Terminal theme) Copyright
+  2017 IBM Corp. with Reserved Font Name "Plex", and **Barlow Condensed**
+  (`tools/BarlowCondensed-*.ttf`, the Blueprint theme) Copyright 2017 The
+  Barlow Project Authors (https://github.com/jpt/barlow): both **SIL Open Font
+  License 1.1**, rendered into `src/fonts/term.c` and `src/fonts/blue.c` by
+  `tools/gen_theme_fonts.py`.
+
 - The **System 7 theme's** fonts, icons, faces and bomb (`tools/sys7/*.txt`, built into
   `src/fonts/sys7.c` by `tools/gen_sys7.py`) were drawn for this project, in the
   style of that system's screen fonts and controls, and carry this project's

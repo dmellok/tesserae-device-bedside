@@ -394,9 +394,29 @@ static void audio_update(void)
     if (ls->power_mon && power_tick()) local_power(power_on_battery(), power_percent(), power_low());
 }
 
+/* The loading lights (inputs.h): the keys animate while something the user
+ * asked for is on its way: a page from the server, or the glass changing page
+ * or repainting whole. The minute's clock, the background polls and the
+ * clean-up refreshes are not the user's doing and leave the keys alone. */
+static void busy_lights(void)
+{
+    static bool on;
+    static uint32_t idle_t0;
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    bool waiting = !ota_busy() && cur_content != CONTENT_BOOT && cur_content != CONTENT_SETUP &&
+                   (tesserae_waiting() || (painter_busy() && (s_job_screen || s_job_full)));
+    if (waiting) {
+        if (!on && now - s_last_input_ms < 4000u) on = true;
+        idle_t0 = now;
+    } else if (on && now - idle_t0 > 150u) on = false;      /* the frame has arrived and its paint starts on the next pass: one wait, not two */
+    inputs_set_busy(on);
+    inputs_throb_tick();
+}
+
 static void ui_service(void)
 {
     radio_tick();                         /* decode ahead, reconnect: here so a frame download doesn't starve it */
+    busy_lights();                        /* before the guard: they move during a request made from inside this function too */
     static bool in;
     if (in) return;
     in = true;

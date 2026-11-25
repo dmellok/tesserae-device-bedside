@@ -8,6 +8,8 @@
 void layer_reset(layer_t *l, int x, int y, int w, int h, uint8_t bg)
 {
     l->n = 0; l->x = x; l->y = y; l->w = w; l->h = h; l->bg = bg; l->on = true;
+    l->inv = term();
+    if (inst() && bg == G_WHITE) l->bg = G_GROUND;
 }
 
 static op_t *op_new(layer_t *l)
@@ -40,17 +42,34 @@ static bool s7_shade(layer_t *l, int x, int y, int w, int h, uint8_t g)
     return true;
 }
 
+/* Blueprint is line work: a card is an outlined box, a light area is hatched
+ * like a section, a rule is a line. Instrument keeps the greys and turns a
+ * card (a large light area) into a white panel on its grey ground. */
+static bool theme_shade(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
+{
+    if (g == G_BLACK || g == G_WHITE) return false;
+    if (s7_shade(l, x, y, w, h, g)) return true;
+    if (blue()) {
+        if (w <= 8 || h <= 8 || g < 8) fill_raw(l, x, y, w, h, G_BLACK);
+        else if (w > 60 && h > 60) { fill_raw(l, x, y, w, h, G_WHITE); op_frame(l, x, y, w, h, 3, G_BLACK); }
+        else { op_pat(l, x, y, w, h, PAT_HATCH, G_BLACK); op_frame(l, x, y, w, h, 2, G_BLACK); }
+        return true;
+    }
+    if (inst() && g >= 9 && w > 60 && h > 60) { op_rrect_r(l, x, y, w, h, r > 0 ? r : 24, G_WHITE); return true; }
+    return false;
+}
+
 void op_fill(layer_t *l, int x, int y, int w, int h, uint8_t g)
-{ if (!s7_shade(l, x, y, w, h, g)) fill_raw(l, x, y, w, h, g); }
+{ if (!theme_shade(l, x, y, w, h, 0, g)) fill_raw(l, x, y, w, h, g); }
 
 void op_pat(layer_t *l, int x, int y, int w, int h, int pat, uint8_t g)
 { op_t *o = op_new(l); o->kind = OP_PAT; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)pat; o->g = g; }
 
 void op_frame(layer_t *l, int x, int y, int w, int h, int b, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_FRAME; o->x = x; o->y = y; o->w = w; o->h = h; o->border = b; o->g = sys7() ? ink(g) : g; }
+{ op_t *o = op_new(l); o->kind = OP_FRAME; o->x = x; o->y = y; o->w = w; o->h = h; o->border = b; o->g = flat() ? ink(g) : g; }
 
 void op_text(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *t)
-{ if (sys7()) g = two(g);
+{ if (flat()) g = two(g);
   op_t *o = op_new(l); o->kind = OP_TEXT; o->x = x; o->y = y; o->font = f; o->g = g;
   o->w = draw_font_w(f, t); o->h = f->line_h; snprintf(o->text, sizeof o->text, "%s", t); }
 
@@ -63,16 +82,17 @@ void op_text_r(layer_t *l, int xr, int y, const bfont_t *f, uint8_t g, const cha
 void op_rrect_r(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
 { op_t *o = op_new(l); o->kind = OP_RRECT; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)r; o->g = g; }
 void op_rrect(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
-{ if (!sys7()) op_rrect_r(l, x, y, w, h, r, g); else if (!s7_shade(l, x, y, w, h, g)) fill_raw(l, x, y, w, h, g); }
+{ if (theme_shade(l, x, y, w, h, r, g)) return;
+  if (flat() || term()) fill_raw(l, x, y, w, h, g); else op_rrect_r(l, x, y, w, h, r, g); }
 void op_line(layer_t *l, int x0, int y0, int x1, int y1, int t, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_LINE; o->x = x0; o->y = y0; o->w = x1 - x0; o->h = y1 - y0; o->border = (uint8_t)t; o->g = sys7() ? ink(g) : g; }
+{ op_t *o = op_new(l); o->kind = OP_LINE; o->x = x0; o->y = y0; o->w = x1 - x0; o->h = y1 - y0; o->border = (uint8_t)t; o->g = flat() ? ink(g) : g; }
 void op_dash(layer_t *l, int x, int y, int w, int h, int d, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_DASH; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)d; o->g = sys7() ? ink(g) : g; }
+{ op_t *o = op_new(l); o->kind = OP_DASH; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)d; o->g = flat() ? ink(g) : g; }
 void op_circle(layer_t *l, int cx, int cy, int r, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_CIRCLE; o->x = cx; o->y = cy; o->w = r; o->g = sys7() ? two(g) : g; }
+{ op_t *o = op_new(l); o->kind = OP_CIRCLE; o->x = cx; o->y = cy; o->w = r; o->g = flat() ? two(g) : g; }
 
 void op_ring(layer_t *l, int cx, int cy, int r, int b, uint8_t g, uint8_t inner)
-{ op_t *o = op_new(l); o->kind = OP_RING; o->x = cx; o->y = cy; o->w = r; o->border = b; o->g = sys7() ? two(g) : g; o->h = sys7() ? two(inner) : inner; }
+{ op_t *o = op_new(l); o->kind = OP_RING; o->x = cx; o->y = cy; o->w = r; o->border = b; o->g = flat() ? two(g) : g; o->h = flat() ? two(inner) : inner; }
 
 static int isqrt_i(int v) { int r = 0; while ((r + 1) * (r + 1) <= v) r++; return r; }
 
@@ -151,6 +171,16 @@ static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951
             if (y < o->y || y >= o->y + o->h) break;
             int a = o->x > wx0 ? o->x : wx0, b = o->x + o->w < wx1 ? o->x + o->w : wx1, cy = y / U;
             uint8_t on = o->g, off = (uint8_t)(15 - o->g);
+            if (o->border == PAT_HATCH) {                     /* lines at 45 degrees, 3 px every 15 */
+                if (b > a) memset(line + a, off, (size_t)(b - a));
+                for (int xx = a + ((15 - (a + y) % 15) % 15); xx < b; xx += 15) memset(line + xx, on, (size_t)(xx + 3 > b ? b - xx : 3));
+                break;
+            }
+            if (o->border == PAT_GRID) {                      /* a dot every 48 px */
+                if (b > a) memset(line + a, off, (size_t)(b - a));
+                if (y % 48 < 3) for (int xx = a + ((48 - a % 48) % 48); xx < b; xx += 48) memset(line + xx, on, (size_t)(xx + 3 > b ? b - xx : 3));
+                break;
+            }
             if (o->border == PAT_STRIPES) { if (b > a) memset(line + a, ((y - o->y) / U) & 1 ? off : on, (size_t)(b - a)); break; }
             for (int cx = a / U; cx * U < b; cx++) {         /* a cell at a time */
                 bool k = o->border == PAT_50 ? ((cx + cy) & 1) == 0 : ((cx + 2 * (cy & 1)) & 3) == 0;   /* one cell in two, or one in four */
@@ -171,6 +201,7 @@ static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951
             break; }
         }
     }
+    if (l->inv) for (int i = wx0; i < wx1; i++) line[i] = (uint8_t)(15 - line[i]);
     draw_pack(row, wx0, line + wx0, wx1 - wx0);
 }
 
@@ -216,7 +247,7 @@ void layer_invert(layer_t *l)
 
 void layer_copy(layer_t *d, const layer_t *s)
 {
-    d->n = s->n; d->x = s->x; d->y = s->y; d->w = s->w; d->h = s->h; d->bg = s->bg; d->on = s->on;
+    d->n = s->n; d->x = s->x; d->y = s->y; d->w = s->w; d->h = s->h; d->bg = s->bg; d->on = s->on; d->inv = s->inv;
     memcpy(d->ops, s->ops, sizeof(op_t) * (size_t)s->n);
 }
 

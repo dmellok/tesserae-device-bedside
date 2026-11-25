@@ -92,11 +92,14 @@ void tesserae_init(uint8_t *frame_buf, uint8_t *dl_buf, size_t frame_cap, tess_p
     s_next_due_ms = now_ms();
 }
 
+static bool s_asked;                     /* this cycle is one the user asked for (tesserae_waiting) */
 void tesserae_kick(bool drop_etag)
 {
     if (drop_etag) s_force_full = true;
     s_next_due_ms = now_ms();
+    s_asked = true;
 }
+bool tesserae_waiting(void) { return s_asked; }
 
 void tesserae_set_scratch(uint8_t *buf, size_t cap) { s_scratch = buf; s_scratch_cap = cap; }
 
@@ -370,11 +373,12 @@ static void cycle(void)
 
 void tesserae_poll(void)
 {
-    if (!config_has_server()) { s_state = TESS_OFF; return; }
-    if (!net_connected()) { s_state = TESS_NO_WIFI; return; }
+    if (!config_has_server()) { s_state = TESS_OFF; s_asked = false; return; }
+    if (!net_connected()) { s_state = TESS_NO_WIFI; s_asked = false; return; }
     if (s_state == TESS_NO_WIFI || s_state == TESS_OFF) { s_state = TESS_DISCOVERING; s_next_due_ms = now_ms(); }
     if ((int32_t)(now_ms() - s_next_due_ms) < 0) return;
     cycle();
+    s_asked = false;
 }
 
 tess_state_t tesserae_state(void) { return s_state; }

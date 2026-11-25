@@ -28,7 +28,8 @@ const bfont_t *mf_m(void)   { return S.large_text ? F_ML : F_M; }
  * two-level mode (DU: no flash, ~0.45 s) can paint them exactly: opening,
  * stepping, choices, sliders. GC16 (which flashes its whole rectangle and
  * wears the picture on this panel) is then only for the dashboards. */
-bool crisp(void) { return S.quick_menus && s_mode != M_HOME; }
+/* Instrument's ground is grey, which a two-level update cannot paint: its menus always update at full quality. */
+bool crisp(void) { return S.quick_menus && !inst() && s_mode != M_HOME; }
 
 static struct { node_t node; int sel, top; } s_stack[6];   /* top: the first row shown, for lists that scroll */
 /* How many rows a list of n shows at once: all of them (rows shrink past
@@ -105,7 +106,8 @@ void build_top(layer_t *l, bool inv)
     (void)dim;
     bool s7 = sys7();                       /* System 7: the menu bar, with the screen's rounded corners */
     layer_reset(l, 0, 0, W, TB_H, bg);
-    op_fill(l, 0, TB_H - (s7 ? U : 4), W, s7 ? U : 4, inv ? G_DARK : G_BLACK);
+    bool bp = blue(), in = inst() && !inv;  /* Blueprint: a drawing's title block, a cell per key. Instrument: each key a button on the ground */
+    if (!in) op_fill(l, 0, TB_H - (s7 ? U : 4), W, s7 ? U : 4, inv ? G_DARK : G_BLACK);
     if (s7 && !inv) s7_corners(l, true);
     const char *title = "";
     if (S.phase == PHASE_RINGING) title = s_date;
@@ -113,15 +115,24 @@ void build_top(layer_t *l, bool inv)
     else if (s_mode == M_LIST) title = node_title(s_stack[s_depth - 1].node);
     else title = s_edit_label;
     const bfont_t *tf = s_mode == M_HOME ? F_M : mf_m(), *lf = s_mode == M_HOME ? F_LBL : mf_lbl(), *sf = s_mode == M_HOME ? F_S : mf_s();
-    op_text(l, MARGIN, 50, tf, fg, title);
+    if (term() && title[0]) { char pr[112]; snprintf(pr, sizeof pr, "> %s", title); op_text(l, MARGIN, 50, tf, fg, pr); }   /* Terminal: at a prompt */
+    else op_text(l, MARGIN, 50, tf, fg, title);
     /* the four keys: what each does on this screen, an icon and a word under the key; the orange MENU key framed */
     for (int i = 0; i < 4; i++) {
         int cx = KEY_CX[i];
         const char *ic, *lab; key_role(i, &ic, &lab);
         uint8_t g = i == 3 ? fg : dim;
+        if (bp) {
+            op_fill(l, cx - 90, 0, 3, TB_H - 4, fg);
+            if (i == 3) { op_fill(l, cx - 87, 0, 177, TB_H - 4, fg); op_fill(l, cx + 90, 0, 3, TB_H - 4, fg); g = bg; }
+        } else if (in) {
+            op_rrect_r(l, cx - 80, 22, 160, 108, 34, i == 3 ? G_BLACK : G_WHITE);
+            if (i == 3) g = G_WHITE;
+        } else {
         op_fill(l, cx - 2, 0, 4, 16, g);
         if (i == 3 && s7) { op_fill(l, cx - 81, 21, 162, 111, fg); g = bg; }     /* MENU, as a menu title held down */
         else if (i == 3) op_frame(l, cx - 82, 20, 164, 112, 3, fg);
+        }
         if (ic) op_text_c(l, cx, 26, F_IM, g, ic);
         else if (lab[0] && s_mode != M_HOME) key_glyph(l, cx, 49, s_mode == M_VALUE ? 2 + i : i, g);
         if (lab[0]) op_text_c(l, cx, 82, draw_font_w(lf, lab) <= 150 ? lf : sf, g, lab);
@@ -193,7 +204,13 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
         op_fill(l, LIST_W, TB_H, U, SB_Y - TB_H, G_BLACK);
         s7_window(l, PV_X, PV_Y, PV_W, PV_H, WIN_ACTIVE);
         s7_title(l, PV_X, PV_Y, PV_W, WIN_ACTIVE, NULL, sel >= 0 && sel < n ? labels[sel] : "", NULL);
-    } else op_fill(l, LIST_W, TB_H, crisp() ? 2 : 3, SB_Y - TB_H, LIGHT_G);
+    } else if (inst()) {                    /* Instrument: the list and the preview are two white panels on the ground */
+        op_rrect_r(l, 12, TB_H + 6, LIST_W - 22, SB_Y - TB_H - 12, 32, G_WHITE);
+        op_rrect_r(l, LIST_W + 10, TB_H + 6, W - LIST_W - 22, SB_Y - TB_H - 12, 32, G_WHITE);
+    } else {
+        op_fill(l, LIST_W, TB_H, crisp() ? 2 : 3, SB_Y - TB_H, LIGHT_G);
+        if (blue()) op_pat(l, LIST_W + 3, TB_H, W - LIST_W - 3, SB_Y - TB_H, PAT_GRID, G_BLACK);   /* Blueprint: the detail sits on the drawing's grid */
+    }
     const bfont_t *fm = mf_m(), *fl = mf_lbl(), *fs = mf_s();
     s_row_h = S.large_text ? (SB_Y - LIST_Y - 10) / 8 : n > 8 ? (SB_Y - LIST_Y - 10) / n : 116;
     for (int i = 0; i < n; i++) {
@@ -201,6 +218,14 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
         bool s = (i == sel);
         uint8_t fg = s ? G_WHITE : G_BLACK, dim = s ? (crisp() ? G_WHITE : G_LIGHT) : DIM_G;
         if (s && s7) op_fill(l, 0, y, lw, s_row_h, G_BLACK);                       /* a menu's highlight: the whole row, edge to edge */
+        else if (s && blue()) {                                                   /* Blueprint: the row in section, hatched around its words */
+            op_pat(l, 0, y, lw, s_row_h, PAT_HATCH, G_BLACK);
+            op_fill(l, 0, y, lw, 3, G_BLACK); op_fill(l, 0, y + s_row_h - 3, lw, 3, G_BLACK);
+            op_fill(l, 18, y + 15, lw - 36, s_row_h - 30, G_WHITE);
+            op_frame(l, 18, y + 15, lw - 36, s_row_h - 30, 2, G_BLACK);
+            fg = dim = G_BLACK;
+        }
+        else if (s && inst()) op_rrect_r(l, 24, y + 4, LIST_W - 46, s_row_h - 8, 28, G_BLACK);
         else if (s) op_rrect(l, 16, y + 3, LIST_W - 32, s_row_h - 6, 28, G_BLACK);      /* a rounded bar with a margin */
         else if (!s7) op_fill(l, MARGIN, y + s_row_h - 2, LIST_W - MARGIN - 30, crisp() ? 1 : 2, LIGHT_G);
         int x = MARGIN;
@@ -209,9 +234,9 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
         int xr = lw - 40;
         if (chev && chev[i]) { xr -= draw_font_w(F_I, ICON_CARET_RIGHT); op_text(l, xr, cy - F_I->line_h / 2, F_I, dim, ICON_CARET_RIGHT); xr -= 18; }
         if (check && check[i]) { xr -= draw_font_w(F_IM, ICON_CHECK); op_text(l, xr, cy - F_IM->line_h / 2, F_IM, fg, ICON_CHECK); xr -= 18; }
-        bool is_sw = sw && sw[i] >= 0;
+        bool is_sw = sw && sw[i] >= 0, bsel = s && !blue();                    /* Blueprint's highlight keeps black on white */
         if (is_sw && s7) { s7_checkbox(l, xr, cy, sw[i] == 1, s); xr -= 12 * U + 18; }
-        else if (is_sw) { switch_glyph(l, xr, cy, sw[i] == 1, s); xr -= 92 + 18; }
+        else if (is_sw) { switch_glyph(l, xr, cy, sw[i] == 1, bsel); xr -= 92 + 18; }
         int vw = (!is_sw && vals && vals[i][0]) ? draw_font_w(fl, vals[i]) : 0;
         const bfont_t *lf = fm;
         if (x + draw_font_w(lf, labels[i]) + 24 > xr - vw) lf = F_M;        /* large text: a long label drops a size rather than run into its value */
@@ -338,6 +363,8 @@ void build_value(layer_t *l)
         s7_window(l, 20 * U, PV_Y, W - 40 * U, PV_H, WIN_ACTIVE);
         s7_title(l, 20 * U, PV_Y, W - 40 * U, WIN_ACTIVE, NULL, s_edit_label, NULL);
     }
+    else if (inst()) op_rrect_r(l, 12, TB_H + 6, W - 24, SB_Y - TB_H - 12, 32, G_WHITE);      /* Instrument: one white panel */
+    else if (blue()) op_pat(l, 0, TB_H, W, SB_Y - TB_H, PAT_GRID, G_BLACK);                    /* Blueprint: on the drawing's grid */
     vmeta_t m = value_meta(s_edit);
     char t[24]; value_text(s_edit, t, sizeof t);
     /* the value: its number as large as the alarm clock, the unit beside it on the

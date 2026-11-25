@@ -136,6 +136,7 @@ extern paint_snap_t P;
 extern bool s_flush_pending;
 extern uint32_t s_last_input_ms;
 extern bool s_job_screen;
+extern bool s_job_full;
 extern uint8_t s_echo_mode;
 
 /* commands.c */

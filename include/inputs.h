@@ -81,3 +81,31 @@ void    inputs_set_colours(const uint8_t key[3], const uint8_t menu[3], const ui
 void    inputs_set_key_enabled(uint8_t mask);
 uint8_t inputs_backlight(void);
 bool    inputs_night(void);
+
+/* The loading lights: while the panel is busy with something the user asked
+ * for (a page on its way from the server, the glass changing page), the keys
+ * animate, so a screen that has not changed yet is not taken for a frozen
+ * one. They shine through the panel from behind, which is what makes this
+ * readable from the front.
+ *   effect  one of THROB_*; THROB_OFF leaves the keys as they are
+ *   colour  THROB_COL_KEYS: each key in its own colour; 1..n: `rgb`;
+ *           THROB_COL_RAINBOW: the hue turns as it goes */
+enum { THROB_OFF = 0, THROB_SCANNER, THROB_CHASE, THROB_BREATHE, THROB_TWINKLE, THROB_WAVE, THROB_EFFECTS };
+enum { THROB_COL_KEYS = 0, THROB_COL_FIXED, THROB_COL_RAINBOW };
+void inputs_set_throb(int effect, int colour_mode, const uint8_t rgb[3]);
+/* Busy or not; the animation starts once busy has lasted THROB_ONSET_MS (a
+ * quick repaint does not flicker the keys) and the usual lights come back
+ * when it ends. */
+void inputs_set_busy(bool busy);
+/* Run the effect for `ms` whatever the panel is doing: a look at a new choice. */
+void inputs_throb_preview(uint32_t ms);
+/* Draw the next frame if one is due. Call often; it only writes to the keys
+ * (no reads), every THROB_FRAME_MS while the animation runs. */
+void inputs_throb_tick(void);
+bool inputs_throbbing(void);
+#ifndef THROB_ONSET_MS
+#define THROB_ONSET_MS 250
+#endif
+#ifndef THROB_FRAME_MS
+#define THROB_FRAME_MS 33
+#endif

@@ -1190,6 +1190,43 @@ properly.
   wires to the header, meter points) and `docs/amp-battery-wiring.html` (the
   header-level diagrams, with a note on what the board changed).
 
+## 2026-11-26: Terminal, Blueprint and Instrument themes
+
+Released as **v0.9.0** together with the loading lights (below). The themes were
+checked in the simulator only before the tag.
+
+- **Theme numbers**: 0 Standard, 1 System 7, 2 Terminal, 3 Blueprint,
+  4 Instrument (`THEME_*`, `N_THEMES` in `include/ui_internal.h`; `set=theme|0..4`;
+  ext blob `rsv1[31]` as before). `sys7()`, `term()`, `blue()`, `inst()`, and
+  `flat()` for the two black-and-white ones.
+- **Fonts** (`tools/gen_theme_fonts.py`, needs Pillow): `src/fonts/term.c`
+  (IBM Plex Mono at 0.80 of the standard size, so a fixed-width line is about
+  as long) and `src/fonts/blue.c` (Barlow Condensed at 1.16, lower case drawn
+  as capitals at four fifths: small capitals, so case still reads in a WiFi
+  name). Each font takes the glyph codes, line height and baseline of the
+  standard one it replaces. Sizes of 96 px and over are stored at half size
+  and drawn doubled (`bfont_t.scale` 2; `draw_font_row` now blends a scaled
+  glyph's greys). About 640 KB of glyphs for the two; the image is 4.70 MB
+  of a 5.63 MB slot. Both keep the standard Phosphor icons. Instrument uses
+  the standard fonts.
+- **Terminal**: the pages are built as for the standard theme and each layer
+  is inverted as its rows leave (`layer_t.inv`, set in `layer_reset`), with
+  square corners. `live_dark_now()` is false in it (it is dark already), and
+  the alarm's inverted bars therefore come out white.
+- **Blueprint**: `theme_shade()` in `ui_draw.c`: a large light area is an
+  outlined box, a small one is hatched (`PAT_HATCH`), a rule is a black line;
+  text and lines two-level. The menu's highlight is a hatched band around
+  the row, the preview and the value editor sit on `PAT_GRID`.
+- **Instrument**: `layer_reset` turns a white ground into `G_GROUND` (0xD)
+  and `theme_shade()` turns a large light area into a white rounded panel.
+  `crisp()` and `clock_du_active()` are false in it: a two-level update
+  thresholds the grey ground to white (seen in the simulator as white
+  patches behind the title).
+- Seen in the simulator only: Live home, root menu, Sound, a value editor.
+  Not looked at in the new themes: the alarm screen, toasts and alerts, the
+  setup wizard beyond its first pages, the Weather and Status pages, large
+  text. The boot, setup and update screens are the standard ones.
+
 ## 2026-11-25: themes, and a System 7 one
 
 - **Settings > Display > Theme**: Standard (as it was) or System 7. Also
@@ -1296,6 +1333,18 @@ properly.
   highlighted release's in the preview. A release whose body is only GitHub's
   "Full Changelog" link shows none: 0.8.0 is one. Write a "## What's new"
   section in a release's notes for the panel to have something to show.
+- **Loading lights**: `inputs_set_busy()` / `inputs_throb_tick()` in
+  `src/inputs.c` animate the four key LEDs (writes only, a frame every 33 ms)
+  once busy has lasted 250 ms; `busy_lights()` in `src/main.c` decides busy:
+  `tesserae_waiting()` (a cycle that `tesserae_kick/button/pick` asked for) or
+  a paint that changes page or is full (`s_job_screen`, `s_job_full`), and only
+  if there was input in the 4 s before it began. It runs before `ui_service()`'s
+  re-entry guard, so it moves during nested requests too; not during an update
+  (the flash writes garble the bus). Settings `throb` (effect, `THROB_*`) and
+  `throb_col` (0 the keys' own, 1..9 the palette, 10 rainbow): API, web app,
+  ext blob `rsv1[33..34]` (+ 1; 0 = the scanner in the keys' colours). At night
+  the peak is 35%. The knob's ring is left as it is. Seen in the simulator
+  (`/sim/status` `inputs.led`).
 - **Knob click**: Settings > Speaker > Knob click (off by default; `knob_click`
   in the API and the web app, ext blob `rsv1[32]`). `include/click.h`: a 4 ms
   tick mixed into the speaker's output buffers at the volume, up to three for a

@@ -49,6 +49,7 @@ uint32_t s_last_input_ms;
  * panel doesn't flash every minute at night. */
 static bool     s_touched;
 bool     s_job_screen;           /* the job in flight changes page */
+bool     s_job_full;             /* ...or repaints the whole screen */
 static bool     s_job_counts, s_job_resets;
 static uint32_t s_last_full_ms;                 /* when a full INIT + GC16 was last submitted */
 /* A screen change or full refresh comes out faded on this glass until a
@@ -66,7 +67,7 @@ void paint_pump(void)
         if (s_job_resets) s_partials = 0; else if (s_job_counts) s_partials++;
         if (s_job_screen) inputs_discard();     /* taps and turns made while the page changed */
         if (s_job_echo) s_echo_due = true;
-        s_job_screen = s_job_counts = s_job_resets = s_job_echo = false;
+        s_job_screen = s_job_full = s_job_counts = s_job_resets = s_job_echo = false;
     }
     if (painter_busy()) return;
     if (s_echo_due && !s_flush_pending && s_clear_mode == 0xFF) {
@@ -114,6 +115,7 @@ void paint_pump(void)
     }
     s_job_counts = !full;                               /* every partial wears its area slightly lighter on this panel: count them all */
     s_job_screen = local_epoch() != s_painted_epoch;
+    s_job_full = full;
     s_painted_epoch = local_epoch();
     if (s_echo_mode != 0xFF && s_job_screen && !full) {      /* menus; a full refresh has its INIT */
         s_echo = (painter_job_t){ 0 };
