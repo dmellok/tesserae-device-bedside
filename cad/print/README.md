@@ -29,10 +29,10 @@ The six case parts, each turned to the way it prints and numbered in the order t
 |---|---|---|
 | `1-frame-plate-black-r4.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
-| `3-plinth-black-r1.stl` | Plinth | Roof down |
+| `3-plinth-black-r2.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r8.stl` | Access cover | Top down |
+| `6-access-cover-beige-r9.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -90,7 +90,18 @@ Access cover revisions:
   chamfer on the tip), for more contact with the opening's edges; inside the shell the right prong stops at z 75.5, short of the HAT's 13-pin
   header. Prints top down, on support under the two prongs and the two tongues, which start about 3 mm above the bed in front of the cover. The
   two pips across the slits still need cutting or snapping. `../test-fits/13a-access-cover.stl` is the same cover; print
-  `13b-access-cover-opening.stl` to try its grip without the rear shell.
+  `13b-access-cover-opening.stl` to try its grip without the rear shell. As built, the hooks ran into the display driver HAT just inside
+  the opening.
+- R9: no hooks, strips, slits or tongues: nothing on the cover reaches through the opening. A flat tab at the foot of each side lies on the
+  plinth's roof and takes an M3 x 8 down into a boss under the roof, so it needs plinth R2. Prints top down, on support under the two tabs,
+  which are 13 mm above the bed. The cover no longer gives access to anything: the Pico sits facing down and its USB-C port cannot be reached
+  with the case together, so flash it before assembly. `../test-fits/13a-access-cover.stl` is the same cover and
+  `13b-access-cover-seat.stl` is the strip of the plinth's roof it screws to.
+
+Plinth revisions:
+
+- R1: the first print.
+- R2: two bosses under the roof, one either side of the hump, for the access cover's screws.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this

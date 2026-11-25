@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 4, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 1, 'Rear shell': 1, 'Access cover': 8}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 4, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 2, 'Rear shell': 1, 'Access cover': 9}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -416,61 +416,21 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
-# The access cover's latches. The front part of each side wall is itself the spring: a slit under the roof frees a strip of the wall, joined to the cover
-# only at the back, and the hook that goes through the opening in the rear shell's back wall (w = WSO - T to WSO) is on the inside of the strip's front
-# end. Squeezing the two sides of the cover near the front pushes both hooks clear of the opening's edges, and the cover lifts straight back. Each hook's
-# back face is a ramp that crosses the back of the wall, so the wall's inner corner sits on it and pulls the cover forward onto the shell with no play.
-# History: R1 and R2 had tabs inside the hump that no finger could reach. R3 was this design with strips 1.5 mm thick: it clipped, but slightly loosely,
-# and rode up off the plinth, because the hooks taper at 45 degrees (so they print without support) and their sloping tops let the cover climb. R4's
-# full-height splayed prongs would not go in. R5 and R6 were screwed to the plinth and never printed. R7 is R3 made tighter: the strips are 1.8 mm thick,
-# 1.7 times as stiff, the ramp sits 0.6 mm onto the wall's corner instead of 0.55, and two rigid tongues under the front of the roof reach into the top of
-# the opening, 0.4 mm under its edge, so the cover cannot ride up. From R8 the prongs in front of the cover's face are square and nearly the
-# full height of the opening, for more contact with its edges. The cover prints top down: each strip's first layer is a bridge from its root to a pip
-# across the front of the slit (cut or snapped once the print is off the bed), and the two prongs and two tongues, which start about 3 mm above the bed in
-# front of the cover, need support.
-TW0, TWP, TWR, TB = 30.6, 32.35, 34.0, 1.5      # the hook's front end, the barb's peak, where its back ramp runs out (w), and how far the barb stands proud of the hook
-TPW, TPH = (33.0, 35.0), 0.5                    # the side pad: from the back of the wall to 0.5 mm short of its face (w), and how proud of the hook it stands
-TS, TSL, TZ, TSG, TSF = 1.8, 57.0, 77.2, 0.6, 0.3   # the sprung strip: thickness, where its root is (w), its top (z), the slit above it, and how far its foot is held off the plinth's roof
-THL, TPIP = 38.5, (0.6, 0.8)                    # how far back the block joining hook and strip runs (w), and the pip across the slit (u, w)
-THT = 77.0                                      # the prongs' top (z), 0.5 mm under the top edge of the opening at ZB - T = 77.5
-TGU, TGW, TGZ = ((135.5, 141.5), (182.5, 188.5)), (33.6, 38.0), (75.5, 77.1)      # the two tongues, one inside each hook and clear of the Pico's USB-C socket: across (u), from just short of the inside of the shell's wall back under the roof (w), and its underside and top in front of the cover's face (z)
+# The access cover is screwed to the plinth: a flat tab at the foot of each side lies on the plinth's roof, and an M3 x 8 goes down through it into a boss
+# under the roof. Nothing on the cover reaches through the opening in the rear shell's back wall, because the driver HAT stands just inside it.
+# History: R1 and R2 had tabs inside the hump that no finger could reach. R3, R4, R7 and R8 gripped the edges of the opening with hooks on sprung strips
+# cut from the cover's sides, released by squeezing: as built, the hooks ran into the driver HAT. R5 and R6 had both hooks and screws and were never printed.
+# R9 has the screws alone. The cover prints top down, and the two tabs, 13 mm above the bed, need support.
+CVX, CVR, CVT, CVY = 4.5, 5.0, 3.0, 64.0        # the screw tabs: how far the screw is from the side wall, the radius of the tab's rounded end, its thickness, and where it is front to back (y)
+def cover_screws(): return [(BU0 - CVX, CVY), (BU1 + CVX, CVY)]
 def cover():
-    # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof and two hooks click behind the edges of the opening in the rear shell; squeezing its sides lets them go.
+    # beige: the hump behind the rear shell, as a separate cover over the driver stack. It sits on the plinth's roof against the back of the shell and is held by two screws.
     c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
-    add = []; cut = []; wf = WSO + G
-    sp = lambda a, b: (min(a, b), max(a, b))
-    for sgn, uin, ztop, zcap in ((-1, BU0 + T, TZ, None), (1, BU1 - T, TZ, 75.5)):      # inside the shell the right prong stops short of the HAT's 13-pin header
-        zbox = lambda: box(-10, -80, 68.5, 260, 200, ztop)
-        uo = uin + sgn*T; us = uo - sgn*TS                                   # the side wall's outer face, and the strip's inner face
-        u0 = uin - sgn*0.3                                                   # hook face next to the opening's edge
-        (a0, a1), (t0, t1) = sp(uo + sgn, uin), sp(us, uin)
-        cut.append(INTER(obox(a0, -300, wf - 1, a1, 500, TSL), box(-10, -80, TZ, 260, 200, TZ + TSG)))               # the slit
-        cut.append(INTER(obox(t0, -300, wf - 1, t1, 500, TSL), box(-10, -80, 60, 260, 200, TZ + TSG)))               # the strip, thinned from inside
-        cut.append(INTER(obox(a0, -300, wf - 1, a1, 500, TSL), box(-10, -80, 60, 260, 200, ZP + TSF)))               # its foot, off the roof
-        p0, p1 = sp(us, us + sgn*TPIP[0])
-        add.append(INTER(obox(p0, -300, wf, p1, 500, wf + TPIP[1]), box(-10, -80, TZ - 0.05, 260, 200, TZ + TSG + 0.05)))
-        span = lambda d: sp(u0, u0 + sgn*d)                                  # from the hook face d outwards, towards the edge
-        fbox = lambda: box(-10, -80, 68.5, 260, 200, THT)                    # the prong in front of the cover's face is square and nearly the full height of the opening; it prints on support
-        h0, h1 = sp(us + sgn*0.2, u0 - sgn*2.0); g0, g1 = sp(u0, u0 - sgn*2.0)
-        # the block inside the cover, joining prong and strip, still grows 45 degrees inwards from the strip: square, it would print fused to the roof 0.3 mm above it
-        add.append(SUB(INTER(obox(h0, -300, wf, h1, 500, THL), zbox()), [halfspace((us, 0, ztop), (-sgn, 0, 1))]))
-        (b0, b1), a, r = span(TB), F(0, 0, TW0), F(0, 0, TWR)
-        barb = INTER(obox(b0, -300, TW0, b1, 500, TWR), fbox())
-        kr = TB/(TWR - TWP)                                                  # the back ramp, 42 degrees to the way the cover slides
-        k = TB/(TWP - TW0)                                                   # lead-in slope, about 40 degrees to the way the cover slides on
-        q0, q1 = span(TPH)
-        prong = U([INTER(obox(g0, -300, TW0, g1, 500, wf + 0.1), fbox()),
-                   SUB(barb, [halfspace((u0, a[1], a[2]), (sgn, -k*W_[1], -k*W_[2])), halfspace((u0, r[1], r[2]), (sgn, kr*W_[1], kr*W_[2]))]),
-                   INTER(obox(q0, -300, TPW[0], q1, 500, TPW[1]), fbox())])
-        yt = (TW0 + (THT - 12)*S)/C
-        trim = [halfspace((0, yt + 0.5, THT), (0, -1, 1))]                   # a 0.5 mm chamfer on the top of the tip, to find its way under the top of the opening
-        if zcap: trim.append(INTER(obox(-50, -300, TW0 - 2, 300, 500, WSO - T - 0.1), box(-10, -80, zcap, 260, 200, 90)))
-        add.append(SUB(prong, trim))
-    # the tongues that stop the cover riding up: rigid, hung from the underside of the roof, reaching forward under the top edge of the opening
-    tg = U([obox(a0, -300, TGW[0], a1, 500, TGW[1]) for a0, a1 in TGU])
-    t0 = F(0, 0, TGW[0]); y0 = (TGW[0] + (TGZ[1] - 12)*S)/C
-    tg = SUB(INTER(tg, box(-10, -80, TGZ[0], 260, 200, ZB - T + 0.5)), [INTER(obox(-50, -300, 0, 300, 500, wf), box(-10, -80, TGZ[1], 260, 200, 90)), halfspace((0, y0 + 0.6, TGZ[1]), (0, -1, 1))])
-    return U([SUB(c, cut)] + add + [tg])
+    add = []
+    for sgn, uo in ((-1, BU0), (1, BU1)):
+        ue = uo + sgn*CVX                    # a flat with a rounded end, lying on the plinth's roof; the screw's head sits on top of it
+        add += [box(min(uo, ue), CVY - CVR, ZP, max(uo, ue), CVY + CVR, ZP + CVT), cyl((ue, CVY, ZP), (ue, CVY, ZP + CVT), CVR)]
+    return SUB(U([c] + add), [cyl((x, y, ZP - 1), (x, y, ZP + CVT + 1), 1.7) for x, y in cover_screws()])
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)
@@ -495,6 +455,7 @@ def screws():
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])
+    add('Cover', [screw((x, y, ZP + CVT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])         # M3 x 8 down through the access cover's tabs into the plinth's roof
     add('Frame', [screw((x, y, CB), (0, 0, 1), 12.0, 1.5, 2.75, 3.0) for x, y in FS] + [screw((x, y, CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
     return out
 def feet():
@@ -508,6 +469,8 @@ def plinth():
     cuts = [cyl((x, y, 9), (x, y, 20.5), R3) for x, y in rear] + [lead((x, y, 10 + G), (0, 0, 1), R3) for x, y in rear]                             # deep enough for M3 x 16
     cuts += [box(87.7 + PX, YR - T - 1, 9, 134.9 + PX, YR + 1, 58.3)]                                   # notch around the chassis's USB-C and power-switch pedestal
     cuts += TIP_RELIEF() + grille(-1, PI) + grille(1, PI)                                                   # the speaker fires out of the left one; the right one matches it
+    s = U([s] + [cyl((x, y, ZP - T - 5.0), (x, y, ZP - T + 0.5), 3.5) for x, y in cover_screws()])              # bosses under the roof for the access cover's two screws (from R2)
+    cuts += [cyl((x, y, ZP - T - 6), (x, y, ZP + 1), R3) for x, y in cover_screws()] + [lead((x, y, ZP), (0, 0, -1), R3) for x, y in cover_screws()]
     return SUB(s, cuts)
 def run(_context: str):
     case = doc_named('Bedside case'); case.activate()

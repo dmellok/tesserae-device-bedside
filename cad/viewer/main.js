@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261125j';
+  const DATA_V = '20261125k';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -469,7 +469,7 @@ const BUILD = [
   ['Rear shell', ['Rear shell', 'Back screws, M3 x 8', 'Shell corner screws, M3 x 8'], [0, 210, 30]],
   ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
   ['Plinth', ['Plinth', 'Base screws, M3'], [0, 230, 0]],
-  ['Access cover', ['Access cover'], [0, 130, 110]],
+  ['Access cover', ['Access cover', 'Access cover screws, M3 x 8'], [0, 130, 110]],
   ['Rubber feet', ['Rubber feet'], [0, 0, -90]],
 ];
 const BENCH = [0, 0, -60], BENCH_V = new THREE.Vector3(...BENCH);                                // where a module that is built up off the device waits, from its place on it
@@ -678,7 +678,7 @@ function stepFlash(dt) {
 }
 function applyHashStep(q) {
   if (q.has('step')) showStep(q.get('step'), q.get('way') === 'apart');
-  else if (q.has('flash')) startFlash();
+  // #flash is no longer offered: as built, the Pico's port cannot be reached with the case together, so there is nothing to show
   else return false;
   return true;
 }
@@ -734,7 +734,8 @@ const DETAILS = {
   'Frame screws, M3': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets. All M3 x 8 on MK II.I; on MK III the four in the foot are M3 x 12.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
-  'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
+  'Access cover': 'Closes the hump over the driver stack. Screwed to the plinth\'s roof through a tab on each side.',
+  'Access cover screws, M3 x 8': 'Two, down through the cover\'s tabs into the plinth\'s roof.',
   'Bezel screws': 'Six, through the chassis plate into the bezel. M3 x 8 into the inserts, or on MK III M2.5 x 8 cutting their own thread: an M3 was too tight in the printed holes.',
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',

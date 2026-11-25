@@ -32,7 +32,7 @@ def run(_context: str):
         ('12a-plinth-corner-and-post', 'Plinth', box(200, 71, 9, 236, 85, 30), [], ROOF),
         ('12b-plinth-corner-base-tray', 'Base tray', box(200, 71, -3, 236, 85, 10.5), [], FLAT),
         ('13a-access-cover', 'Access cover', box(100, 0, 50, 220, 120, 100), [], align((0, 0, 80), X_, neg(Y_), neg(Z_))),
-        ('13b-access-cover-opening', 'Rear shell', obox(118, 52, 26, 205, 86, 36), [], BACK),
+        ('13b-access-cover-seat', 'Plinth', box(114, 54, 54, 209, 85, 65), [], ROOF),      # the plinth's roof either side of the hump, with the two bosses the cover screws into
         ('14a-shell-corner-floor', 'Rear shell', INTER(box(-1, 0, 9, 22, 60, 34), obox(-5, -60, 5, 30, 80, 36)), [], BACK),
         ('14b-frame-plate-corner', 'Frame plate', box(2, 4, 2.5, 34, 40, 34), [], PLATE()),                      # the corner boss and the first gusset
         ('16-flex-slot-fixture', 'Frame plate', obox(150, 8, 6, 241.4, 108, 13.5), [], PLATE()),                 # the plate's lower corner by the flex, cut off just above the adapter's rails: it screws to the bezel through two of the plate's own holes, so the slot sits where it will on the whole plate

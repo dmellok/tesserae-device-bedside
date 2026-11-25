@@ -52,7 +52,7 @@
 <div class="wrap">
 <main class="text">
   <h1>Bedside Dashboard assembly</h1>
-  <p class="lede">Putting the MK III case together, taking it apart again, and flashing the Pico. Pick a step and the model shows that part going on.</p>
+  <p class="lede">Putting the MK III case together, taking it apart again, and flashing the Pico before it goes in. Pick a step and the model shows that part going on.</p>
   <nav><a href="#before">Before you start</a><a href="#assembly">Assembly</a><a href="#flashing">Flashing</a><a href="#disassembly">Disassembly</a><a href="./printing.html">Printing</a><a href="./#mk=3">Full 3D viewer</a></nav>
   <div class="note">These steps are written from the CAD model. Nobody has built a printed case from them yet, so treat fits and reach as unproven until the first build.</div>
 
@@ -61,7 +61,7 @@
   <p><b>Tools:</b> hex keys for M2, M2.5, M3 and M4 socket cap screws, a small spanner or pliers for the encoder, switch and speaker nuts, thin double-sided tape for the battery, and a soft cloth to lay the screen on.</p>
   <table>
     <tr><th>Screw</th><th>Count</th><th>Where</th></tr>
-    <tr><td class="n">M3 x 8</td><td class="n">13</td><td>Gusset heels under the base 5, back of the shell 6, shell corners 2</td></tr>
+    <tr><td class="n">M3 x 8</td><td class="n">15</td><td>Gusset heels under the base 5, back of the shell 6, shell corners 2, access cover 2</td></tr>
     <tr><td class="n">M3 x 12</td><td class="n">4</td><td>Under the base, into the frame plate's foot</td></tr>
     <tr><td class="n">M3 x 16</td><td class="n">2</td><td>Under the base, into the plinth</td></tr>
     <tr><td class="n">M2.5 x 8</td><td class="n">12</td><td>Bezel 6, driver HAT 2, key module 2, USB-C inlet 2</td></tr>
@@ -76,11 +76,11 @@
   <div id="steps"></div>
 
   <h2 id="flashing">Flashing the Pico</h2>
-  <p class="small">The panel updates itself over WiFi once it is running, so a cable is only needed for the first install or to recover a board that will not boot.</p>
+  <p class="small">Flash the Pico before it goes into the case: it sits in its adapter facing down, and once the case is together its USB-C port cannot be reached, even with the access cover off. After that the panel updates itself over WiFi, so a cable is only needed again to recover a board that will not boot.</p>
   <div id="flash"></div>
 
   <h2 id="disassembly">Disassembly</h2>
-  <p class="small">The assembly in reverse. Switch the device off and unplug USB-C first. The rubber feet stay on: every screw under the base is reachable between them. To reach only the Pico's port, stop after the access cover. To reach the battery, speaker or USB-C inlet, stop after the plinth.</p>
+  <p class="small">The assembly in reverse. Switch the device off and unplug USB-C first. The rubber feet stay on: every screw under the base is reachable between them. To reach the battery, speaker or USB-C inlet, stop after the plinth.</p>
   <div id="apart"></div>
 </main>
 <aside class="view"><iframe id="model" title="3D model of the Bedside Dashboard" src="./#mk=3&amp;embed=1&amp;case=beige" allow="fullscreen"></iframe></aside>
@@ -94,7 +94,7 @@ const STEPS = [
   { id: 'front-bezel', t: 'Front bezel', d: 'Lower the frame plate onto the back of the bezel, feeding only the narrow flex tail through the slot near the bottom of the plate. The wide strip stays in front of the plate, flat against the back of the glass, in the shallow pocket in the plate\'s front; its small capacitors show through the window at the far end from the tail. The foam now presses the glass against the bezel, so the plate needs light, even pressure to close: if it needs force, stop and check the foam. Screw through the plate into the bezel from behind.', fix: '6 x M2.5 x 8, three down each side', off: 'Undo the six screws down the sides of the plate, from behind, and lift the plate off the bezel. Ease the flex tail back through its slot as you go.' },
   { id: 'flex-adapter', t: 'Flex adapter', d: 'The small flex adapter board sits on the two rails just above the slot the tail came through, long side across. Each rail has a row of holes, so the board can sit in four places, 3.5 mm apart. Start with the lowest. Open the latch on the board\'s lower connector, slide the panel\'s flex in square and close the latch; if the flex has to buckle to fit, move the board up a hole until it lies in an easy curve. Then screw the board down.', fix: '4 x M2.5 x 6', off: 'Open the latch and slide the panel\'s flex out before undoing the four screws.' },
   { id: 'display-driver-hat', t: 'Display driver HAT', d: 'Sit the Waveshare driver HAT on its four tall posts. Two of the posts end in pins that locate the board; the other two take screws. Connect the ribbon from the flex adapter to the HAT.', fix: '2 x M2.5 x 8', off: 'Unplug the ribbon to the flex adapter, undo the two screws and lift the HAT off its pins.' },
-  { id: 'pico-and-gpio-splitter', t: 'Pico and GPIO splitter', d: 'Push the GPIO splitter onto the HAT\'s 40-pin header, then the Pico-to-Pi adapter onto the splitter, with the Pico Plus 2 W in its sockets and its USB-C port pointing up. Press on the headers, not on the Pico.', off: 'Pull the Pico and its adapter off the splitter, then the splitter off the HAT, rocking gently end to end.' },
+  { id: 'pico-and-gpio-splitter', t: 'Pico and GPIO splitter', d: 'Push the GPIO splitter onto the HAT\'s 40-pin header, then the Pico-to-Pi adapter onto the splitter, with the Pico Plus 2 W in its sockets. Flash the Pico first: its USB-C port cannot be reached once the case is closed. Press on the headers, not on the Pico.', off: 'Pull the Pico and its adapter off the splitter, then the splitter off the HAT, rocking gently end to end.' },
   { id: 'power-and-amp-board', t: 'Power and amp board', d: 'Sit the power and amp protoboard, with the PowerBoost and amplifier already soldered on, on its four posts beside the driver stack.', fix: '4 x M2 x 6', off: 'Undo the four screws and lift the board off its posts.' },
   { id: 'key-module', t: 'Key module', d: 'Lower the NeoKey board, with its four switches fitted, onto the two fins at the top of the plate so the switches point up. Its two front holes drop over the pegs beside the plate; its two back holes sit on the bosses. Screw down through the back holes only.', fix: '2 x M2.5 x 8', off: 'Undo the two screws from above and lift the NeoKey off its pegs.' },
   { id: 'rotary-encoder', t: 'Rotary encoder', d: 'Push the encoder\'s threaded bushing out through the hole in the bracket on the side of the plate and tighten its nut on the outside. Leave both STEMMA QT sockets clear.', fix: 'the encoder\'s own nut', off: 'Undo the nut on the bushing and pull the encoder back out of its bracket.' },
@@ -107,7 +107,7 @@ const STEPS = [
   { id: 'rear-shell', t: 'Rear shell', d: 'Slide the beige shell on from the back, over the keys and around the encoder, until it meets the bezel. Screw through its back into the six posts, then up through its floor at the two bottom corners. Every head sits in a recess.', fix: '6 x M3 x 8 in the back, 2 x M3 x 8 under the corners', off: 'Undo the six screws in the back and the two under the bottom corners, then slide the shell straight back.' },
   { id: 'keycaps-and-knob', t: 'Keycaps and knob', d: 'Press the four keycaps onto the switches with their long side towards the screen: from the front, the grey ones with one, two and three dots left to right, then the orange one with the bar on the menu key. Push the printed knob onto the encoder shaft, lining its flat up with the shaft\'s, until it stops.', off: 'Pull the knob and the four keycaps straight off.' },
   { id: 'plinth', t: 'Plinth', d: 'Slide the black plinth on from the back so it sits on the tray\'s walls and closes around the USB-C inlet and switch. Screw up through the base into its two posts.', fix: '2 x M3 x 16', off: 'Undo the two screws under the back of the base and slide the plinth straight back.' },
-  { id: 'access-cover', t: 'Access cover', d: 'Sit the small beige cover on the plinth\'s roof and slide it forward over the Pico\'s port until the hooks in its two sides click behind the edges of the opening.', off: 'Squeeze the two sides of the cover near the front, where the slits are, and lift it straight back off the hump.' },
+  { id: 'access-cover', t: 'Access cover', d: 'Sit the small beige cover on the plinth\'s roof, over the hump, and push it forward against the back of the rear shell. Screw down through the flat tab at the foot of each side into the plinth\'s roof.', fix: '2 x M3 x 8', off: 'Undo the two screws in the tabs at the foot of the cover and lift it off the hump.' },
   { id: 'rubber-feet', t: 'Rubber feet', d: 'Turn it over and stick the four feet to the flat underside of the tray, one near each corner and clear of every screw head. The back one on the knob side sits a little way in from the corner, beside a plinth screw.', fix: '4 self-adhesive feet', off: '' },
 ];
 const model = document.getElementById('model');
@@ -136,15 +136,18 @@ STEPS.forEach((s, i) => {
 });
 const apart = document.getElementById('apart'); let k = 1;
 [...STEPS].reverse().forEach((s, i) => { if (i > 0 && i < STEPS.length - 1 && s.off && s.id !== 'foam-tape') apart.appendChild(card(k++, s.t, `<p>${s.off}</p>`, 'step=' + s.id + '&way=apart')); });
-document.getElementById('flash').appendChild(card('USB', 'Cover off, cable in', `
+{ // no model view for this one: the Pico is flashed on the bench, before it goes into the case
+  const el = document.createElement('section'); el.className = 'step';
+  el.innerHTML = `<h3><span class="k">USB</span><span>On the bench, before the Pico goes in</span></h3>
   <ul>
-    <li>Squeeze the two sides of the access cover near the front and lift it straight back off the hump. The Pico's USB-C port is underneath, pointing up the back of the frame.</li>
-    <li>Plug a USB-C data cable into it and into the computer. The battery can stay connected: a diode on the power board stops the computer and the PowerBoost feeding each other.</li>
+    <li>Plug a USB-C data cable into the Pico and into the computer.</li>
     <li>From the repository, run <code>tools/flash.sh</code>. It builds the firmware, restarts the Pico into its bootloader over USB, copies the firmware across and shows the log.</li>
     <li>Without the build tools, copy a release's <code>bedside-&lt;version&gt;.uf2</code> onto the <code>RP2350</code> drive that appears while the Pico is in its bootloader.</li>
-    <li>If the Pico never shows up, unplug it, hold its BOOT button and plug it back in. BOOT is the right-hand one of the two buttons just below the port, seen from behind.</li>
-    <li>Unplug, then slide the cover forward until it clicks.</li>
-  </ul>`, 'flash=1'));
+    <li>If the Pico never shows up, unplug it, hold its BOOT button and plug it back in.</li>
+    <li>To recover a board that will not boot once the case is together, take the case apart as far as the Pico, as under Disassembly, and do the same. The battery can stay connected: a diode on the power board stops the computer and the PowerBoost feeding each other.</li>
+  </ul>`;
+  document.getElementById('flash').appendChild(el);
+}
 </script>
 </body>
 </html>
