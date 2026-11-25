@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261125e';
+  const DATA_V = '20261125f';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -735,7 +735,7 @@ const DETAILS = {
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Clips and screws on over the Pico\'s USB-C port, for reflashing by cable.',
-  'Access cover screws, M3 x 8': 'Two, down through the lugs at the foot of the access cover into the plinth\'s roof.',
+  'Access cover screws, M3 x 8': 'Two, down through the flat tabs at the foot of the access cover into the plinth\'s roof.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',

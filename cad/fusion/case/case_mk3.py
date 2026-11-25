@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 2, 'Rear shell': 1, 'Access cover': 5}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 3, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 2, 'Rear shell': 1, 'Access cover': 6}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -416,7 +416,7 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
-# The access cover. Two M3 x 8 screws hold it down: one through a lug at the foot of each side wall, into a boss under the plinth's roof (the roof is open
+# The access cover. Two M3 x 8 screws hold it down: one through a flat tab at the foot of each side wall, into a boss under the plinth's roof (the roof is open
 # under the hump and the hump is full of the Pico and its wiring, so the screws cannot go through the cover itself). Two sprung tabs hang forward from the
 # inside of the cover's back and click behind the edges of the opening in the rear shell's back wall (w = WSO - T to WSO), which holds the front of the
 # cover against the shell while the screws go in; with the screws out it pulls straight back. History: R1 had tabs like these whose barbs stopped short
@@ -426,8 +426,8 @@ def shell():
 # driver HAT's board is 0.5 mm in front of its tip.
 TW0, TWP, TWR, TB = 30.6, 31.8, 33.4, 1.3       # the tab's front end, the barb's peak, where its back ramp runs out (w), and how far the barb stands proud of the tab (1.0 mm past the edge)
 TG = 0.5                                        # how far the side wall is cut back beside each tab, leaving 0.8 mm between them: 0.3 mm is too little to be sure of printing as a gap
-CVL, CVW, CVH, CVY = 9.0, 10.0, 2.0, 64.0       # the screw lugs: how far each stands out from the side wall, its width, its height at the outer end, and where it is front to back (y)
-def cover_screws(): return [(BU0 - CVL/2, CVY), (BU1 + CVL/2, CVY)]
+CVX, CVR, CVT, CVY = 4.5, 5.0, 3.0, 64.0        # the screw tabs: how far the screw is from the side wall, the radius of the tab's rounded end, its thickness, and where it is front to back (y)
+def cover_screws(): return [(BU0 - CVX, CVY), (BU1 + CVX, CVY)]
 def cover():
     # beige: the hump over the Pico's USB-C port, as a separate cover. It slides forward on the plinth roof until two sprung tabs click behind the edges of the opening in the rear shell, and is screwed down to the plinth.
     c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
@@ -441,12 +441,11 @@ def cover():
         k, kr = TB/(TWP - TW0), TB/(TWR - TWP)                               # lead-in at 47 degrees to the way the cover slides on, and the back ramp at 39
         add.append(SUB(barb, [halfspace((u0, a[1], a[2]), (sgn, -k*W_[1], -k*W_[2])), halfspace((u0, r[1], r[2]), (sgn, kr*W_[1], kr*W_[2]))]))
         cut.append(INTER(obox(min(uin, uin + sgn*TG), -300, WSO, max(uin, uin + sgn*TG), 500, WBT - T), box(-10, -80, 68.0, 260, 200, ztop + 0.5)))
-        # the screw lug: a wedge that grows at 45 degrees from the side wall, so it prints top down without support, with the screw's head sunk into it
-        uo = uin + sgn*T; ue = uo + sgn*CVL
-        lug = SUB(box(min(uo, ue), CVY - CVW/2, ZP, max(uo, ue), CVY + CVW/2, ZP + CVH + CVL), [halfspace((ue, CVY, ZP + CVH), (sgn, 0, 1))])
-        add.append(lug)
+        # the screw tab: a flat with a rounded end, lying on the plinth's roof. The screw's head sits on top of it.
+        uo = uin + sgn*T; ue = uo + sgn*CVX
+        add += [box(min(uo, ue), CVY - CVR, ZP, max(uo, ue), CVY + CVR, ZP + CVT), cyl((ue, CVY, ZP), (ue, CVY, ZP + CVT), CVR)]
     c = U([SUB(c, cut)] + add)
-    return SUB(c, [cyl((x, y, ZP + SEAT), (x, y, ZP + 30), CBR) for x, y in cover_screws()] + [cyl((x, y, ZP - 1), (x, y, ZP + SEAT + 1), 1.7) for x, y in cover_screws()])
+    return SUB(c, [cyl((x, y, ZP - 1), (x, y, ZP + CVT + 1), 1.7) for x, y in cover_screws()])
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)
@@ -470,7 +469,7 @@ def screws():
     add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
-    add('Cover', [screw((x, y, ZP + SEAT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])        # M3 x 8 down through the access cover's lugs into the plinth's roof
+    add('Cover', [screw((x, y, ZP + CVT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])         # M3 x 8 down through the access cover's tabs into the plinth's roof
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])
     add('Frame', [screw((x, y, CB), (0, 0, 1), 12.0, 1.5, 2.75, 3.0) for x, y in FS] + [screw((x, y, CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
     return out
