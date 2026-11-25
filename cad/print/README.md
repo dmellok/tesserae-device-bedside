@@ -92,9 +92,12 @@ Access cover revisions:
   two pips across the slits still need cutting or snapping. `../test-fits/13a-access-cover.stl` is the same cover; print
   `13b-access-cover-opening.stl` to try its grip without the rear shell. As built, the hooks ran into the display driver HAT just inside
   the opening.
-- R9: no hooks, strips, slits or tongues: nothing on the cover reaches through the opening. A flat tab at the foot of each side lies on the
-  plinth's roof and takes an M3 x 8 down into a boss under the roof, so it needs plinth R2. Prints top down, on support under the two tabs,
-  which are 13 mm above the bed. The cover no longer gives access to anything: the Pico sits facing down and its USB-C port cannot be reached
+- R9: no hooks, strips, slits or tongues: nothing on the cover reaches through the opening. A low shoulder down each side stands on the
+  plinth's roof and takes an M3 x 8 down into a boss under the roof, its head sunk in a recess like the other screws on the outside, so it needs
+  plinth R2. The hump has thirteen grooves over its top and down its back, 2 mm wide at 4.5 mm like the slats on the rear shell and 1 mm deep;
+  they are for looks and do not go through. Prints top down, on support under the two shoulders, which are 10.8 mm above the bed. (R9 was first
+  drawn plain, with a flat tab on each side and the screw heads standing on it; the shoulders and grooves change its looks, not its fit, so the
+  mark is still R9.) The cover no longer gives access to anything: the Pico sits facing down and its USB-C port cannot be reached
   with the case together, so flash it before assembly. `../test-fits/13a-access-cover.stl` is the same cover and
   `13b-access-cover-seat.stl` is the strip of the plinth's roof it screws to.
 

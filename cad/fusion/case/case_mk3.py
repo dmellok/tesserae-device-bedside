@@ -416,21 +416,32 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
-# The access cover is screwed to the plinth: a flat tab at the foot of each side lies on the plinth's roof, and an M3 x 8 goes down through it into a boss
-# under the roof. Nothing on the cover reaches through the opening in the rear shell's back wall, because the driver HAT stands just inside it.
+# The access cover is screwed to the plinth: a low shoulder down each side stands on the plinth's roof, and an M3 x 8 goes down through it into a boss
+# under the roof, its head in a recess like every other screw on the outside. Nothing on the cover reaches through the opening in the rear shell's back
+# wall, because the driver HAT stands just inside it. The hump is ribbed over the top and down the back at the pitch of the rear shell's slats.
 # History: R1 and R2 had tabs inside the hump that no finger could reach. R3, R4, R7 and R8 gripped the edges of the opening with hooks on sprung strips
 # cut from the cover's sides, released by squeezing: as built, the hooks ran into the driver HAT. R5 and R6 had both hooks and screws and were never printed.
-# R9 has the screws alone. The cover prints top down, and the two tabs, 13 mm above the bed, need support.
-CVX, CVR, CVT, CVY = 4.5, 5.0, 3.0, 64.0        # the screw tabs: how far the screw is from the side wall, the radius of the tab's rounded end, its thickness, and where it is front to back (y)
+# R9 has the screws alone; it was first drawn plain, with a flat tab on each side and the screw heads standing on them. The cover prints top down, and
+# the two shoulders, 10.8 mm above the bed, need support.
+CVX, CVW, CVH, CVY = 4.5, 10.5, CB + SEAT, 64.0      # the shoulders: how far the screw is from the hump's side wall, their width, their height, and where the screw is front to back (y)
+RIB_N, RIB_P, RIB_W, RIB_D = 13, 4.5, 2.0, 1.0   # the grooves in the hump: how many, their pitch and width (the rear shell's slats are 2 mm at 4.5), and their depth
 def cover_screws(): return [(BU0 - CVX, CVY), (BU1 + CVX, CVY)]
+def cover_block(u0, u1, ztop, off=0.0):
+    # a block standing on the plinth's roof against the back of the shell, with the hump's lean and chamfers; off shrinks its top, sides and back
+    s = INTER(box(u0 + off, -80, ZP, u1 - off, 200, ztop - off), obox(-50, -300, WSO + G, 300, 500, WBT - off))
+    yb = (WBT + (ztop - 12)*S)/C; back = F(0, 0, WBT)
+    return SUB(s, [chamo((0, yb, ztop), ZU, W_, EC, off), chamo((u0, 0, ztop), XL, ZU, EC, off), chamo((u1, 0, ztop), XR, ZU, EC, off),
+                   chamo((u0, back[1], back[2]), XL, W_, EC, off), chamo((u1, back[1], back[2]), XR, W_, EC, off)])
 def cover():
     # beige: the hump behind the rear shell, as a separate cover over the driver stack. It sits on the plinth's roof against the back of the shell and is held by two screws.
     c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
-    add = []
-    for sgn, uo in ((-1, BU0), (1, BU1)):
-        ue = uo + sgn*CVX                    # a flat with a rounded end, lying on the plinth's roof; the screw's head sits on top of it
-        add += [box(min(uo, ue), CVY - CVR, ZP, max(uo, ue), CVY + CVR, ZP + CVT), cyl((ue, CVY, ZP), (ue, CVY, ZP + CVT), CVR)]
-    return SUB(U([c] + add), [cyl((x, y, ZP - 1), (x, y, ZP + CVT + 1), 1.7) for x, y in cover_screws()])
+    # a step down each side, the full depth of the hump, so the cover reads as a stepped block and not a box with ears
+    steps = SUB(cover_block(BU0 - CVW, BU1 + CVW, ZP + CVH), [box(BU0 + 1, -80, ZP - 1, BU1 - 1, 200, ZP + CVH + 1)])
+    # grooves over the top and down the back as far as the top of the steps, like the slats on the top left of the rear shell
+    r0 = (BU0 + BU1)/2 - ((RIB_N - 1)*RIB_P + RIB_W)/2
+    ribs = SUB(U([box(r0 + RIB_P*i, -80, ZP + CVH, r0 + RIB_P*i + RIB_W, 200, ZB + 1) for i in range(RIB_N)]), [cover_block(BU0, BU1, ZB, RIB_D)])
+    holes = [cyl((x, y, ZP - 1), (x, y, ZP + CVH + 1), 1.7) for x, y in cover_screws()] + [cyl((x, y, ZP + SEAT), (x, y, ZP + CVH + 1), CBR) for x, y in cover_screws()]
+    return SUB(U([c, steps]), [ribs] + holes)
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)
@@ -455,7 +466,7 @@ def screws():
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])
-    add('Cover', [screw((x, y, ZP + CVT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])         # M3 x 8 down through the access cover's tabs into the plinth's roof
+    add('Cover', [screw((x, y, ZP + SEAT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])        # M3 x 8 down through the access cover's shoulders into the plinth's roof, heads in recesses
     add('Frame', [screw((x, y, CB), (0, 0, 1), 12.0, 1.5, 2.75, 3.0) for x, y in FS] + [screw((x, y, CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in HS])                # M3 x 12 up through the tray into the frame plate's foot, M3 x 8 into the gusset heels    # M2.5 x 8 down through the breakout
     return out
 def feet():
