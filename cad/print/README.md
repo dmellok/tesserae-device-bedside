@@ -32,7 +32,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r3.stl` | Access cover | Top down |
+| `6-access-cover-beige-r4.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -74,9 +74,14 @@ Access cover revisions:
   with the hook on the inside of its front end. Squeeze the two sides of the cover near the front and both hooks leave the edges of the opening;
   the cover then lifts straight back. Each hook's back face is a 45 degree ramp that crosses the back of the shell's wall, so the wall's inner
   corner sits on it and pulls the cover onto the shell with no play. The hook stands 1.2 mm past the edge; unsqueezed, the cover takes about
-  11 N to pull off in PLA. Prints top down with no support: each strip's first layer is a 22 mm bridge from its root to a small pip across the
-  front of the slit. Cut or snap the two pips once the print is off the bed, or the sides will not squeeze. `../test-fits/13a-access-cover.stl`
-  is the same cover; print `13b-access-cover-opening.stl` to try its grip without the rear shell.
+  11 N to pull off in PLA. Printed top down with no support, the hooks tapering at 45 degrees. Still slightly loose, and it rode up off the
+  plinth, because the tapered hooks left room under the top of the opening.
+- R4: the prong in front of the cover's face is the full height of the opening (0.25 mm under its top edge), so the cover cannot ride up; inside
+  the shell the right prong stops at z 75.5, short of the HAT's 13-pin header. Both prongs are splayed 3 degrees outwards, which puts the barb
+  0.3 mm further past the edge and the wall's corner 0.85 mm onto the ramp instead of 0.55 mm. Prints top down. Each strip's first layer is still a
+  22 mm bridge to a pip across the front of its slit: cut or snap the two pips after printing, or the sides will not squeeze. The two prongs now
+  need support from the bed; they start 2.75 mm up, outside the cover. `../test-fits/13a-access-cover.stl` is the same cover; print
+  `13b-access-cover-opening.stl` to try its grip without the rear shell.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. Decoration like this does not change a part's revision.
