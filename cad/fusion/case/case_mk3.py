@@ -29,8 +29,8 @@ def bezel():
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
-def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room for the lower speaker nut beside the front-left post
-def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # room for the ends of the speaker's M4 x 10 screws past their nuts
+def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room beside the front-left post for the lower speaker screw's head (first drawn for a nut there)
+def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # from when the speaker's screws were M4 x 10 with their ends here; now their heads sit short of it, and it is left so the printed parts stay as they are
 R3, R25, R2 = 1.3, 1.075, 0.9                 # holes the M3, M2.5 and M2 screws cut their own thread in: 2.6, 2.15 and 1.8 mm. From test prints: an M2 would not start in 1.6 mm with no chamfer, was loose in 1.9 mm, and an M2.5 was tight but held in 1.9 mm. In the printed frame plate (R3) an M2 was too tight in 1.7 mm, so from R4 it is 1.8.
 def lead(p, d, r): return cone(vadd(p, d, -0.05), r + 0.55, vadd(p, d, 0.5), r)      # a 0.5 mm chamfer at a hole's mouth p, where d points into the hole, so the screw finds it and starts square
 nW_ = tuple(-x for x in W_)
@@ -491,7 +491,7 @@ def screws():
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in PBU for v in PBV])   # M2 x 6, power and amp board
     add('Adapter', [screw(F(u, v, FAZ + 1.6), nW, 6.0, 1.0, 2.25, 1.6) for u in FAU for v in FAV])   # M2.5 x 6, flex adapter
     add('Key', [screw(F(u0, 179.5, 26.05), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95)])   # M2.5 x 8 down through the NeoKey's two back holes
-    add('Speaker', [U([screw((21.1, y, z), (-1, 0, 0), 10.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (21.1, y, z), 4.5), cyl((12.0, y, z), (15.0, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 10 with two washers under the head and a nut behind the baffle
+    add('Speaker', [U([screw((15.0, y, z), (1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (22.7, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 from behind the baffle, head towards the grille, with the nut on the speaker's lug and no washers: as built. An M4 x 10 put in from the speaker's side, with washers and the nut behind the baffle, did not go together
     add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])

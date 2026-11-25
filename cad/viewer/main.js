@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261125i';
+  const DATA_V = '20261125j';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -461,7 +461,7 @@ const BUILD = [
   ['Key module', ['Adafruit NeoKey 1x4 QT', 'Cherry MX Brown switches', 'Key module screws, M2.5 x 8'], along(VN, 120)],
   ['Rotary encoder', ['Adafruit I2C rotary encoder'], [-70, 60, 0]],
   ['Base tray', ['Base tray'], [0, 0, -130], 'Frame onto the base tray'],                 // the tray waits below, on the bench, until the frame goes onto it
-  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40], 'Frame onto the base tray'],      // onto the tray before the tray meets the plate: its bolts are hard to reach afterwards
+  ['Speaker', ['Visaton FRS 5 X speaker', 'Speaker screws and nuts, M4'], [90, 40, 40], 'Frame onto the base tray'],      // onto the tray before the tray meets the plate: its screws are hard to reach afterwards
   ['Frame onto the base tray', ['Frame screws, M3'], [0, 0, -130]],
   ['Battery', ['LiPo battery, 4400 mAh'], [0, 70, 110]],
   ['USB-C inlet and power switch', ['USB-C power inlet', 'USB-C inlet screws, M2.5 x 8', 'Power switch'], [0, 130, 40]],
@@ -743,7 +743,7 @@ const DETAILS = {
   'Power board screws, M2 x 6': 'Four, one per corner.',
   'Flex adapter screws, M2.5 x 6': 'Four, one per corner, into whichever holes in the rails let the flex reach.',
   'Key module screws, M2.5 x 8': 'Two, down through the back holes of the NeoKey into the fins. The front holes sit on pegs.',
-  'Speaker screws and nuts, M4': 'Two, through the lugs and the baffle. M4 x 8, or on MK III M4 x 10 with two washers under each head.',
+  'Speaker screws and nuts, M4': 'Two M4 x 8, through the baffle and the lugs. On MK III they go in from behind the baffle, with the nuts on the speaker\'s lugs and no washers.',
   'USB-C inlet screws, M2.5 x 8': 'Two, down into the pedestal.',
   'Panel foam tape': 'Single-sided EVA foam, 2 mm thick and 5 mm wide, stuck to the front of the frame plate by its blue side. It presses the edges of the glass against the bezel without gluing it.',
   'Rubber feet': 'Four self-adhesive pads, 12 mm across and 2 mm thick, stuck to the flat underside of the base tray. Bought, not printed.',
@@ -939,7 +939,7 @@ function screwSize(part, long) {
   const mk3 = (part.variants || []).includes('mk3');
   if (part.name.startsWith('Bezel screws')) return mk3 ? 'M2.5 x 8' : 'M3 x 8';
   if (part.name.startsWith('Base screws')) return mk3 ? 'M3 x 16' : 'M3 x 12';
-  if (part.name.startsWith('Speaker screws')) return mk3 ? 'M4 x 10' : 'M4 x 8';
+  if (part.name.startsWith('Speaker screws')) return 'M4 x 8';
   if (part.name.startsWith('Frame screws')) return mk3 && long > 15 ? 'M3 x 12' : 'M3 x 8';      // the four in the plate's foot are the long ones
   return (/M[\d.]+/.exec(part.name) || ['?'])[0];
 }
