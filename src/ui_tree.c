@@ -308,7 +308,7 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case A_RESTART:   snprintf(b, n, s_armed == A_RESTART ? "Press again to restart" : "Restarts the panel; it asks twice"); break;
     case C_RESET:     snprintf(b, n, "Back to factory settings; it asks first"); break;
     case T_SPEAKER:   snprintf(b, n, "Plays through the speaker"); break;
-    case T_KNOBCLICK: snprintf(b, n, "A tick for each step of the knob, at the volume"); break;
+    case T_KNOBCLICK: snprintf(b, n, "A quiet tick for each step of the knob"); break;
     case C_SPK_PRESET: snprintf(b, n, "A starting point; the bands below fine-tune it"); break;
     case S_EQ:        snprintf(b, n, "Five bands, 80 Hz to 7 kHz, and the level"); break;
     case V_SPK_EQ:    snprintf(b, n, "Boost or cut around %s", SPK_EQ_NAMES[r->arg]); break;

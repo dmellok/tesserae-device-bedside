@@ -2,7 +2,7 @@
  * click.h: the knob's click, a 4 ms tick mixed into the speaker's output
  *
  * The knob is silent to turn in the dark; with Settings > Speaker > Knob click
- * on, each detent ticks. It is added where the samples leave for the speaker
+ * on, each detent ticks, always quietly (CLICK_LEVEL in audio.h), whatever the volume. It is added where the samples leave for the speaker
  * (src/audio.c's I2S buffers, the simulator's audio queue), after the sound
  * generator and its ring, so it is as close to the turn as the output buffer
  * allows: about a tenth of a second on the device.

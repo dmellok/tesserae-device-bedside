@@ -133,8 +133,8 @@ the knob presses (it goes by itself after 10 minutes); in the standard theme
 with a card. A failed update uses the same dialog. `crash=test` on the command
 interface restarts the panel as after an error; `crash=fault` takes a real one.
 
-Settings > Speaker > Knob click (off by default) ticks from the speaker for
-each step of the knob. The Software page shows the highlighted release's notes
+Settings > Speaker > Knob click (off by default) ticks quietly from the speaker
+for each step of the knob, whatever the volume. The Software page shows the highlighted release's notes
 beside the list, and an update's card has a progress bar; each download is
 tried four times before the update is given up.
 

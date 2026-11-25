@@ -208,7 +208,7 @@ void on_input(input_event_t e)
     case IN_TURN:
         /* the whole delta at once: the UI scales it by how fast it came */
         if (local_state()->knob_click && local_state()->speaker)
-            for (int k = abs(e.value) > 3 ? 3 : abs(e.value); k > 0; k--) audio_click(local_state()->vol);
+            for (int k = abs(e.value) > 3 ? 3 : abs(e.value); k > 0; k--) audio_click(CLICK_LEVEL);
         if (!local_turn(e.value)) run_binding(e.value > 0 ? CONFIG_BIND_KNOB_CW : CONFIG_BIND_KNOB_CCW);
         local_flush();
         break;
