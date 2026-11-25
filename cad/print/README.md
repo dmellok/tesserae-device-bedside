@@ -16,6 +16,30 @@ The viewer's "Key marks" option shows each arrangement. Print `../test-fits/15-k
 one, two and three notches (tight, as modelled, loose). Push each onto a switch and say which one holds firmly without forcing; the keycaps use
 the two-notch size.
 
+### All of them on one plate
+
+`keycaps-set-grey.stl` and `keycaps-set-orange.stl` are the same plate of 30 caps, one file for each filament: every mark above, and 24 caps with a
+picture sunk into the top in place of a mark. The plate is 125 x 112 mm, about 27 cm3 of plastic, and needs no supports. Each cap is a separate
+piece, so in the slicer the plate can be split into objects and any cap left out. Print the grey one for the three grey keys and the orange one for
+the menu key, and fit whichever caps suit.
+
+The pictures are Phosphor Bold icons, the set the screen draws with, 0.5 mm deep with lines 1.3 mm wide. In the slicer, seen from above, the
+plate reads like this (the caps lie top down, so the pictures are on the underside and mirrored):
+
+| Row | Left to right |
+|---|---|
+| 1 | plain, 1 dot, 2 dots, 3 dots, 4 dots, bar |
+| 2 | caret up, caret down, check, back arrow, list (menu), house |
+| 3 | minus, plus, play/pause, speaker, speaker muted, music notes |
+| 4 | lightbulb, rain cloud, snowflake, fan, thermometer, power |
+| 5 | moon, sun, alarm clock, bell, timer, gear |
+
+`../renders/keycap-sets.png` shows the tops as they look on the keys. The smallest details, such as the glint in the lightbulb and the dot beside
+the thermometer, are under 1 mm and may fill in.
+
+`../fusion/case/keycap_plates.py` makes both files from the single keycap files and `tools/Phosphor-Bold.ttf`. It runs in plain Python, not in
+Fusion, and needs fonttools, manifold3d and numpy; the rows and icons are a list at its top.
+
 ## Knob
 
 `knob.stl` is the knob for the rotary encoder: 32 mm across, 12 mm long, straight knurl. It prints outer face down with no supports and pushes onto
