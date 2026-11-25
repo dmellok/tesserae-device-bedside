@@ -14,6 +14,7 @@ static void snapshot(void)
     P.banner = tune_banner;
     memcpy(P.text, banner_text, sizeof P.text);
     if (P.content == CONTENT_BOOT) P.boot = s_boot;
+    screens_theme_build();
     local_snapshot();
 }
 

@@ -249,17 +249,64 @@ void build_overlay(layer_t *l)
 /* ---- confirmations: a box over everything, then the screen as it was ------------
  * A key action or a volume change on the home screen says what it did for
  * 1.5 s; the dashboard underneath is repainted from the frame in PSRAM. */
-static char s_toast_txt[24], s_toast_val[44];
+static char s_toast_txt[40], s_toast_val[44], s_alert_code[40];
 static const char *s_toast_icon;
+static bool s_toast_alert;               /* the card up is the System 7 theme's system error dialog */
+
+static void alert_mark(uint8_t mode) { mark(ALERT_X - 32, ALERT_Y - 32, ALERT_W + 64, ALERT_H + 64, mode); }
 
 void toast(const char *icon, const char *txt, const char *val)
 {
+    if (s_toast_alert) { s_toast_alert = false; alert_mark(IT8951_MODE_GL16); }   /* the dialog was larger than a card */
     s_toast_icon = icon;
     snprintf(s_toast_txt, sizeof s_toast_txt, "%s", txt);
     snprintf(s_toast_val, sizeof s_toast_val, "%s", val ? val : "");
     s_toast_until = (now_ms() + 3000u) | 1u;          /* long enough to read from the pillow */
     rebuild();
     mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, crisp() ? IT8951_MODE_DU : IT8951_MODE_GL16);
+}
+
+/* Something went wrong with the system itself. The System 7 theme has its
+ * dialog for that: the bomb, "Sorry, ...", what happened, and an OK button
+ * that any key or the knob presses (it also goes by itself after s7_ms: this
+ * is a clock, and has to become one again). The standard theme shows its
+ * card: the title, and the code or the line. */
+void alert(const char *icon, const char *title, const char *s7_title, const char *line, const char *code, uint32_t std_ms, uint32_t s7_ms)
+{
+    if (!code) code = "";
+    if (!sys7()) {
+        toast(icon, title, code[0] ? code : line);
+        s_toast_until = (now_ms() + std_ms) | 1u;
+        return;
+    }
+    toast(S7_BOMB, s7_title, line);
+    snprintf(s_alert_code, sizeof s_alert_code, "%s", code);
+    s_toast_alert = true;
+    s_toast_until = (now_ms() + s7_ms) | 1u;
+    rebuild();
+    alert_mark(IT8951_MODE_GL16);
+}
+
+/* The card's time is up, or the dialog's button was pressed: the page under it again. */
+void toast_gone(void)
+{
+    bool was = s_toast_alert;
+    s_toast_until = 0; s_toast_alert = false;
+    rebuild();
+    if (was) alert_mark(IT8951_MODE_GL16);
+    else mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, IT8951_MODE_GL16);
+}
+/* ui_menu.c, on any key or the knob: true when that pressed the dialog's OK. */
+bool alert_dismiss(void)
+{
+    if (!s_toast_alert || !s_toast_until) return false;
+    toast_gone();
+    return true;
+}
+
+void local_system_error(const char *code)
+{
+    alert(ICON_GEAR, "Restarted after an error", "Sorry, a system error occurred.", "Bedside restarted itself.", code, 20000u, 600000u);
 }
 
 static bool s_toast_loading;
@@ -307,7 +354,7 @@ void local_ota_service(void)
             last_pct = pct;
         }
     } else if (st == OTA_FAILED && last != OTA_FAILED) {
-        s_toast_loading = false; toast(ICON_GEAR, "Update failed", ota_error()); last_pct = -1;
+        s_toast_loading = false; alert(ICON_GEAR, "Update failed", "Sorry, the update failed.", ota_error(), "", 3000u, 120000u); last_pct = -1;
     }
     last = st;
     if (!S.auto_update || ota_busy()) return;
@@ -327,16 +374,38 @@ void local_frame_arrived(void)
     s_toast_loading = false; s_toast_until = 0; rebuild();
 }
 
+/* The system error dialog: the bomb, two lines beside it, the code at the
+ * bottom left and the default button at the bottom right. */
+static void build_alert(layer_t *l)
+{
+    const int x = ALERT_X, y = ALERT_Y, w = ALERT_W, h = ALERT_H, in = 14 * U;
+    layer_reset(l, x - 32, y - 32, w + 64, h + 64, G_WHITE);
+    s7_dialog(l, x, y, w, h);
+    op_text(l, x + in, y + 11 * U, F_IXL, G_BLACK, S7_BOMB);
+    int tx = x + in + F_IXL->line_h + 12 * U;
+    op_text(l, tx, y + 16 * U, F_M, G_BLACK, s_toast_txt);
+    op_text(l, tx, y + 16 * U + F_M->line_h + 4 * U, F_M, G_BLACK, s_toast_val);
+    const int bw = 62 * U, bh = 22 * U, bx = x + w - in - bw, by = y + h - 13 * U - bh;
+    s7_button(l, bx, by, bw, bh, true);
+    op_text_c(l, bx + bw / 2, by + (bh - F_M->line_h) / 2, F_M, G_BLACK, "OK");
+    op_text(l, x + in, by + (bh - F_S->line_h) / 2, F_S, G_BLACK, s_alert_code);
+}
+
 void build_toast(layer_t *l)
 {
+    if (s_toast_alert && sys7()) { build_alert(l); return; }
     /* A rounded card: big icon on the left, the label above, the state large. */
     layer_reset(l, TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, G_WHITE);
-    op_rrect(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H, 44, G_BLACK);
-    op_rrect(l, TOAST_X + 6, TOAST_Y + 6, TOAST_W - 12, TOAST_H - 12, 38, G_WHITE);
+    bool s7 = sys7();                        /* System 7: an alert's double frame, the icon as it is */
+    if (s7) s7_dialog(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H);
+    else {
+        op_rrect(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H, 44, G_BLACK);
+        op_rrect(l, TOAST_X + 6, TOAST_Y + 6, TOAST_W - 12, TOAST_H - 12, 38, G_WHITE);
+    }
     int cy = TOAST_Y + TOAST_H / 2, x = TOAST_X + 72;
     if (s_toast_icon) {
-        op_circle(l, x + 105, cy, 118, CARD_GREY);
-        op_text_c(l, x + 105, cy - icon170.line_h / 2, &icon170, G_BLACK, s_toast_icon);
+        if (!s7) op_circle(l, x + 105, cy, 118, CARD_GREY);
+        op_text_c(l, x + 105, cy - F_IXL->line_h / 2, F_IXL, G_BLACK, s_toast_icon);
         x += 210 + 64;
     }
     int ty = cy - (F_M->line_h + 8 + F_XL->line_h) / 2;

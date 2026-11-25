@@ -69,6 +69,7 @@ typedef struct {
     int  wf_temp;                      /* waveform temperature forced on the controller, C; 0 = the firmware default (20) */
     bool turn_hints;                   /* menus: the turns needed to reach each row, beside it */
     bool large_text;                   /* menus: one size up (60 px rows, 8 to a page) */
+    int  theme;                        /* how the panel's own pages look: 0 standard, 1 System 7 (ui_theme.c) */
     bool quick_menus;                  /* menus: knob steps paint black-and-white (fast), full quality once the knob rests */
     bool quick_a2;                     /* ...with the A2 waveform in the menus (API quick_a2, experiments only): faster, but on this panel it left old ink under new */
     int  load_1bpp;                    /* two-level loads one bit per pixel: 0 off, 1 on, 2 on with the bits inverted (experimental, it8951.h) */
@@ -97,6 +98,20 @@ typedef struct {
 typedef struct { int x, y, w, h; uint8_t mode; bool full; } local_dirty_t;
 
 void local_init(void);
+/* The theme (ui_theme.c). local_theme_boot() reads the stored one before the
+ * first paint (local_init() comes after the boot screen is up). In the System
+ * 7 theme the boot, setup and update screens are drawn its way: the caller
+ * builds the screen on core 0 whenever it is about to be painted, and its row
+ * function asks local_s7_screen_row() first, which is false when the standard
+ * screen should be drawn. */
+void local_theme_boot(void);
+/* The last run ended in a system error and the panel restarted itself: say so
+ * (the System 7 theme's bomb dialog; a card in the standard theme). */
+void local_system_error(const char *code);
+void local_s7_boot(const char *sub, const char *lines, int n, int stride);
+void local_s7_setup(bool updating, const char *ssid, const char *why, const char *fw, bool failed);
+void local_s7_screen_off(void);
+bool local_s7_screen_row(int y, uint8_t row[IT8951_ROW_BYTES]);
 /* The PowerBoost's readings (power.h), when battery backup is fitted. */
 void local_power(bool on_battery, int pct, bool low);
 local_state_t *local_state(void);

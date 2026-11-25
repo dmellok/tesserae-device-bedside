@@ -57,8 +57,8 @@ void build_live_clock(layer_t *l)
     char b[96], c[96];
     clock_text(b, sizeof b, NULL);
     int y = TB_H + 150;
-    clock_slots(l, (W - clock_slots(NULL, 0, 0, &num270, G_BLACK, b)) / 2, y, &num270, G_BLACK, b);
-    y += num270.line_h + 90;
+    clock_slots(l, (W - clock_slots(NULL, 0, 0, F_HUGE, G_BLACK, b)) / 2, y, F_HUGE, G_BLACK, b);
+    y += F_HUGE->line_h + 90;
     int h, m, early; int32_t delta;
     if (live_alarm(&h, &m, &early, &delta)) {
         int cm = ((h * 60 + m - early) % 1440 + 1440) % 1440;
@@ -102,7 +102,7 @@ void build_live_weather(layer_t *l)
     op_rrect(l, rx, y, rw, ch, 36, 0xE);
     card_title(l, rx, y, rw, ICON_CLOUD_RAIN, "Chance of rain", false, NULL);
     clock_text(b, sizeof b, NULL);                              /* the time, small, in the title row */
-    clock_slots(l, rx + rw - 40 - clock_slots(NULL, 0, 0, F_XL, G_BLACK, b), y + 12, F_XL, G_BLACK, b);
+    clock_slots(l, rx + rw - 40 - clock_slots(NULL, 0, 0, F_XL, G_BLACK, b), y + (sys7() ? 66 : 12), F_XL, G_BLACK, b);   /* System 7: under the window's title bar */
     int vals[8], nv = 0;
     for (const char *p = live_val(LV_RAIN); *p && nv < 8; ) {
         while (*p == ' ' || *p == ',' || *p == '[') p++;
@@ -143,7 +143,7 @@ void build_live_tonight(layer_t *l)
     layer_reset(l, 0, TB_H, W, BODY_H, G_WHITE);
     char b[96], c[96]; int sec;
     clock_text(b, sizeof b, &sec);
-    clock_slots(l, 68, TB_H + 40, &clock214, G_BLACK, b);
+    clock_slots(l, 68, TB_H + 40, F_CLOCK, G_BLACK, b);
     int h, m, early; int32_t delta; bool alarm = live_alarm(&h, &m, &early, &delta);
     int am = h * 60 + m, cm = ((am - early) % 1440 + 1440) % 1440, xr = W - 68;
     if (alarm) snprintf(c, sizeof c, "%02d:%02d", h, m); else snprintf(c, sizeof c, "No alarm");

@@ -21,9 +21,9 @@
 
 mode_t_ s_mode = M_HOME;
 /* Large text (Settings > Display): the menu type one size up, rows 137 px, eight to a page. */
-const bfont_t *mf_s(void)   { return S.large_text ? &ui34 : F_S; }
-const bfont_t *mf_lbl(void) { return S.large_text ? &ui46 : F_LBL; }
-const bfont_t *mf_m(void)   { return S.large_text ? &ui60 : F_M; }
+const bfont_t *mf_s(void)   { return S.large_text ? F_LBL : F_S; }
+const bfont_t *mf_lbl(void) { return S.large_text ? F_M : F_LBL; }
+const bfont_t *mf_m(void)   { return S.large_text ? F_ML : F_M; }
 /* Crisp menus: everything the menus draw is black or white, so the panel's
  * two-level mode (DU: no flash, ~0.45 s) can paint them exactly: opening,
  * stepping, choices, sliders. GC16 (which flashes its whole rectangle and
@@ -103,8 +103,10 @@ void build_top(layer_t *l, bool inv)
 {
     uint8_t fg = inv ? G_WHITE : G_BLACK, bg = inv ? G_BLACK : G_WHITE, dim = inv ? G_LIGHT : DIM_G;
     (void)dim;
+    bool s7 = sys7();                       /* System 7: the menu bar, with the screen's rounded corners */
     layer_reset(l, 0, 0, W, TB_H, bg);
-    op_fill(l, 0, TB_H - 4, W, 4, inv ? G_DARK : G_BLACK);
+    op_fill(l, 0, TB_H - (s7 ? U : 4), W, s7 ? U : 4, inv ? G_DARK : G_BLACK);
+    if (s7 && !inv) s7_corners(l, true);
     const char *title = "";
     if (S.phase == PHASE_RINGING) title = s_date;
     else if (s_mode == M_HOME) title = s_date;     /* which rotation page is showing is the server's to say */
@@ -118,7 +120,8 @@ void build_top(layer_t *l, bool inv)
         const char *ic, *lab; key_role(i, &ic, &lab);
         uint8_t g = i == 3 ? fg : dim;
         op_fill(l, cx - 2, 0, 4, 16, g);
-        if (i == 3) op_frame(l, cx - 82, 20, 164, 112, 3, fg);
+        if (i == 3 && s7) { op_fill(l, cx - 81, 21, 162, 111, fg); g = bg; }     /* MENU, as a menu title held down */
+        else if (i == 3) op_frame(l, cx - 82, 20, 164, 112, 3, fg);
         if (ic) op_text_c(l, cx, 26, F_IM, g, ic);
         else if (lab[0] && s_mode != M_HOME) key_glyph(l, cx, 49, s_mode == M_VALUE ? 2 + i : i, g);
         if (lab[0]) op_text_c(l, cx, 82, draw_font_w(lf, lab) <= 150 ? lf : sf, g, lab);
@@ -157,12 +160,21 @@ static void switch_glyph(layer_t *l, int xr, int cy, bool on, bool selected)
 static void scroll_bar(layer_t *l, int total, int top, int shown)
 {
     if (total <= shown) return;
+    if (sys7()) { s7_vscroll(l, LIST_W + U - S7_SCROLL_W, TB_H - U, SB_Y - TB_H + U, total, top, shown); return; }
     int x = LIST_W - 12, y0 = LIST_Y + 8, h = shown * s_row_h - 16;
     op_fill(l, x + 3, y0, 2, h, crisp() ? G_BLACK : G_LIGHT);
     int th = h * shown / total; if (th < 48) th = 48;
     int ty = y0 + (h - th) * top / (total - shown);
     op_rrect(l, x, ty, 8, th, 4, G_BLACK);
 }
+
+/* The preview: the System 7 theme's window on the desktop, and the width its
+ * words have (the standard theme's is the half screen less `classic`). */
+#define PV_X  (LIST_W + 14 * U)
+#define PV_Y  (TB_H + 10 * U)
+#define PV_W  (W - LIST_W - 28 * U)
+#define PV_H  (SB_Y - TB_H - 20 * U)
+static int pv_room(int classic) { return W - LIST_W - (sys7() ? 170 : classic); }
 
 /* A split list: rows on the left, the highlighted row large on the right.
  * sw: a toggle's state per row (-1 none); total / top: the whole list, for the scroll bar. */
@@ -171,23 +183,35 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
                         const char *pv_icon, const char *pv_big, const char *pv_small)
 {
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_WHITE);
-    op_fill(l, LIST_W, TB_H, crisp() ? 2 : 3, SB_Y - TB_H, LIGHT_G);
+    /* System 7: the list is a menu pulled down over the desktop, and the
+     * highlighted row's preview is a window on it, named after the row. A list
+     * that scrolls gives its edge to a scroll bar. */
+    bool s7 = sys7();
+    int lw = s7 && total > n ? LIST_W + U - S7_SCROLL_W : LIST_W;
+    if (s7) {
+        op_pat(l, LIST_W + U, TB_H, W - LIST_W - U, SB_Y - TB_H, PAT_50, G_BLACK);
+        op_fill(l, LIST_W, TB_H, U, SB_Y - TB_H, G_BLACK);
+        s7_window(l, PV_X, PV_Y, PV_W, PV_H, WIN_ACTIVE);
+        s7_title(l, PV_X, PV_Y, PV_W, WIN_ACTIVE, NULL, sel >= 0 && sel < n ? labels[sel] : "", NULL);
+    } else op_fill(l, LIST_W, TB_H, crisp() ? 2 : 3, SB_Y - TB_H, LIGHT_G);
     const bfont_t *fm = mf_m(), *fl = mf_lbl(), *fs = mf_s();
     s_row_h = S.large_text ? (SB_Y - LIST_Y - 10) / 8 : n > 8 ? (SB_Y - LIST_Y - 10) / n : 116;
     for (int i = 0; i < n; i++) {
         int y = LIST_Y + i * s_row_h, cy = y + s_row_h / 2;
         bool s = (i == sel);
         uint8_t fg = s ? G_WHITE : G_BLACK, dim = s ? (crisp() ? G_WHITE : G_LIGHT) : DIM_G;
-        if (s) op_rrect(l, 16, y + 3, LIST_W - 32, s_row_h - 6, 28, G_BLACK);      /* a rounded bar with a margin */
-        else op_fill(l, MARGIN, y + s_row_h - 2, LIST_W - MARGIN - 30, crisp() ? 1 : 2, LIGHT_G);
+        if (s && s7) op_fill(l, 0, y, lw, s_row_h, G_BLACK);                       /* a menu's highlight: the whole row, edge to edge */
+        else if (s) op_rrect(l, 16, y + 3, LIST_W - 32, s_row_h - 6, 28, G_BLACK);      /* a rounded bar with a margin */
+        else if (!s7) op_fill(l, MARGIN, y + s_row_h - 2, LIST_W - MARGIN - 30, crisp() ? 1 : 2, LIGHT_G);
         int x = MARGIN;
         if (icons && icons[i]) { op_text(l, x, cy - F_IR->line_h / 2, F_IR, dim, icons[i]); x += 80; }
         /* the trailing side first, so the label knows how much room it has */
-        int xr = LIST_W - 40;
+        int xr = lw - 40;
         if (chev && chev[i]) { xr -= draw_font_w(F_I, ICON_CARET_RIGHT); op_text(l, xr, cy - F_I->line_h / 2, F_I, dim, ICON_CARET_RIGHT); xr -= 18; }
         if (check && check[i]) { xr -= draw_font_w(F_IM, ICON_CHECK); op_text(l, xr, cy - F_IM->line_h / 2, F_IM, fg, ICON_CHECK); xr -= 18; }
         bool is_sw = sw && sw[i] >= 0;
-        if (is_sw) { switch_glyph(l, xr, cy, sw[i] == 1, s); xr -= 92 + 18; }
+        if (is_sw && s7) { s7_checkbox(l, xr, cy, sw[i] == 1, s); xr -= 12 * U + 18; }
+        else if (is_sw) { switch_glyph(l, xr, cy, sw[i] == 1, s); xr -= 92 + 18; }
         int vw = (!is_sw && vals && vals[i][0]) ? draw_font_w(fl, vals[i]) : 0;
         const bfont_t *lf = fm;
         if (x + draw_font_w(lf, labels[i]) + 24 > xr - vw) lf = F_M;        /* large text: a long label drops a size rather than run into its value */
@@ -200,10 +224,10 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
     }
     s_list_n = n;
     scroll_bar(l, total, top, n);
-    int cx = LIST_W + (W - LIST_W) / 2, y = TB_H + 150;
-    if (pv_icon) { op_text_c(l, cx, y, &icon170, G_BLACK, pv_icon); y += icon170.line_h + 30; }
-    const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < W - LIST_W - 80 ? F_NUM : F_XL;
-    if (draw_font_w(bf, pv_big) > W - LIST_W - 80) bf = fm;
+    int cx = LIST_W + (W - LIST_W) / 2, y = TB_H + 150, room = pv_room(80);
+    if (pv_icon) { op_text_c(l, cx, y, F_IXL, G_BLACK, pv_icon); y += F_IXL->line_h + 30; }
+    const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < room ? F_NUM : F_XL;
+    if (draw_font_w(bf, pv_big) > room) bf = fm;
     op_text_c(l, cx, y, bf, G_BLACK, pv_big); y += bf->line_h + 18;
     if (pv_small[0]) { op_text_c(l, cx, y, fl, DIM_G, pv_small); y += fl->line_h; }
     return y;
@@ -253,13 +277,13 @@ void build_list(layer_t *l)
     if (r->kind == K_SUB && r->id == S_ALARM_ITEM) snprintf(big, sizeof big, "%s", r->label);
     if (r->id == I_STATUS) { if (S.on_battery) snprintf(big, sizeof big, "Battery %d%%", S.batt_pct); else snprintf(big, sizeof big, "Mains"); }
     if (r->id == A_SOMA) snprintf(big, sizeof big, "%.22s", radio_soma(r->arg)->title);
-    fit_line(small, sizeof small, mf_lbl(), W - LIST_W - 60);
+    fit_line(small, sizeof small, mf_lbl(), pv_room(60));
     if (nd == N_WIZARD) {
         /* setup: the step's heading and what it is for; what the highlighted row does under it */
         int y = build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, wizard_icon(), wizard_heading(), "");
         char intro[200]; wizard_intro(intro, sizeof intro);
-        y = wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 6, mf_lbl(), G_BLACK, intro, W - LIST_W - 120, 5);
-        wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 40, mf_lbl(), DIM_G, small, W - LIST_W - 120, 2);
+        y = wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 6, mf_lbl(), G_BLACK, intro, pv_room(120), 5);
+        wrap_c(l, LIST_W + (W - LIST_W) / 2, y + 40, mf_lbl(), DIM_G, small, pv_room(120), 2);
         return;
     }
     build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, r->icon, big, small);
@@ -272,13 +296,19 @@ void build_choice(layer_t *l)
     const char *labels[16]; bool check[16];
     for (int i = 0; i < shown; i++) { labels[i] = o[top + i]; check[i] = (top + i == cur); }
     char small[96]; row_desc(&s_edit_row, small, sizeof small);
-    fit_line(small, sizeof small, mf_lbl(), W - LIST_W - 60);
+    fit_line(small, sizeof small, mf_lbl(), pv_room(60));
     build_split(l, labels, NULL, NULL, NULL, check, NULL, shown, s_csel - top, n, top, NULL, o[s_csel], small);
 }
 
 void build_value(layer_t *l)
 {
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_WHITE);
+    bool s7 = sys7();                        /* System 7: a window on the desktop, the value on a scroll bar */
+    if (s7) {
+        op_pat(l, 0, TB_H, W, SB_Y - TB_H, PAT_50, G_BLACK);
+        s7_window(l, 20 * U, PV_Y, W - 40 * U, PV_H, WIN_ACTIVE);
+        s7_title(l, 20 * U, PV_Y, W - 40 * U, WIN_ACTIVE, NULL, s_edit_label, NULL);
+    }
     vmeta_t m = value_meta(s_edit);
     char t[24]; value_text(s_edit, t, sizeof t);
     /* the value: its number as large as the alarm clock, the unit beside it on the
@@ -298,9 +328,10 @@ void build_value(layer_t *l)
         if (tail) op_text(l, x + 24, y + F_NUM->ascent - mf_m()->ascent, mf_m(), DIM_G, tail);
     } else op_text_c(l, W / 2, y + F_NUM->ascent - F_XL->ascent, F_XL, G_BLACK, t);
     /* the bar right under it, a tick per step when there are few, the ends named */
-    int bx = MARGIN + 60, bw = W - 2 * bx, by = TB_H + 440, bh = 40, span = m.max - m.min ? m.max - m.min : 1;
-    int fx = (int)((long)bw * (m.v - m.min) / span);
-    if (crisp()) { op_rrect(l, bx, by, bw, bh, 20, G_BLACK); op_rrect(l, bx + 3, by + 3, bw - 6, bh - 6, 17, G_WHITE); }   /* a rounded outline: black and white only */
+    int bx = s7 ? 42 * U : MARGIN + 60, bw = W - 2 * bx, by = TB_H + (s7 ? 438 : 440), bh = s7 ? S7_SCROLL_W : 40, span = m.max - m.min ? m.max - m.min : 1;
+    int fx = s7 ? 0 : (int)((long)bw * (m.v - m.min) / span);
+    if (s7) s7_hscroll(l, bx, by, bw, m.v - m.min, span);
+    else if (crisp()) { op_rrect(l, bx, by, bw, bh, 20, G_BLACK); op_rrect(l, bx + 3, by + 3, bw - 6, bh - 6, 17, G_WHITE); }   /* a rounded outline: black and white only */
     else op_rrect(l, bx, by, bw, bh, 20, G_LIGHT);
     if (fx > 0) op_rrect(l, bx, by, fx < bh ? bh : fx, bh, 20, G_BLACK);
     int steps = span / (m.step > 0 ? m.step : 1), nt = steps <= 12 ? steps : 4;
@@ -410,6 +441,7 @@ bool local_turn(int d)
 {
     if (!d) return true;
     if (S.phase == PHASE_RINGING) { if (!inputs_knob_down()) snooze(); return true; }   /* a detent while the knob is pushed is wobble, not a snooze */
+    if (alert_dismiss()) return true;                     /* the system error dialog: anything presses its OK */
     int acc = accel_for(d);
     switch (s_mode) {
     case M_HOME: volume(d > 0 ? 1 : -1); return true;
@@ -443,6 +475,7 @@ bool local_press(void)
 {
     if (S.phase == PHASE_RINGING) { stop_alarm(); return true; }
     if (S.phase == PHASE_PREWAKE) { stop_prewake(); return true; }
+    if (alert_dismiss()) return true;
     switch (s_mode) {
     case M_HOME: if (S.wiz >= 0) wizard_open(); else push_node(N_ROOT); return true;   /* setup running: the knob goes back to it */
     case M_VALUE:
@@ -479,7 +512,7 @@ bool local_press(void)
                 wizard_goto(S.wiz + 1);
             } else if (r.id == A_WZ_LATER || r.id == A_WZ_DONE) {
                 wizard_finish();
-                if (r.id == A_WZ_DONE) toast(ICON_CHECK, "All set", "");
+                if (r.id == A_WZ_DONE) toast(FACE(S7_HAPPY, ICON_CHECK), "All set", "");
             } else if (r.id == A_WZ_RERUN) {
                 S.wiz = 0; wizard_open();
             } else if (r.id == A_REFRESH) {
@@ -520,6 +553,7 @@ bool local_press(void)
 bool local_back(void)
 {
     if (S.phase == PHASE_RINGING) { snooze(); return true; }
+    if (alert_dismiss()) return true;
     switch (s_mode) {
     case M_HOME: push_node(N_ROOT); return true;
     case M_VALUE: if (s_edit == V_ALARM_TIME) publish_alarm(s_ai); s_mode = M_LIST; mark_screen(); return true;
@@ -560,6 +594,7 @@ bool local_key(int i, bool hold)
 {
     if (i < 0 || i > 3) return false;
     if (S.phase == PHASE_RINGING) { snooze(); return true; }
+    if (alert_dismiss()) return true;
     if (i == 3) { if (hold) { if (s_mode != M_HOME) go_home(); return true; } return local_back(); }
     if (s_mode == M_HOME) return false;
     if (hold) return true;
@@ -601,7 +636,7 @@ bool local_action(const char *id)
     if (!strcmp(id, "alarm.toggle"))  { if (s_nalarms) { s_alarms[0].on = !s_alarms[0].on; publish_alarm(0); sync_alarm_summary(); } state_changed();
                                         char v[8]; if (S.alarm_on) alarm_txt(v, sizeof v); else snprintf(v, sizeof v, "Off");
                                         confirm(ICON_ALARM, "Alarm", v, 2); return true; }
-    if (!strcmp(id, "night"))         { toggle_flip(&R_T_NIGHT); state_changed(); toast(ICON_MOON, "Night mode", S.night ? "On" : "Off"); return true; }
+    if (!strcmp(id, "night"))         { toggle_flip(&R_T_NIGHT); state_changed(); toast(S.night ? FACE(S7_ASLEEP, ICON_MOON) : ICON_MOON, "Night mode", S.night ? "On" : "Off"); return true; }
     if (!strcmp(id, "light.night"))   { S.lights_on = true; S.light_mode = 1; S.bright = 10; publish("set/lights", "night 10%%"); state_changed(); confirm(ICON_LIGHTBULB, "Night light", "10%", 8); return true; }
     if (!strcmp(id, "dash.next"))     { dash_step(+1); return true; }
     if (!strcmp(id, "dash.prev"))     { dash_step(-1); return true; }

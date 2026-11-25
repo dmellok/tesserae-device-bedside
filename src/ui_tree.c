@@ -95,6 +95,7 @@ int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 5; i++) r[n++] = (row_def_t){ T_SHOW, K_TOGGLE, SHOW_L[i], SHOW_I[i], i };
         break; }
     case N_DISPLAY:
+        r[n++] = (row_def_t){ C_THEME, K_CHOICE, "Theme", NULL, 0 };
         r[n++] = (row_def_t){ C_CLOCKDU, K_CHOICE, "Clock updates", NULL, 0 };
         r[n++] = (row_def_t){ T_LARGE, K_TOGGLE, "Large text", NULL, 0 };
         r[n++] = (row_def_t){ A_REFRESH, K_ACTION, "Refresh now", NULL, 0 };
@@ -251,7 +252,8 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case V_BIRD_SOFT: snprintf(b, n, "Takes the edge off whistles and chirps"); break;
     case A_PREVIEW:   snprintf(b, n, s_preview_len_ms ? "Playing; press to stop" : "Plays the chorus building up"); break;
     case S_HOMESCR:   snprintf(b, n, "The overlay and the Live page"); break;
-    case S_DISPLAY:   snprintf(b, n, "Clock updates, text size, a refresh"); break;
+    case S_DISPLAY:   snprintf(b, n, "Theme, clock updates, text size"); break;
+    case C_THEME:     snprintf(b, n, "How the panel's own pages look"); break;
     case S_NIGHTG:    snprintf(b, n, "Night mode, when it comes on, the keys at night"); break;
     case S_KEYS:      snprintf(b, n, "What the keys do, their lights, the menus"); break;
     case S_SPEAKER:   snprintf(b, n, "On or off, presets, the equaliser, low cut, loud moments"); break;
@@ -469,6 +471,7 @@ int choice_opts(item_t id, const char *const **o)
     case C_OVERLAY:   *o = OVERLAYS; return 4;
     case C_ATNIGHT:   *o = ATNIGHT; return 2;
     case C_CLOCKDU:   *o = CLOCKDU; return 3;
+    case C_THEME:     *o = THEMES; return 2;
     case C_STATION: {                                   /* the presets with a URL, by name */
         static const char *names[RADIO_PRESETS]; int k = 0;
         for (int i = 0; i < radio_preset_count(); i++) { const radio_preset_t *p = radio_preset(i); names[i] = p->name[0] ? p->name : (p->url[0] ? p->url : "(empty)"); if (p->url[0]) k = i + 1; }
@@ -516,6 +519,7 @@ int choice_get(item_t id)
     case C_OVERLAY:   return S.overlay;
     case C_ATNIGHT:   return S.at_night;
     case C_CLOCKDU:   return S.clock_du;
+    case C_THEME:     return S.theme;
     case C_STATION:   return S.station;
     case C_NIGHTKEYS: return S.night_keys;
     case C_KEY_PRESS: case C_KEY_HOLD: {
@@ -564,6 +568,7 @@ void choice_set(item_t id, int k)
     case C_OVERLAY:   S.overlay = k; overlay_apply(); break;
     case C_ATNIGHT:   S.at_night = k; break;
     case C_CLOCKDU:   S.clock_du = k; break;
+    case C_THEME:     theme_set(k); break;
     case C_STATION:   S.station = k; S.rain_on = true; break;
     case C_NIGHTKEYS: S.night_keys = k; apply_colours(); break;
     case C_KEY_PRESS: case C_KEY_HOLD:

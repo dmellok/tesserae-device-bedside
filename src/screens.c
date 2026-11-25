@@ -85,8 +85,20 @@ bool boot_collect(void)
     return memcmp(&prev, &s_boot, sizeof prev) != 0;
 }
 
+/* The System 7 theme draws these screens its own way (ui_theme.c). Called on
+ * core 0 as a paint is handed over, with what the screen says now. */
+bool s_setup_failed;             /* setup mode because the saved WiFi could not be joined */
+void screens_theme_build(void)
+{
+    if (cur_content == CONTENT_BOOT) local_s7_boot(s_boot.sub, &s_boot.line[0][0], BOOT_LINES, (int)sizeof s_boot.line[0]);
+    else if (cur_content == CONTENT_SETUP) local_s7_setup(false, net_setup_ssid(), s_setup_why, "", s_setup_failed);
+    else if (cur_content == CONTENT_FLASHING) local_s7_setup(true, "", "", s_fw_version_line, false);
+    else local_s7_screen_off();
+}
+
 void boot_row(int y, uint8_t out[IT8951_ROW_BYTES], const boot_text_t *t)
 {
+    if (local_s7_screen_row(y, out)) return;
     memset(out, 0xFF, IT8951_ROW_BYTES);
     if (y >= BOOT_LOGO_Y && y < BOOT_LOGO_Y + boot_logo_h) {
         int x0 = BOOT_LOGO_X & ~1;
@@ -121,6 +133,7 @@ uint32_t s_setup_until;          /* restart to try the saved WiFi again (0: stay
 char s_fw_version_line[48];
 void setup_row(int y, uint8_t out[IT8951_ROW_BYTES])
 {
+    if (local_s7_screen_row(y, out)) return;
     memset(out, 0xFF, IT8951_ROW_BYTES);
     if (y >= BOOT_LOGO_Y && y < BOOT_LOGO_Y + boot_logo_h) {
         memcpy(out + (BOOT_LOGO_X & ~1) / 2, boot_logo + (size_t)(y - BOOT_LOGO_Y) * (boot_logo_w / 2), boot_logo_w / 2);

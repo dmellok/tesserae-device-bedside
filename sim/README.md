@@ -136,6 +136,14 @@ Test these on the device before a release:
 - **TLS speed:** handshakes take a fraction of the device's time.
 - **WiFi:** joining always succeeds. The setup page is served at
   `http://localhost:8080/` in setup mode, and the network list is made up.
+- **The setup and update screens:** `curl 'localhost:8080/api/cmd?showsetup'`
+  shows the WiFi setup screen (`showsetup=failed`: as when the saved WiFi
+  can't be joined; `showsetup=updating`: as during a USB flash). Restart to
+  leave it.
+- **The system error dialog:** `curl 'localhost:8080/api/cmd?crash=test'`
+  restarts the simulator as the panel restarts after a crash, and the dialog
+  comes up after the boot screen (the bomb in the System 7 theme). The fault
+  handler itself (`src/crash.c`) is not part of the simulator.
 - **Hardware faults:** I2C glitches, flash stalls, the battery and the
   speaker's tone stage.
 - **Timing:** the Mac is much faster than the RP2350 at everything except

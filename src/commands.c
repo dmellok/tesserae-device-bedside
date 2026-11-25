@@ -193,7 +193,17 @@ static void exec_command(const char *name, const char *value)
         if (got) { char head[121]; size_t n = got < 120 ? got : 120; memcpy(head, buf, n); head[n] = 0; for (size_t i = 0; i < n; i++) if (head[i] < 32 || head[i] > 126) head[i] = '.'; printf("https: %s\n", head); }
     }
     else if (!strcmp(name, "wifisetup")) { printf("rebooting into WiFi setup\n"); watchdog_hw->scratch[0] = SETUP_MAGIC; sleep_ms(200); watchdog_reboot(0, 0, 0); }
-    else if (!strcmp(name, "showsetup")) { snprintf(s_setup_why, sizeof s_setup_why, "Preview of the setup screen."); show_content(CONTENT_SETUP); }   /* diagnostics */
+    else if (!strcmp(name, "crash")) {                                       /* diagnostics: crash=test restarts as after a system error; crash=fault takes a real one (the device only) */
+#ifndef SIM
+        if (!strcmp(value, "fault")) { printf("crash: taking a fault\n"); sleep_ms(200); __builtin_trap(); }
+#endif
+        printf("crash: restarting as after a system error (a test)\n"); crash_record(CRASH_TEST, 0); sleep_ms(200); watchdog_reboot(0, 0, 0);
+    }
+    else if (!strcmp(name, "showsetup")) {                                   /* diagnostics: showsetup, showsetup=failed (the WiFi could not be joined), showsetup=updating */
+        s_setup_failed = !strcmp(value, "failed");
+        snprintf(s_setup_why, sizeof s_setup_why, s_setup_failed ? "Couldn't join \"Preview\". Trying it again in 5 minutes." : "Preview of the setup screen.");
+        show_content(!strcmp(value, "updating") ? CONTENT_FLASHING : CONTENT_SETUP);
+    }
     else if (!strcmp(name, "serial"))    console_input(value);
     else if (!strcmp(name, "enter"))     handle_key('\r');   /* the console's Enter: a knob press */
     else if (!strcmp(name, "spidrive"))  {     /* <mA>[f]: 2/4/8/12, 'f' = fast slew; re-inits the panel link */

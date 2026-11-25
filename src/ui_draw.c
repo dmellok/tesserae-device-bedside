@@ -18,14 +18,40 @@ static op_t *op_new(layer_t *l)
     return o;
 }
 
-void op_fill(layer_t *l, int x, int y, int w, int h, uint8_t g)
+/* The System 7 theme is black and white. The pages are written once, with the
+ * standard theme's greys, and the ops turn those into what that screen had:
+ * text and lines to black or white; a large light area (a card) to a window,
+ * white with a frame and a shadow; other greys to a dither; rounded corners
+ * square. The theme's own drawing (ui_theme.c) asks for black and white, which
+ * pass through as they are. */
+static uint8_t two(uint8_t g) { return g >= 8 ? G_WHITE : G_BLACK; }
+static uint8_t ink(uint8_t g) { return g == G_WHITE ? G_WHITE : G_BLACK; }
+static void fill_raw(layer_t *l, int x, int y, int w, int h, uint8_t g)
 { op_t *o = op_new(l); o->kind = OP_FILL; o->x = x; o->y = y; o->w = w; o->h = h; o->g = g; }
+static bool s7_shade(layer_t *l, int x, int y, int w, int h, uint8_t g)
+{
+    if (!sys7() || g == G_BLACK || g == G_WHITE) return false;
+    if (w <= 8 || h <= 8) {                              /* a rule or a thin track: dotted for the light ones */
+        if (g >= 8) op_pat(l, x, y, w, h, PAT_50, G_BLACK); else fill_raw(l, x, y, w, h, G_BLACK);
+    }
+    else if (g >= 0xC && w > 60 && h > 60) s7_window(l, x, y, w, h, WIN_PLAIN);
+    else if (g < 4) fill_raw(l, x, y, w, h, G_BLACK);
+    else op_pat(l, x, y, w, h, g >= 0xC ? PAT_25 : g >= 8 ? PAT_50 : PAT_75, G_BLACK);
+    return true;
+}
+
+void op_fill(layer_t *l, int x, int y, int w, int h, uint8_t g)
+{ if (!s7_shade(l, x, y, w, h, g)) fill_raw(l, x, y, w, h, g); }
+
+void op_pat(layer_t *l, int x, int y, int w, int h, int pat, uint8_t g)
+{ op_t *o = op_new(l); o->kind = OP_PAT; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)pat; o->g = g; }
 
 void op_frame(layer_t *l, int x, int y, int w, int h, int b, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_FRAME; o->x = x; o->y = y; o->w = w; o->h = h; o->border = b; o->g = g; }
+{ op_t *o = op_new(l); o->kind = OP_FRAME; o->x = x; o->y = y; o->w = w; o->h = h; o->border = b; o->g = sys7() ? ink(g) : g; }
 
 void op_text(layer_t *l, int x, int y, const bfont_t *f, uint8_t g, const char *t)
-{ op_t *o = op_new(l); o->kind = OP_TEXT; o->x = x; o->y = y; o->font = f; o->g = g;
+{ if (sys7()) g = two(g);
+  op_t *o = op_new(l); o->kind = OP_TEXT; o->x = x; o->y = y; o->font = f; o->g = g;
   o->w = draw_font_w(f, t); o->h = f->line_h; snprintf(o->text, sizeof o->text, "%s", t); }
 
 void op_text_c(layer_t *l, int cx, int y, const bfont_t *f, uint8_t g, const char *t)
@@ -34,17 +60,19 @@ void op_text_c(layer_t *l, int cx, int y, const bfont_t *f, uint8_t g, const cha
 void op_text_r(layer_t *l, int xr, int y, const bfont_t *f, uint8_t g, const char *t)
 { op_text(l, xr - draw_font_w(f, t), y, f, g, t); }
 
-void op_rrect(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
+void op_rrect_r(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
 { op_t *o = op_new(l); o->kind = OP_RRECT; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)r; o->g = g; }
+void op_rrect(layer_t *l, int x, int y, int w, int h, int r, uint8_t g)
+{ if (!sys7()) op_rrect_r(l, x, y, w, h, r, g); else if (!s7_shade(l, x, y, w, h, g)) fill_raw(l, x, y, w, h, g); }
 void op_line(layer_t *l, int x0, int y0, int x1, int y1, int t, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_LINE; o->x = x0; o->y = y0; o->w = x1 - x0; o->h = y1 - y0; o->border = (uint8_t)t; o->g = g; }
+{ op_t *o = op_new(l); o->kind = OP_LINE; o->x = x0; o->y = y0; o->w = x1 - x0; o->h = y1 - y0; o->border = (uint8_t)t; o->g = sys7() ? ink(g) : g; }
 void op_dash(layer_t *l, int x, int y, int w, int h, int d, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_DASH; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)d; o->g = g; }
+{ op_t *o = op_new(l); o->kind = OP_DASH; o->x = x; o->y = y; o->w = w; o->h = h; o->border = (uint8_t)d; o->g = sys7() ? ink(g) : g; }
 void op_circle(layer_t *l, int cx, int cy, int r, uint8_t g)
-{ op_t *o = op_new(l); o->kind = OP_CIRCLE; o->x = cx; o->y = cy; o->w = r; o->g = g; }
+{ op_t *o = op_new(l); o->kind = OP_CIRCLE; o->x = cx; o->y = cy; o->w = r; o->g = sys7() ? two(g) : g; }
 
 void op_ring(layer_t *l, int cx, int cy, int r, int b, uint8_t g, uint8_t inner)
-{ op_t *o = op_new(l); o->kind = OP_RING; o->x = cx; o->y = cy; o->w = r; o->border = b; o->g = g; o->h = inner; }
+{ op_t *o = op_new(l); o->kind = OP_RING; o->x = cx; o->y = cy; o->w = r; o->border = b; o->g = sys7() ? two(g) : g; o->h = sys7() ? two(inner) : inner; }
 
 static int isqrt_i(int v) { int r = 0; while ((r + 1) * (r + 1) <= v) r++; return r; }
 
@@ -60,7 +88,7 @@ static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951
     memset(line + wx0, l->bg, (size_t)(wx1 - wx0));
     for (int i = 0; i < l->n; i++) {
         const op_t *o = &l->ops[i];
-        if (o->kind == OP_FILL || o->kind == OP_FRAME || o->kind == OP_TEXT || o->kind == OP_RRECT || o->kind == OP_DASH) {
+        if (o->kind == OP_FILL || o->kind == OP_FRAME || o->kind == OP_TEXT || o->kind == OP_RRECT || o->kind == OP_DASH || o->kind == OP_PAT) {
             if (o->x >= wx1 || o->x + o->w <= wx0) continue;
         }
         switch (o->kind) {
@@ -117,6 +145,19 @@ static void layer_row(const layer_t *l, int y, uint8_t *line, uint8_t row[IT8951
                 memset(line + xx, o->g, (size_t)(e - xx));
             }
             break;
+        case OP_PAT: {
+            /* Dithers sit on the screen's own 3 px grid, so two areas side by
+             * side join without a seam; a title bar's lines count from its top. */
+            if (y < o->y || y >= o->y + o->h) break;
+            int a = o->x > wx0 ? o->x : wx0, b = o->x + o->w < wx1 ? o->x + o->w : wx1, cy = y / U;
+            uint8_t on = o->g, off = (uint8_t)(15 - o->g);
+            if (o->border == PAT_STRIPES) { if (b > a) memset(line + a, ((y - o->y) / U) & 1 ? off : on, (size_t)(b - a)); break; }
+            for (int cx = a / U; cx * U < b; cx++) {         /* a cell at a time */
+                bool k = o->border == PAT_50 ? ((cx + cy) & 1) == 0 : ((cx + 2 * (cy & 1)) & 3) == 0;   /* one cell in two, or one in four */
+                int c0 = cx * U < a ? a : cx * U, c1 = (cx + 1) * U > b ? b : (cx + 1) * U;
+                memset(line + c0, (k != (o->border == PAT_75)) ? on : off, (size_t)(c1 - c0));
+            }
+            break; }
         case OP_RING: {
             int dy = y - o->y;
             if (dy < -o->w || dy > o->w) break;
@@ -146,6 +187,8 @@ void op_bbox(const op_t *o, int *x, int *y, int *w, int *h)
 /* Each core has its own scratch line: core 0 renders the web preview from the
  * live layers while core 1 paints the panel from the snapshot. */
 static uint8_t s_line[2][W];
+
+void layer_render(const layer_t *l, int y, uint8_t row[IT8951_ROW_BYTES]) { layer_row(l, y, s_line[get_core_num()], row); }
 
 void local_overlay_row(int y, uint8_t row[IT8951_ROW_BYTES])
 {

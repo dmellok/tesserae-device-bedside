@@ -28,7 +28,7 @@ VERSION := $(shell git -C $(ROOT) describe --tags --always 2>/dev/null | sed 's/
 FW_SRC := main commands paint screens painter menu inputs live config store psram_heap draw boot_logo \
           patterns alarm_sched birds rainsynth spk_dsp pcm_resample sha256 soma soma_snapshot http_chunked \
           icy tls_roots ota_version radio ha \
-          ui_alarm ui_api ui_core ui_draw ui_live ui_overlay ui_pages ui_tree ui_wizard
+          ui_alarm ui_api ui_core ui_draw ui_live ui_overlay ui_pages ui_theme ui_tree ui_wizard
 FW_FILES := $(addprefix $(ROOT)/src/,$(addsuffix .c,$(FW_SRC))) \
             $(wildcard $(ROOT)/src/fonts/*.c) $(ROOT)/src/vendor/cJSON.c $(ROOT)/src/vendor/font24.c
 SIM_FILES := $(wildcard src/*.c)

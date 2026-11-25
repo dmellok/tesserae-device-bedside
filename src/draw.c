@@ -63,8 +63,17 @@ void draw_font_row(const bfont_t *f, uint8_t *line, int w, int x, const char *te
     for (const unsigned char *p = (const unsigned char *)text; *p; p++) {
         const bglyph_t *g = glyph(f, *p);
         if (!g) { x += f->line_h / 3; continue; }
-        int gy = grow - g->yoff;
-        if (gy >= 0 && gy < g->h) {
+        int gy = grow - g->yoff, s = f->scale > 1 ? f->scale : 1;
+        if (s > 1 && gy >= 0 && gy < g->h * s) {             /* one-bit art, each of its pixels s by s */
+            const uint8_t *row = f->bits + g->off + (size_t)(gy / s) * ((g->w + 1) / 2);
+            for (int i = 0; i < g->w; i++) {
+                if (!((i & 1) ? (row[i >> 1] & 0x0F) : (row[i >> 1] >> 4))) continue;
+                int a = x + g->xoff + i * s, b = a + s;
+                if (a < 0) a = 0;
+                if (b > w) b = w;
+                if (b > a) memset(line + a, colour, (size_t)(b - a));
+            }
+        } else if (s == 1 && gy >= 0 && gy < g->h) {
             const uint8_t *row = f->bits + g->off + (size_t)gy * ((g->w + 1) / 2);
             for (int i = 0; i < g->w; i++) {
                 int px = x + g->xoff + i;

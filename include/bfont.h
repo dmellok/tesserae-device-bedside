@@ -3,6 +3,11 @@
  * (Albert Sans, the face the proposal's mock-up uses). Glyph rows are packed
  * 2 px/byte, high nibble = left pixel, 0 = no ink .. 15 = full ink. Codes
  * 0x7F and 0x80 are the degree sign and the middle dot ("\x7f", "\x80").
+ *
+ * The System 7 theme's fonts (s7_*, tools/gen_sys7.py) are one-bit art on a
+ * small grid, drawn at a whole multiple: scale. Their bitmaps are in grid
+ * pixels (w, h); adv, xoff and yoff are in panel pixels, like the others'.
+ * Each has the line height and baseline of the font it stands in for.
  */
 #pragma once
 
@@ -22,6 +27,8 @@ typedef struct {
     uint16_t        line_h;   /* ascent + descent */
     uint16_t        ascent;
     const uint8_t  *bits;
+    uint8_t         scale;    /* panel pixels per bitmap pixel; 0 or 1: as it is */
 } bfont_t;
 
 extern const bfont_t ui30, ui34, ui46, ui60, ui72, ui96, num180, num270, clock214, icon34, icon40, icon46, icon170;
+extern const bfont_t s7_30, s7_34, s7_46, s7_60, s7_72, s7_96, s7_num180, s7_num270, s7_clock214, s7_icon34, s7_icon40, s7_icon46, s7_icon170, s7_face;

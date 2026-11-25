@@ -44,6 +44,7 @@ void build_status(layer_t *l, bool inv)
     bool live = S.dash_page == 0 && s_mode == M_HOME && S.phase != PHASE_RINGING;
     layer_reset(l, 0, SB_Y, W, SB_H, bg);
     op_fill(l, 0, SB_Y, W, 3, inv ? G_DARK : G_BLACK);
+    if (sys7() && !inv) s7_corners(l, false);
     int cy = SB_Y + 3 + (SB_H - 3) / 2;
     char b[40];
     /* left: volume, then one now-playing value */
@@ -153,6 +154,7 @@ static bool word_in(const char *v, const char *const *list)
 void card_title(layer_t *l, int x, int y, int w, const char *icon, const char *label, bool dark, const char *tail)
 {
     uint8_t fg = dark ? G_WHITE : G_BLACK;
+    if (sys7()) { s7_title(l, x, y, w, dark ? WIN_DARK : WIN_ACTIVE, icon, label, tail); return; }   /* the tile is a window: its title bar */
     op_text(l, x + 32, y + 30, F_IR, fg, icon);
     op_text(l, x + 32 + draw_font_w(F_IR, icon) + 18, y + 26, F_M, fg, label);
     if (tail && tail[0]) op_text_r(l, x + w - 32, y + 34, F_S, dark ? G_LIGHT : G_DARK, tail);
@@ -257,7 +259,7 @@ static void build_live_bento(layer_t *l)
     if (!have_clock) snprintf(b, sizeof b, "--:--");
     else if (S.clock12) { int hh = sec / 3600 % 12; snprintf(b, sizeof b, "%d:%02d", hh ? hh : 12, sec / 60 % 60); }
     else snprintf(b, sizeof b, "%02d:%02d", sec / 3600, sec / 60 % 60);
-    clock_slots(l, 68, LV_HEAD_Y + 250 - clock214.ascent, &clock214, G_BLACK, b);
+    clock_slots(l, 68, LV_HEAD_Y + 250 - F_CLOCK->ascent, F_CLOCK, G_BLACK, b);
 
     int ai; int32_t delta;
     bool alarm = S.live_demo || next_alarm(&ai, &delta);
@@ -363,7 +365,7 @@ static void build_live_bento(layer_t *l)
     if (dark) snprintf(b, sizeof b, "Attention");
     else if (known || live_is_known(LV_WASHER)) snprintf(b, sizeof b, "All clear");
     else snprintf(b, sizeof b, "No reports yet");
-    op_text(l, LV_HOME_X + 32, LV_ROW1 + 108, lv_fit(b, LV_SMALL_W - 64, &ui72, F_M, F_M), dark ? G_WHITE : G_BLACK, b);
+    op_text(l, LV_HOME_X + 32, LV_ROW1 + 108, lv_fit(b, LV_SMALL_W - 64, F_L, F_M, F_M), dark ? G_WHITE : G_BLACK, b);
     if (open >= 0) {
         fmt_word(live_val(SL[open]), c, sizeof c); c[0] = (char)tolower((unsigned char)c[0]);
         char detail[64]; snprintf(detail, sizeof detail, "%.20s %.30s", SN[open], c);
@@ -381,7 +383,7 @@ static void build_live_bento(layer_t *l)
     if (tile_unset(REM_SL, 3)) { tile_unset_note(l, LV_RIGHT_X, LV_ROW2, LV_RIGHT_W); return; }
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 100, F_M, G_BLACK, "Bins");
     fmt_word(live_val(LV_BINS), b, sizeof b);
-    op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 158, lv_fit(b, 440, &ui72, F_M, F_LBL), G_BLACK, b);
+    op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 158, lv_fit(b, 440, F_L, F_M, F_LBL), G_BLACK, b);
     op_text(l, LV_RIGHT_X + 40, LV_ROW2 + 254, F_LBL, G_BLACK, live_val(LV_BINS_WHEN));
     op_fill(l, 1290, LV_ROW2 + 36, 2, LV_REM_H - 72, 0xA);
     op_text(l, 1340, LV_ROW2 + 100, F_M, G_BLACK, "Next event");
@@ -390,9 +392,9 @@ static void build_live_bento(layer_t *l)
     if (sscanf(event, "%d:%d", &eh, &em) == 2 && strlen(event) >= 5) {
         const char *rest = event + 5; while (*rest == ' ' || *rest == '-') rest++;
         snprintf(b, sizeof b, "%02d:%02d", eh, em);
-        op_text(l, 1340, LV_ROW2 + 158, &ui72, G_BLACK, b);
+        op_text(l, 1340, LV_ROW2 + 158, F_L, G_BLACK, b);
         op_text(l, 1340, LV_ROW2 + 254, lv_fit(rest, 450, F_LBL, F_LBL, F_S), G_BLACK, rest);
-    } else op_text(l, 1340, LV_ROW2 + 158, lv_fit(event, 450, &ui72, F_M, F_LBL), G_BLACK, event);
+    } else op_text(l, 1340, LV_ROW2 + 158, lv_fit(event, 450, F_L, F_M, F_LBL), G_BLACK, event);
 }
 
 /* Which regions to repaint for a change of live slot s. */
@@ -492,8 +494,7 @@ bool local_live_tick(void)
 {
     bool late = false;
     if (s_toast_until && (int32_t)(now_ms() - s_toast_until) >= 0) {        /* the confirmation goes */
-        s_toast_until = 0; rebuild();
-        mark(TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, IT8951_MODE_GL16);
+        toast_gone();
         late = true;
     }
     if (ov_flash_tick()) late = true;                                        /* the overlay's flashed item goes back to normal */

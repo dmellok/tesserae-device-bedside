@@ -20,6 +20,24 @@ static void knob_glyph(layer_t *l, int cx, int cy, uint8_t ink, uint8_t paper)
  * half-asleep hand finds first) and stop, deliberate, on the knob. */
 void build_ring(layer_t *l)
 {
+    if (sys7()) {                            /* System 7: an alert on the desktop; Stop is its default button */
+        layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_WHITE);
+        op_pat(l, 0, TB_H, W, SB_Y - TB_H, PAT_50, G_BLACK);
+        s7_dialog(l, 30 * U, TB_H + 10 * U, W - 60 * U, SB_Y - TB_H - 20 * U);
+        op_text_c(l, W / 2, TB_H + 70, F_M, G_BLACK, "Good morning");
+        char t[8]; alarm_txt(t, sizeof t);
+        op_text_c(l, W / 2, TB_H + 170, F_HUGE, G_BLACK, t);
+        const int bw = 740, bh = 200, gap = 72, by = TB_H + 700;
+        int bx1 = (W - 2 * bw - gap) / 2, bx2 = bx1 + bw + gap, ty = by + (bh - F_L->line_h) / 2;
+        char s[24]; snprintf(s, sizeof s, "Snooze %d min", S.snooze_min);
+        s7_button(l, bx1, by, bw, bh, false);
+        key_cap(l, bx1 + 60, by + bh / 2, G_BLACK, G_WHITE);
+        op_text(l, bx1 + 160, ty, F_L, G_BLACK, s);
+        s7_button(l, bx2, by, bw, bh, true);
+        knob_glyph(l, bx2 + 96, by + bh / 2, G_BLACK, G_WHITE);
+        op_text(l, bx2 + 170, ty, F_L, G_BLACK, "Stop");
+        return;
+    }
     layer_reset(l, 0, TB_H, W, SB_Y - TB_H, G_BLACK);
     op_text_c(l, W / 2, TB_H + 70, F_M, G_LIGHT, "Good morning");
     char t[8]; alarm_txt(t, sizeof t);

@@ -47,6 +47,14 @@
 
 /* boot */
 #define SETUP_MAGIC 0x5E7A5E7Au          /* watchdog scratch 0: boot into WiFi setup */
+/* A system error (crash.c): watchdog scratch 1 is CRASH_MAGIC | the kind,
+ * scratch 2 where it happened, scratch 3 how many came within a minute of a
+ * start, in a row. main.c reads them at the next boot. */
+#define CRASH_MAGIC 0xB0B5ED00u
+#define CRASH_FAULT 1u                   /* a hard fault; scratch 2 is the faulting pc */
+#define CRASH_PANIC 2u                   /* the SDK's panic(); its words went to the log */
+#define CRASH_TEST  3u                   /* the "crash=test" command: nothing went wrong */
+static inline void crash_record(uint32_t kind, uint32_t pc) { watchdog_hw->scratch[1] = CRASH_MAGIC | kind; watchdog_hw->scratch[2] = pc; }
 #ifndef FW_VERSION
 #define FW_VERSION "0.1.0"
 #endif
@@ -161,6 +169,8 @@ void banner_compose(void);
 void banner_update(void);
 void black_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx);
 void boot_row(int y, uint8_t out[IT8951_ROW_BYTES], const boot_text_t *t);
+void screens_theme_build(void);
+extern bool s_setup_failed;
 void composite_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx);
 void dash_row(int y, uint8_t out[IT8951_ROW_BYTES], const uint8_t *frame);
 void ramp_row(int y, uint8_t out[IT8951_ROW_BYTES], void *ctx);

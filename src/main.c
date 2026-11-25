@@ -232,6 +232,23 @@ int binding_index(const char *name)
 /* While WiFi joins: keep the boot log moving. */
 static void boot_wait(void) { boot_service(); paint_pump(); }
 
+/* The last run ended in a system error (crash.c) and restarted: what it left
+ * in the watchdog's scratch registers, as the line the UI shows once the boot
+ * screen has gone. */
+static char s_crash[40];
+static void crash_collect(void)
+{
+    uint32_t v = watchdog_hw->scratch[1], pc = watchdog_hw->scratch[2];
+    watchdog_hw->scratch[1] = 0;
+    if ((v & 0xFFFFFF00u) != CRASH_MAGIC) return;
+    switch (v & 0xFFu) {
+    case CRASH_FAULT: snprintf(s_crash, sizeof s_crash, "hard fault at %08lX", (unsigned long)pc); break;
+    case CRASH_PANIC: snprintf(s_crash, sizeof s_crash, "panic, from %08lX", (unsigned long)pc); break;
+    default:          snprintf(s_crash, sizeof s_crash, "a test: nothing went wrong"); break;
+    }
+    printf("crash: the last run ended in a system error (%s) and restarted\n", s_crash);
+}
+
 /* ---- config seeding ------------------------------------------------------------ */
 
 /* secrets.h is a first-boot seed and a development override: any value it
@@ -407,7 +424,11 @@ static void ui_service(void)
         else if (live != last_live || cur_content == CONTENT_BOOT) {
             bool was_boot = cur_content == CONTENT_BOOT;
             last_live = live; show_content(live ? CONTENT_LIVE : (tesserae_frame() ? CONTENT_DASHBOARD : CONTENT_LIVE));
-            if (was_boot) { local_wizard_boot(); local_flush(); }   /* a fresh device: first-run setup */
+            if (was_boot) {
+                local_wizard_boot();                                 /* a fresh device: first-run setup */
+                if (s_crash[0]) { local_system_error(s_crash); s_crash[0] = 0; }   /* the last run ended badly */
+                local_flush();
+            }
         }
     }
     if (cur_content != CONTENT_BOOT && local_live_tick()) local_flush();   /* not under the boot log: its marks rode on the log's paints */
@@ -493,6 +514,7 @@ int main(void)
     if (have_psram) radio_init((uint8_t *)(PSRAM_XIP_BASE + 5u * 1024 * 1024 + 608u * 1024), (uint8_t *)(PSRAM_XIP_BASE + 6u * 1024 * 1024 + 192u * 1024));
     radio_presets_load();
     painter_start(paint_row, audio_core1_start);
+    local_theme_boot();      /* the boot screen is drawn in the theme */
     boot_collect();
     show_content(CONTENT_BOOT);
     net_set_wait_hook(boot_wait);
@@ -504,6 +526,7 @@ int main(void)
      * outage must not strand it in setup). */
     bool asked = watchdog_hw->scratch[0] == SETUP_MAGIC;
     watchdog_hw->scratch[0] = 0;
+    crash_collect();
     bool up = false;
     if (config_has_wifi() && !asked) up = net_init(c->wifi_ssid, c->wifi_pass);
     if (!up) {
@@ -512,7 +535,7 @@ int main(void)
         snprintf(ap, sizeof ap, "Bedside-setup-%s", id + strlen(id) - 4);
         if (!config_has_wifi()) snprintf(s_setup_why, sizeof s_setup_why, "No WiFi set up yet.");
         else if (asked) snprintf(s_setup_why, sizeof s_setup_why, "Setup asked for from the menu. Restarts in 10 minutes if nothing is saved.");
-        else snprintf(s_setup_why, sizeof s_setup_why, "Couldn't join \"%s\". Trying it again in 5 minutes.", c->wifi_ssid);
+        else { s_setup_failed = true; snprintf(s_setup_why, sizeof s_setup_why, "Couldn't join \"%s\". Trying it again in 5 minutes.", c->wifi_ssid); }
         if (config_has_wifi()) s_setup_until = to_ms_since_boot(get_absolute_time()) + (asked ? 600000u : 300000u);
         net_start_setup(ap);
         show_content(CONTENT_SETUP);
@@ -563,6 +586,7 @@ int main(void)
         if (tesserae_state() != before || (tesserae_last_error()[0] != '\0') != had_err) banner_update();
         if (tesserae_local_time()[0]) local_set_time(tesserae_local_time());
         local_persist_tick();
+        if (watchdog_hw->scratch[3] && to_ms_since_boot(get_absolute_time()) > 60000u) watchdog_hw->scratch[3] = 0;   /* a start that held: crash.c */
         paint_pump();
         cleanup_if_idle();
         PHASE("paint");

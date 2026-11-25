@@ -218,16 +218,21 @@ watchdog_hw_t *watchdog_hw = &s_wd;
 
 __attribute__((constructor)) static void scratch_restore(void)
 {
-    const char *s = getenv("SIM_SCRATCH0");             /* survives a reboot, like the real register */
-    if (s) s_wd.scratch[0] = (uint32_t)strtoul(s, NULL, 0);
+    for (int i = 0; i < 4; i++) {                       /* survive a reboot, like the real registers */
+        char k[16]; snprintf(k, sizeof k, "SIM_SCRATCH%d", i);
+        const char *s = getenv(k);
+        if (s) s_wd.scratch[i] = (uint32_t)strtoul(s, NULL, 0);
+    }
 }
 
 void watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms)
 {
     (void)pc; (void)sp; (void)delay_ms;
-    char v[16];
-    snprintf(v, sizeof v, "0x%08x", s_wd.scratch[0]);
-    setenv("SIM_SCRATCH0", v, 1);
+    for (int i = 0; i < 4; i++) {
+        char k[16], v[16];
+        snprintf(k, sizeof k, "SIM_SCRATCH%d", i); snprintf(v, sizeof v, "0x%08x", s_wd.scratch[i]);
+        setenv(k, v, 1);
+    }
     sim_reboot("watchdog reboot");
 }
 

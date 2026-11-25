@@ -1189,3 +1189,83 @@ properly.
 - **Docs:** `docs/power-amp-board.html` (the soldered board, both sides,
   wires to the header, meter points) and `docs/amp-battery-wiring.html` (the
   header-level diagrams, with a note on what the board changed).
+
+## 2026-11-25: themes, and a System 7 one
+
+- **Settings > Display > Theme**: Standard (as it was) or System 7. Also
+  `theme` in the web app (Home screen card), `set=theme|0..1` and
+  `/api/state`. Stored in the EXT blob (`rsv1[31]`, value + 1). Changing it
+  repaints the whole screen with GC16.
+- **How a theme works** (`src/ui_theme.c`): the pages are still written once.
+  The `F_*` font macros read a per-theme table; `ui_draw.c` turns the
+  standard theme's greys and rounded corners into black and white when the
+  System 7 theme is on (dithers as a new op, `OP_PAT`; a large light card
+  becomes a framed window with a shadow); and the builders ask for the pieces
+  System 7 drew its own way (`s7_title`, `s7_checkbox`, `s7_vscroll`,
+  `s7_hscroll`, `s7_dialog`, `s7_button`), each behind `sys7()`.
+- **Fonts and icons** are drawn as text in `tools/sys7/` and built by
+  `tools/gen_sys7.py` into `src/fonts/sys7.c` (about 43 KB). `bfont_t` gained
+  `scale`: the one-bit art is stored once and drawn at 3x to 21x. Each System 7
+  font has the line height and baseline of the Albert Sans one it replaces,
+  which is why no layout needed two sets of coordinates.
+- **Checked in the simulator**: every System 7 page (the four Live layouts,
+  light and dark, menus, toggles, sliders, a scrolling list, large text, the
+  confirmation card, the alarm), and the standard theme against the code
+  before this change, pixel for pixel, on sixteen screens (identical).
+- **Not checked**: the home overlay over a server dashboard (strip and cards),
+  which needs a paired Tesserae server; and the look on the glass. The theme is
+  two-level, so it should suit DU, but the 3 px dither behind the menus and
+  sliders has not been seen on e-paper. The boot, setup and update screens
+  (`screens.c`) and the bottom-left banner keep their own fonts in both themes.
+
+### The same day: the panel's faces
+
+- **Our own happy and sad Mac**: the Bedside panel itself (four keys and the
+  knob along its top, its feet) with a face on its screen, 32 x 32 in
+  `tools/sys7/faces32.txt`: `S7_HAPPY`, `S7_SAD`, `S7_ASLEEP`. System 7 theme
+  only; `FACE(face, icon)` picks the standard theme's icon otherwise.
+- **Where**: the boot screen is a "Welcome to Bedside." window with the happy
+  face over a "Starting up" window holding the log; WiFi setup and the USB
+  update screen are windows too, with the sad face on a black desktop when the
+  saved WiFi could not be joined (`s_setup_failed`). On the cards: sad for
+  "Update failed" and "Battery low", happy for "All set", asleep for night
+  mode going on.
+- **How**: `screens.c` asks `local_s7_screen_row()` first in `boot_row()` and
+  `setup_row()`; the screen is one more layer (`L_scr`, ui_theme.c), built on
+  core 0 in `paint.c`'s snapshot. `local_theme_boot()` reads the stored theme
+  before the first paint, since `local_init()` runs after the boot screen is
+  up. The log's window starts above `BOOT_LOG_Y`, so the log's DU repaints
+  cover its lines as before.
+- **Diagnostics**: `showsetup=failed` and `showsetup=updating` (commands.c)
+  preview those screens. Checked in the simulator in both themes; the real
+  failed-join and USB-flash paths have not been run on the device.
+
+### The same day: the bomb dialog, and what is behind it
+
+- **A system error now restarts the panel** (`src/crash.c`, new, device only).
+  Before, a hard fault or an SDK `panic()` stopped at a breakpoint: the last
+  frame stayed on the glass and the clock no longer ran. Now the handler
+  writes `CRASH_MAGIC | kind` and the faulting pc into watchdog scratch 1 and
+  2 and calls `watchdog_reboot()`. It replaces the SDK's weak `isr_hardfault`
+  (linked as `HardFault_Handler`: the SDK renames it), and `panic()` comes to
+  `crash_panic()` through `-DPICO_PANIC_FUNCTION` in platformio.ini.
+- **No restart loop**: a crash within a minute of a start counts up scratch 3;
+  after three in a row the handler stops at a breakpoint as before. main.c
+  clears the count once a start has run for a minute.
+- **At the next boot** `crash_collect()` (main.c) turns the registers into a
+  line ("hard fault at 1001A2F4"; look the address up with
+  `arm-none-eabi-addr2line -e firmware.elf`), logs it, and
+  `local_system_error()` shows it when the boot screen goes.
+- **The dialog**: `alert()` in ui_overlay.c. System 7 theme: `S7_BOMB` (an
+  alarm clock with a lit fuse, the fourth drawing in `faces32.txt`), "Sorry, a
+  system error occurred.", the line, the code at the bottom left and a default
+  OK button; any key or the knob presses it (`alert_dismiss()` in ui_menu.c's
+  inputs), and it goes by itself after 10 minutes (2 for a failed update) so
+  the clock comes back. Standard theme: the ordinary card. "Update failed"
+  uses it too, in place of the sad face.
+- **Diagnostics**: `crash=test` restarts as after an error (both the device
+  and the simulator, whose scratch registers 0 to 3 now survive its restart);
+  `crash=fault` takes a real fault (device only).
+- **Not run on the device**: the fault handler and the panic hook are built
+  and linked (the vector table points at the handler) but no real fault has
+  been taken. Run `crash=fault` once on the panel before relying on it.
