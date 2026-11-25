@@ -25,7 +25,7 @@ def bezel():
             obox(13.25, 21.0, GLASS_W - 0.05, 230.75, 187.8, 7),      # glass pocket, open to the back: its floor is the lip the glass is pressed against
             obox(13.25, 12.6, 3.0, 230.75, 21.0, 7),                 # deeper along the bottom edge, for the driver chips and the flex bonded to the front of the glass there
             obox(50, 10.2, 3.0, 195, 13, 7)]                         # flex wrap relief: the groove the fold of the panel's wide flex sits in, below the glass's bottom edge. From bezel R2 it is 1 mm taller, reaching 2.4 mm below the glass and not 1.4, so the fold has more room to turn in
-    cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back: the M3 screws cut their own thread in the plastic
+    cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back, 2.6 mm: sized for M3 screws to cut their own thread, but as printed an M3 would not go in and an M2.5 x 8 held well, so the bezel is fixed with M2.5
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
 BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
@@ -485,7 +485,7 @@ def screw(p, d, length, r, rh, hh):
 def screws():
     zinc = (186, 189, 195); out = []; nW = neg(W_)
     def add(kind, bodies): out.extend(('%s screw %d' % (kind, i + 1), b, zinc) for i, b in enumerate(bodies))
-    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.5, 2.8, 1.8) for u, v in BZ])                       # M3 x 8 through the plate into the bezel
+    add('Bezel', [screw(F(u, v, 8.0), nW, 7.0, 1.0, 2.25, 1.6) for u, v in BZ])                      # M2.5 x 8 through the plate into the bezel (see the holes in bezel())
     add('Shell', [screw((x, y, CB), (0, 0, 1), 16.0, 1.5, 2.75, 3.0) for x, y in POSTS])             # M3 x 16 up through the base into the plinth posts
     add('HAT', [screw(F(u, v, 30.1), nW, 8.0, 1.0, 2.25, 1.6) for u, v in ((210.72, 73.57), (210.72, 15.56))])   # M2.5 x 8
     add('Board', [screw(F(u, v, 19.6), nW, 6.0, 0.75, 1.9, 1.3) for u in PBU for v in PBV])   # M2 x 6, power and amp board

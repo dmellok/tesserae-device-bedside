@@ -115,8 +115,8 @@ async function load() {
   await addScreen(meta);
   document.getElementById('loading').remove();
 }
-// These sets differ in length between versions, so the viewer names them without one.
-const SCREW_NAMES = { 'Base screws, M3 x 12': 'Base screws, M3', 'Speaker screws and nuts, M4 x 8': 'Speaker screws and nuts, M4', 'Frame screws, M3 x 8': 'Frame screws, M3' };
+// These sets differ in size between versions, so the viewer names them without one.
+const SCREW_NAMES = { 'Base screws, M3 x 12': 'Base screws, M3', 'Speaker screws and nuts, M4 x 8': 'Speaker screws and nuts, M4', 'Frame screws, M3 x 8': 'Frame screws, M3', 'Bezel screws, M3 x 8': 'Bezel screws' };
 function addParts(meta, bin, variantOf) {
   for (const p of meta.parts) {
     p.name = SCREW_NAMES[p.name] || p.name;
@@ -453,7 +453,7 @@ const BUILD = [
   ['Chassis frame', ['Frame plate', 'Mid chassis and base'], [0, 0, 150]],
   ['Foam tape', ['Panel foam tape'], along(WN, -120)],
   ['E-ink panel', ['E Ink ED103TC2 panel'], along(WN, -160)],
-  ['Front bezel', ['Front bezel', 'Accent stripe', 'Bezel screws, M3 x 8'], along(WN, -190)],
+  ['Front bezel', ['Front bezel', 'Accent stripe', 'Bezel screws'], along(WN, -190)],
   ['Flex adapter', ['E-paper flex adapter', 'Flex adapter screws, M2.5 x 6'], along(WN, 130)],
   ['Display driver HAT', ['Waveshare IT8951 driver HAT', 'Driver HAT screws, M2.5 x 8'], along(WN, 150)],
   ['Pico and GPIO splitter', ['GPIO splitter', 'Hard Stuff Pico to Pi HAT', 'Pico sockets and headers', 'Pimoroni Pico Plus 2 W'], along(WN, 170)],
@@ -735,7 +735,7 @@ const DETAILS = {
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
   'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
-  'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
+  'Bezel screws': 'Six, through the chassis plate into the bezel. M3 x 8 into the inserts, or on MK III M2.5 x 8 cutting their own thread: an M3 was too tight in the printed holes.',
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',
   'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
@@ -937,6 +937,7 @@ function screwSize(part, long) {
   const m = / (M[\d.]+ x \d+)$/.exec(part.name);
   if (m) return m[1];
   const mk3 = (part.variants || []).includes('mk3');
+  if (part.name.startsWith('Bezel screws')) return mk3 ? 'M2.5 x 8' : 'M3 x 8';
   if (part.name.startsWith('Base screws')) return mk3 ? 'M3 x 16' : 'M3 x 12';
   if (part.name.startsWith('Speaker screws')) return mk3 ? 'M4 x 10' : 'M4 x 8';
   if (part.name.startsWith('Frame screws')) return mk3 && long > 15 ? 'M3 x 12' : 'M3 x 8';      // the four in the plate's foot are the long ones
