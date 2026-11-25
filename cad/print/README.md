@@ -32,7 +32,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `3-plinth-black-r1.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r7.stl` | Access cover | Top down |
+| `6-access-cover-beige-r8.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -83,8 +83,12 @@ Access cover revisions:
   wall instead of 0.55 mm. Two small rigid tongues under the front of the roof, one inside each hook and clear of the Pico's USB-C socket, reach
   into the top of the opening 0.4 mm under its edge, so the cover cannot ride up off the plinth. Squeeze the two sides near the front and lift
   it straight back, as on R3. Prints top down. Each strip's first layer is a 22 mm bridge to a pip across the front of its slit: cut or snap the
-  two pips after printing, or the sides will not squeeze. Only the two tongues, 6 mm wide and 2.9 mm above the bed in front of the cover, want
-  support. `../test-fits/13a-access-cover.stl` is the same cover; print `13b-access-cover-opening.stl` to try its grip without the rear shell.
+  two pips after printing, or the sides will not squeeze. The hooks still tapered at 45 degrees so as to print without support.
+- R8: R7 with the prongs in front of the cover's face square and nearly the full height of the opening (0.5 mm under its top edge, with a small
+  chamfer on the tip), for more contact with the opening's edges; inside the shell the right prong stops at z 75.5, short of the HAT's 13-pin
+  header. Prints top down, on support under the two prongs and the two tongues, which start about 3 mm above the bed in front of the cover. The
+  two pips across the slits still need cutting or snapping. `../test-fits/13a-access-cover.stl` is the same cover; print
+  `13b-access-cover-opening.stl` to try its grip without the rear shell.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this
