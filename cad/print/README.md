@@ -29,10 +29,10 @@ The six case parts, each turned to the way it prints and numbered in the order t
 |---|---|---|
 | `1-frame-plate-black-r3.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
-| `3-plinth-black-r1.stl` | Plinth | Roof down |
+| `3-plinth-black-r2.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r4.stl` | Access cover | Top down |
+| `6-access-cover-beige-r5.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -76,12 +76,21 @@ Access cover revisions:
   corner sits on it and pulls the cover onto the shell with no play. The hook stands 1.2 mm past the edge; unsqueezed, the cover takes about
   11 N to pull off in PLA. Printed top down with no support, the hooks tapering at 45 degrees. Still slightly loose, and it rode up off the
   plinth, because the tapered hooks left room under the top of the opening.
-- R4: the prong in front of the cover's face is the full height of the opening (0.25 mm under its top edge), so the cover cannot ride up; inside
-  the shell the right prong stops at z 75.5, short of the HAT's 13-pin header. Both prongs are splayed 3 degrees outwards, which puts the barb
-  0.3 mm further past the edge and the wall's corner 0.85 mm onto the ramp instead of 0.55 mm. Prints top down. Each strip's first layer is still a
-  22 mm bridge to a pip across the front of its slit: cut or snap the two pips after printing, or the sides will not squeeze. The two prongs now
-  need support from the bed; they start 2.75 mm up, outside the cover. `../test-fits/13a-access-cover.stl` is the same cover; print
-  `13b-access-cover-opening.stl` to try its grip without the rear shell.
+- R4: full-height prongs, splayed 3 degrees and printed on support. They would not clip behind the wall at all.
+- R5: screwed down. A wedge-shaped lug at the foot of each side wall takes an M3 x 8 screw, its head sunk into the lug, down into a boss under the
+  plinth's roof, which needs plinth R2. The sprung strips, slits and pips are gone and the side walls are solid again. Two sprung tabs hang forward
+  from the inside of the cover's back, as on R1, but their barbs now reach 1.2 mm past the inside of the shell's wall and stand 1.0 mm past the
+  edges of the opening, with the back ramp just touching the wall's inner corner. They hold the front of the cover against the shell; the
+  screws do the rest. With the screws out the cover pulls straight back. Prints top down, with support only under the two tabs, which start about
+  3 mm above the bed inside the cover. `../test-fits/13a-access-cover.stl` is the same cover; print `13b-access-cover-opening.stl` to try the
+  tabs without the rear shell.
+
+Plinth revisions:
+
+- R1: the first print.
+- R2: two bosses under the roof, one each side of the opening for the hump, with holes for the access cover's M3 x 8 screws. An R1 plinth can be
+  kept: screw the cover on through its lugs as a guide and drill 2.5 mm through the roof at each, though the 2.5 mm roof alone gives only about five
+  turns of thread.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this

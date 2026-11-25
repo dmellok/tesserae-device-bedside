@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261125d';
+  const DATA_V = '20261125e';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -469,7 +469,7 @@ const BUILD = [
   ['Rear shell', ['Rear shell', 'Back screws, M3 x 8', 'Shell corner screws, M3 x 8'], [0, 210, 30]],
   ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
   ['Plinth', ['Plinth', 'Base screws, M3'], [0, 230, 0]],
-  ['Access cover', ['Access cover'], [0, 130, 110]],
+  ['Access cover', ['Access cover', 'Access cover screws, M3 x 8'], [0, 130, 110]],
   ['Rubber feet', ['Rubber feet'], [0, 0, -90]],
 ];
 const BENCH = [0, 0, -60], BENCH_V = new THREE.Vector3(...BENCH);                                // where a module that is built up off the device waits, from its place on it
@@ -668,7 +668,7 @@ function endFlash() {
 }
 const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 function placeFlash(p) {
-  if (p.name === 'Access cover') p.mesh.position.addScaledVector(COVER_OFF, smooth(flash.t / 1.0));
+  if (p.name.startsWith('Access cover')) p.mesh.position.addScaledVector(COVER_OFF, smooth(flash.t / 1.0));
 }
 function stepFlash(dt) {
   flash.t = Math.min(4, flash.t + dt);
@@ -734,7 +734,8 @@ const DETAILS = {
   'Frame screws, M3': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets. All M3 x 8 on MK II.I; on MK III the four in the foot are M3 x 12.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
-  'Access cover': 'Snaps on over the Pico\'s USB-C port, for reflashing by cable.',
+  'Access cover': 'Clips and screws on over the Pico\'s USB-C port, for reflashing by cable.',
+  'Access cover screws, M3 x 8': 'Two, down through the lugs at the foot of the access cover into the plinth\'s roof.',
   'Bezel screws, M3 x 8': 'Six, through the chassis plate into the bezel.',
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',
@@ -876,7 +877,7 @@ function layoutLabels(e1) {
     } else {
       proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
       l.sx = (proj.x * 0.5 + 0.5) * W; l.sy = (-proj.y * 0.5 + 0.5) * H;
-      const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws');
+      const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws') || l.name.startsWith('Access cover screws');
       l.alpha = !labelsOn || !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
     }
     if (l.alpha > 0.02) { if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; } live.push(l); }
