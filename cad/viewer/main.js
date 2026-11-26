@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261126c';
+  const DATA_V = '20261126d';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -734,8 +734,8 @@ const DETAILS = {
   'Frame screws, M3': 'Nine, up through the base tray: four into the foot of the frame plate and five into the heels of its gussets. All M3 x 8 on MK II.I; on MK III the four in the foot are M3 x 12.',
   'Rear shell': 'Printed case. Slides off the back.',
   'Accent stripe': 'Orange insert, matching the menu key.',
-  'Access cover': 'Closes the hump over the driver stack. Ribbed like the slats on the rear shell, and standing on a low base that is screwed to the plinth\'s roof on each side and closes the cut in the roof behind the driver stack.',
-  'Access cover screws, M3 x 8': 'Two, down through the cover\'s base into the plinth\'s roof, heads sunk flush.',
+  'Access cover': 'A plain block that closes the hump over the driver stack, its back in line with the plinth\'s. Screwed to the plinth\'s roof through a shoulder on each side.',
+  'Access cover screws, M3 x 8': 'Two, down through the cover\'s shoulders into the plinth\'s roof, heads sunk flush.',
   'Bezel screws': 'Six, through the chassis plate into the bezel. M3 x 8 into the inserts, or on MK III M2.5 x 8 cutting their own thread: an M3 was too tight in the printed holes.',
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',

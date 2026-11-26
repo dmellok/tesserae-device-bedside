@@ -146,7 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 5, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 3, 'Rear shell': 2, 'Access cover': 10}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
+REV = {'Frame plate': 5, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 3, 'Rear shell': 2, 'Access cover': 11}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -239,7 +239,7 @@ def marks(part):
           'Base tray': ((139.8, 44, 3.0), (0, 1, 0), (-1, 0, 0), 'over'),   # the floor, between the battery pad and the right bank of vents, reading front to back
           'Plinth': ((30, 68.5, ZP - T), (1, 0, 0), (0, -1, 0), 'after'),    # the underside of its roof
           'Rear shell': (F(50, 120, WSO - T), U_, V_, 'under'),           # the inside of its back
-          'Access cover': (F(137.2, 73.5, WBT - T), U_, V_, 'after')}[part]   # the inside of the hump's back
+          'Access cover': ((137.2, YR - T, 68.5), (1, 0, 0), (0, 0, 1), 'after')}[part]   # the inside of the hump's back
     t, code = mark_text(part)
     dx, dy = {'after': (6*(len(t) + 1)*PXL, 0), 'under': (0, -8.5*PXL), 'over': (0, 8.5*PXL)}[where]
     return stamp(t, o, ex, ey) + stamp(code, tuple(o[k] + dx*ex[k] + dy*ey[k] for k in range(3)), ex, ey)
@@ -416,42 +416,29 @@ def shell():
     ky, kz = F(0, KV, KW)[1:]
     cuts += [cyl((235, ky, kz), (246, ky, kz), 6.25), INTER(box(235, ky - 70, kz - 6.25, 246, ky, kz + 6.25), obox(-50, -300, WB - 1, 300, 500, 400))]   # level slot for the encoder bushing and its nut, open to the front
     return SUB(s, cuts)
-# The access cover is screwed to the plinth: it stands on a low base that runs round its sides and back, on the plinth's roof, and an M3 x 8 goes down
-# through the base on each side into a boss under the roof, its head in a recess like every other screw on the outside. Nothing on the cover reaches
-# through the opening in the rear shell's back wall, because the driver HAT stands just inside it. The hump is ribbed over the top and down the back at
-# the pitch of the rear shell's slats.
+# The access cover is a plain block over the driver stack, screwed to the plinth: a low shoulder down each side stands on the plinth's roof, and an
+# M3 x 8 goes down through it into a boss under the roof, its head in a recess like every other screw on the outside. Its front leans against the back
+# of the rear shell and its back is upright, in line with the plinth's rear face. Nothing on it reaches through the opening in the shell's back wall,
+# because the driver HAT stands just inside it.
 # History: R1 and R2 had tabs inside the hump that no finger could reach. R3, R4, R7 and R8 gripped the edges of the opening with hooks on sprung strips
 # cut from the cover's sides, released by squeezing: as built, the hooks ran into the driver HAT. R5 and R6 had both hooks and screws and were never printed.
-# R9 has the screws alone, through a shoulder down each side. R10 goes with plinth R3, whose roof is cut away behind the driver stack right back to its
-# rear wall: the shoulders are joined by a step across the back, as far as the plinth's rear edge, which closes that cut and is hollow underneath.
-# The cover prints top down, and the base, 10.8 mm above the bed, needs support.
-CVX, CVW, CVH, CVY = 4.5, 10.5, CB + SEAT, 64.0      # the base: how far each screw is from the hump's side wall, the base's width beyond the hump on each side, its height, and where the screws are front to back (y)
-CVB = YR - EC                                    # the back of the base: where the chamfer round the top of the plinth begins
-RIB_N, RIB_P, RIB_W, RIB_D = 13, 4.5, 2.0, 1.0   # the grooves in the hump: how many, their pitch and width (the rear shell's slats are 2 mm at 4.5), and their depth
+# R9 has the screws alone, through a shoulder down each side. R10 went with plinth R3, whose roof is cut away behind the driver stack right back to its
+# rear wall: a step across the back closed that cut. R9 and R10 had a back wall that leaned with the frame, and grooves over the top like the shell's
+# slats; as built, R10's back wall fouled the Pico's adapter board. R11 is simpler: an upright back as far back as the plinth goes, so the inside is as
+# deep as the cut in the roof, and no grooves. The cover prints top down, and the two shoulders, 10.8 mm above the bed, need support.
+CVX, CVW, CVH, CVY = 4.5, 10.5, CB + SEAT, 64.0      # the shoulders: how far each screw is from the hump's side wall, their width, their height, and where the screws are front to back (y)
 def cover_screws(): return [(BU0 - CVX, CVY), (BU1 + CVX, CVY)]
 def roof_cut(): return box(BU0 + T, 60.0, ZP - T - 0.5, BU1 - T, YR - T, ZP + 1)      # the plinth's roof behind the driver stack, cut right back to the inside of the rear wall (from plinth R3): as built, the stack fouled the roof that was left there
-def cover_block(u0, u1, ztop, off=0.0):
-    # a block standing on the plinth's roof against the back of the shell, with the hump's lean and chamfers; off shrinks its top, sides and back
-    s = INTER(box(u0 + off, -80, ZP, u1 - off, 200, ztop - off), obox(-50, -300, WSO + G, 300, 500, WBT - off))
-    yb = (WBT + (ztop - 12)*S)/C; back = F(0, 0, WBT)
-    return SUB(s, [chamo((0, yb, ztop), ZU, W_, EC, off), chamo((u0, 0, ztop), XL, ZU, EC, off), chamo((u1, 0, ztop), XR, ZU, EC, off),
-                   chamo((u0, back[1], back[2]), XL, W_, EC, off), chamo((u1, back[1], back[2]), XR, W_, EC, off)])
-def cover_base():
-    # the low slab the hump stands on: wider than the hump by a shoulder each side, and reaching back to the plinth's rear edge, with a square back like the plinth's
-    u0, u1, zt = BU0 - CVW, BU1 + CVW, ZP + CVH
-    s = INTER(box(u0, -80, ZP, u1, CVB, zt), obox(-50, -300, WSO + G, 300, 500, 400))
-    return SUB(s, [cham((0, CVB, zt), YB, ZU), cham((u0, 0, zt), XL, ZU), cham((u1, 0, zt), XR, ZU), cham((u0, CVB, 0), XL, YB), cham((u1, CVB, 0), XR, YB)])
+def cover_block(u0, u1, ztop):
+    # a block standing on the plinth's roof: its front leans against the back of the shell and its back is upright, in line with the plinth's rear face
+    s = INTER(box(u0, -80, ZP, u1, YR, ztop), obox(-50, -300, WSO + G, 300, 500, 400))
+    return SUB(s, [cham((0, YR, ztop), YB, ZU), cham((u0, 0, ztop), XL, ZU), cham((u1, 0, ztop), XR, ZU), cham((u0, YR, 0), XL, YB), cham((u1, YR, 0), XR, YB)])
 def cover():
     # beige: the hump behind the rear shell, as a separate cover over the driver stack. It sits on the plinth's roof against the back of the shell and is held by two screws.
-    c = INTER(SUB(buttress(0), [cavity()]), obox(-50, -300, WSO + G, 300, 500, 400))
-    # the base, open under the hump, and hollow behind it over the cut in the plinth's roof: the hump's back wall stops at the hollow's ceiling, so the two spaces are one
-    base = SUB(cover_base(), [buttress(T)])
-    hollow = box(BU0 + T, 60.0, ZP - 1, BU1 - T, CVB - T, ZP + CVH - SEAT)
-    # grooves over the top and down the back as far as the top of the base, like the slats on the top left of the rear shell
-    r0 = (BU0 + BU1)/2 - ((RIB_N - 1)*RIB_P + RIB_W)/2
-    ribs = SUB(U([box(r0 + RIB_P*i, -80, ZP + CVH, r0 + RIB_P*i + RIB_W, 200, ZB + 1) for i in range(RIB_N)]), [cover_block(BU0, BU1, ZB, RIB_D)])
+    inside = box(BU0 + T, -80, ZP - 1, BU1 - T, YR - T, ZB - T)       # open to the front and underneath, and as deep as the cut in the plinth's roof
+    body = U([cover_block(BU0, BU1, ZB), cover_block(BU0 - CVW, BU1 + CVW, ZP + CVH)])      # the hump, and a shoulder down each side for the screws
     holes = [cyl((x, y, ZP - 1), (x, y, ZP + CVH + 1), 1.7) for x, y in cover_screws()] + [cyl((x, y, ZP + SEAT), (x, y, ZP + CVH + 1), CBR) for x, y in cover_screws()]
-    return SUB(U([c, base]), [ribs, hollow] + holes)
+    return SUB(body, [inside] + holes)
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)

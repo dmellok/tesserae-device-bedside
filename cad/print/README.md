@@ -56,7 +56,7 @@ The six case parts, each turned to the way it prints and numbered in the order t
 | `3-plinth-black-r3.stl` | Plinth | Roof down |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
 | `5-rear-shell-beige-r2.stl` | Rear shell | Back down |
-| `6-access-cover-beige-r10.stl` | Access cover | Top down |
+| `6-access-cover-beige-r11.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
 
@@ -131,6 +131,11 @@ Access cover revisions:
   the back, so the hump stands on one low base that reaches the plinth's rear edge and closes the cut. The base is hollow behind the hump, and
   the hump's back wall stops at that hollow's ceiling, so the stack has 3 mm more height there as well. Same screws and bosses as R9. Prints top
   down, on support under the base, which is 10.8 mm above the bed. An R9 cover on an R3 plinth leaves a 4 mm strip of the cut open behind it.
+  As built, its back wall, which leaned with the frame, fouled the Pico's adapter board.
+- R11: simpler. A plain block with an upright back wall in line with the plinth's rear face, so the inside is as deep as the cut in the plinth's
+  roof: 7 mm more room behind the driver stack at roof level than R10, and more higher up. No grooves and no step across the back; the two
+  shoulders and their screws are as before, so it fits plinth R2 or R3. Prints top down, on support under the two shoulders, which are
+  10.8 mm above the bed.
 
 Plinth revisions:
 
