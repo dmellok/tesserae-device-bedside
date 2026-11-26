@@ -1190,6 +1190,100 @@ properly.
   wires to the header, meter points) and `docs/amp-battery-wiring.html` (the
   header-level diagrams, with a note on what the board changed).
 
+## 2026-11-26: full bleed, skip next alarm, the ten shakedown items, and why GitHub updates failed
+
+Released as **v0.10.0**, with the dawn chorus switch and the four display fixes
+below. Not installed on the panel at the time of the tag.
+
+Kayden asked for all ten suggestions from the shakedown and a full-bleed mode
+("just overlay a clock at a configurable corner"). All in the simulator and
+Safari; not on the panel yet.
+
+- **Full bleed** is overlay 4 (`OVERLAYS[4]`, after "Off" so saved values keep
+  their meaning). `viewport()` gives the dashboard the whole panel; `ov_rect()`
+  is a tab flush in the corner `S.bleed_corner` (0 TL, 1 TR, 2 BL, 3 BR;
+  default 3; Settings > Home screen > Clock corner, shown only in full bleed;
+  `set=bleed_corner|n`; ext blob `rsv1[36]` + 1), white time on black, DU when
+  clock updates are two-level. It ignores Shows. Confirmations are cards
+  (`confirm()` flashes an overlay item only for kinds 0 to 2). The simulator
+  has no server frame, so it was seen over a blank dashboard only.
+- **Skip next alarm**: `alarm_skip_toggle()` in `ui_alarm.c` sets `s_skip_min`,
+  the mark the dawn chorus's stop already left, to the next ring's minute.
+  `local_alarm_tick()` then starts no pre-wake and, at the minute, publishes
+  `alarm_skipped` instead of ringing (a Once alarm switches itself off as if it
+  had rung). Row under Alarms, action `alarm.skip` (keys), `set=alarm_skip|0/1`,
+  state `chorus.skip`, a button in the web app. It is saved (ext blob
+  `rsv1[37..40]`, the minute as a uint32) so the 03:10 auto-update's restart
+  doesn't bring the alarm back. Run through with the simulator's clock.
+- **Pre-wake says so**: the top bar's title on the Live page ("Dawn chorus ·
+  press the knob to stop", or "Alarm soon" with the chorus off); on a server
+  dashboard, which has no top bar, a card when it starts (it goes after 1.5 s
+  like any card: a hint for someone already awake, no more).
+- **The orange key stops the alarm** (`local_key()`, `key_role()`); keys 1 to 3
+  and a turn still snooze.
+- **Chorus off**: the Live page says "Lights 06:15" (what still happens then),
+  and `rainsynth.c` no longer fades the sleep sound out when there are no birds
+  to hand over to; it plays until the alarm.
+- **Cards** (`build_toast()`): the layer is the card's own rectangle, so nothing
+  around it is blanked. System 7's dialog keeps its margin.
+- **Descriptions wrap** to two lines in the preview and the value editor
+  (`wrap_c()`); `fit_line()` and its "..." are gone.
+- **Test sound** reads "Off", not "Stop", when nothing plays.
+- **Web app**: the Device page (phone layout) has a sticky row of jump chips and
+  each heading folds its cards (remembered in the browser; the desktop Device
+  page gets the chips too); selects are 46 px tall; sliders and selects without
+  a label get an `aria-label` from their caption (`nameControls()`).
+- **GitHub updates.** On the panel, 26 Nov, with `https=` and query strings of
+  different lengths: a GET to github.com was answered every time its length was
+  3 (mod 4), which makes the TLS record a multiple of 4 bytes, and never
+  otherwise (16 fetches with the panel left alone while each ran: 7 of 7, and
+  0 of 9; lwIP -13, nothing received, after 5 to 8 s). `bedside-<v>.bin.sha256` happens to be a good length and
+  `bedside-<v>.bin` and `manifest.json` are not, which is why the check worked
+  and the download never did. The same bytes sent from the Mac over TLS 1.2
+  were answered at every length, and api.github.com answered the panel at every
+  length, so it is something between this firmware's stack and github.com; the
+  cause is NOT known. `do_request()` in `net_rest.c` now pads secure requests
+  with an `X-Pad` header to the length that works, and a GET that still dies
+  with nothing received is tried at the other three lengths. Unproven until it
+  runs on the panel: the simulator's network is the Mac's.
+- `/api/log?from=N` returns at most 10 kB from N and, first, where to read next;
+  read until nothing comes back to find the end.
+- The Mac was 192.168.50.71 this afternoon (a local install needs its address).
+
+## 2026-11-26: shakedown after 0.9.0, four display fixes
+
+Every menu list and the special screens (four Live layouts, dark, ringing,
+pre-wake, on battery, large text, night, the update card) were screenshotted in
+all five themes in the simulator and looked over, the web app was driven in
+Safari (phone and desktop layouts: no script errors, no sideways overflow), and
+`sim/tools/shakedown.py` now also sweeps `theme` 0..4, `throb`, `throb_col`,
+`knob_click` and `chorus_on`. Found and fixed:
+
+- **Instrument**: `theme_shade()` turned any light fill over 60 px into a white
+  panel, so the weather layout's lightest rain bars vanished. Now only fills
+  over 200 x 100 (tiles).
+- **Terminal**: the ringing screen, already dark as drawn, was inverted to
+  white. `layer_reset()` leaves it alone while `PHASE_RINGING`.
+- **Blueprint**: the highlight's inner box clipped the label in lists with more
+  than eight rows (the Dawn chorus list has 14). The inset is 5 px there.
+- **Large text**: the key labels in the top bar used a font taller than the
+  key's frame. They stay in the frame's font.
+
+Not bugs, but seen: the update card clears a rectangle larger than itself; a
+few preview descriptions are cut with "..." in Terminal and in large text.
+
+## 2026-11-26: a switch for the dawn chorus
+
+After 0.9.0. The chorus could only be stopped by switching every bird off.
+`S.chorus_off` (Alarms > Dawn chorus > Dawn chorus; `set=chorus_on|0/1`; state
+`chorus.on`; ext blob `rsv1[35]`, 2 = off; HA switch `chorus_on`) keeps the birds
+chosen. `local_chorus_birds()` gives the synth no birds while it is off, except
+in a preview; `chorus_on()` picks "Wake window" over "Dawn chorus" on the Live
+page. The wake window itself (lights, the sleep sound fading out) still runs.
+`ring()` uses Chime when the alarm sound is "Chorus only" and no birds will
+sing, so an alarm is never silent. Checked in the simulator: the row, the API,
+the saved setting; not heard through a real wake window.
+
 ## 2026-11-26: Terminal, Blueprint and Instrument themes
 
 Released as **v0.9.0** together with the loading lights (below). The themes were

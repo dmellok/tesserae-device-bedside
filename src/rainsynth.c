@@ -340,7 +340,7 @@ void rs_render(const rs_params_t *p, int16_t *out, int n)
     int   kind  = p->kind;
     /* the dawn chorus: the sleep sound fades out under it as it builds */
     float chorus = clamp01(p->chorus);
-    float under = 1.0f - clamp01(chorus * 1.6f);
+    float under = p->birds ? 1.0f - clamp01(chorus * 1.6f) : 1.0f;   /* no birds to hand over to: the sound plays on until the alarm */
     float tr = (p->on && kind == RS_RAIN)  ? under : 0.0f;
     /* rain also stands in for a recording that isn't there (below) */
     float to = (p->on && kind == RS_OCEAN) ? under : 0.0f;

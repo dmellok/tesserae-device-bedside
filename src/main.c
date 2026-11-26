@@ -333,7 +333,7 @@ static void audio_update(void)
     rs_params_t p = { .on = ls->rain_on, .kind = ls->rain_kind, .level = ls->rain_lvl, .volume = ls->vol, .fade = fade,
                       .patter = ls->patter, .wash = ls->wash, .tone = ls->tone, .wind = ls->wind, .surface = ls->surface,
                       .thunder = ls->thunder, .thunder_near = ls->thunder_near, .strike = ls->strike,
-                      .chorus = ls->chorus, .birds = ls->birds, .bird_vol = ls->bird_vol,
+                      .chorus = ls->chorus, .birds = local_chorus_birds(), .bird_vol = ls->bird_vol,
                       .audition = ls->audition, .audition_bird = ls->audition_bird, .bird_soft = ls->bird_soft, .test = ls->test,
                       .ring = ls->tone_playing, .ring_level = ls->tone_level,
                       .rec = rec ? store_data(rec) : NULL, .rec_len = rec ? rec->size : 0,

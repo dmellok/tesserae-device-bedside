@@ -287,7 +287,7 @@ static void build_live_bento(layer_t *l)
         op_text(l, hx, LV_HEAD_Y + 142, lv_fit(c, hw, F_M, F_LBL, F_LBL), tn_fg, c);
     }
     int win = early > 0 ? early : 10, cm = ((ah * 60 + am - win) % 1440 + 1440) % 1440;   /* alarm_window_s(): 10 min when not set */
-    if (alarm) snprintf(b, sizeof b, "%s %02d:%02d", S.live_demo || S.birds ? "Dawn chorus" : "Wake window", cm / 60, cm % 60);
+    if (alarm) snprintf(b, sizeof b, "%s %02d:%02d", S.live_demo || chorus_on() ? "Dawn chorus" : "Lights", cm / 60, cm % 60);
     else snprintf(b, sizeof b, "No wake window");
     op_text(l, LV_RIGHT_X + 40, LV_HEAD_Y + 226, F_M, tn_fg, b);
     int end = have_clock ? live_stop_min(sec) : -1;
@@ -500,7 +500,7 @@ bool local_live_tick(void)
     if (ov_flash_tick()) late = true;                                        /* the overlay's flashed item goes back to normal */
     {   static int64_t ov_min = -1;                                           /* the overlay's clock */
         int owd, osec; int64_t omn = -1;
-        if (ov_active() && (S.show & 1) && clock_now(&owd, &osec, &omn) && omn != ov_min) {
+        if (ov_active() && ((S.show & 1) || ov_kind() == 4) && clock_now(&owd, &osec, &omn) && omn != ov_min) {
             if (ov_min >= 0) { rebuild(); mark_ov(); late = true; }
             ov_min = omn;
         }
@@ -522,7 +522,7 @@ bool local_live_tick_inner(void)
     int ah = 0, am = 0, aon = 0, amask = 0, ae = 0;
     if (ai >= 0) local_alarm_get(ai, &ah, &am, &aon, &amask, &ae);
     uint32_t sig = (uint32_t)(left > 0 ? sleep_stop_min() : -1) * 2654435761u ^ (uint32_t)(ai * 7 + ah * 60 + am) * 40503u
-                 ^ (uint32_t)ae * 31u ^ (uint32_t)S.rain_on * 977u ^ (uint32_t)S.birds * 13u
+                 ^ (uint32_t)ae * 31u ^ (uint32_t)S.rain_on * 977u ^ (uint32_t)(chorus_on() ? S.birds : 0) * 13u
                  ^ (uint32_t)(S.ac_mode * 100 + S.sp_x2 + S.fan * 1000 + S.room_x10 * 7) * 2246822519u;
     if (!vis) { last_min = mn; last_sig = sig; return false; }
     bool any = false;

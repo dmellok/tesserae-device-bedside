@@ -89,7 +89,8 @@ harmless (the device card nags about it in the serial log).
 takes part of the panel; `viewport` is what is left for the dashboard, sent
 on every heartbeat while it is smaller than the panel: strip 0,0 1872x1228
 (default), cards left 432,0 1440x1404, cards bottom 0,0 1872x1080, omitted
-when the overlay is off. A server that honours it renders frames at w x h
+when the overlay is off or "Full bleed" (the whole panel for the dashboard,
+and only a clock drawn over one corner, chosen under Settings → Home screen). A server that honours it renders frames at w x h
 (w*h/2 bytes, rows packed); the device paints them at x, y with white around
 them. A full 1872x1404 frame is still accepted and painted whole, with the
 overlay drawn over its edge, so a server that ignores the field keeps

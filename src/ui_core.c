@@ -49,7 +49,7 @@ local_state_t S = {
     .birds = BIRDS_ALL, .bird_vol = 6,
     .key_col = 0, .menu_col = 3, .night_col = 4, .knob_light = true, .throb = THROB_SCANNER, .throb_col = 0, .auto_night = 0, .clock12 = false, .snooze_min = 9,
     .speaker = true, .power_mon = false, .bird_soft = 35, .clock_du = 2, .live_demo = false, .rec = "", .wf_temp = 0, .turn_hints = false, .large_text = false, .quick_menus = true, .settle_full = false, .clean_min = 10, .stop_clean = true, .wiz = -1,
-    .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 2, .tz = 0, .auto_time = true, .refresh_mode = 1,
+    .bleed_corner = 3, .night_keys = 0, .overlay = 0, .show = 0x07, .at_night = 2, .tz = 0, .auto_time = true, .refresh_mode = 1,
     .alarm_tone = 3,                                                    /* Chime: gentle, after the chorus has built */
     .quick_a2 = false, .load_1bpp = 0,                                  /* A2 did not clear on this panel: old digits stayed under new ones */
 };
@@ -93,7 +93,7 @@ const int         CLEAN_V[N_CLEAN]  = { 5, 10, 20, 45, 60, 120 };
 const char *const SOFTENS[6] = { "Off", "8 kHz", "6 kHz", "5 kHz", "4 kHz", "3 kHz" };
 const char *const LOWCUTS[5] = { "Off", "60 Hz", "90 Hz", "120 Hz", "160 Hz" };
 const char *const PEAKS[3]   = { "As they are", "Gentle", "Firm" };
-const char *const TESTS[5]   = { "Stop", "Pink noise", "1 kHz tone", "100 Hz tone", "Sweep" };
+const char *const TESTS[5]   = { "Off", "Pink noise", "1 kHz tone", "100 Hz tone", "Sweep" };
 const char *const CLOCKDU[3] = { "Full quality", "Two-level at night", "Two-level always" };
 const char *const LIVE_LAYOUTS[4] = { "Bento", "Big clock", "Weather", "Tonight" };
 const char *const LIVE_DARKS[3]   = { "Light", "Dark", "Dark at night" };
@@ -128,16 +128,17 @@ void apply_throb(bool show)
                      S.throb_col >= 1 && S.throb_col <= N_PAL ? PAL[S.throb_col - 1].rgb : NULL);
     if (show && S.throb) inputs_throb_preview(4000);
 }
-const char *const OVERLAYS[4]  = { "Strip", "Cards left", "Cards bottom", "Off" };
+const char *const OVERLAYS[5]  = { "Strip", "Cards left", "Cards bottom", "Off", "Full bleed" };
+const char *const CORNERS[4]   = { "Top left", "Top right", "Bottom left", "Bottom right" };
 const char *const ATNIGHT[3]   = { "Same", "Clock only", "Clock and alarm" };
 const char *const NIGHTKEYS[2] = { "Dim", "Off" };
 const char *const REFRESHES[3] = { "Fast", "Clean", "Full" };
 int local_refresh_mode(void) { return S.refresh_mode; }
 /* What keys 1-3 can do, pressed or held (ids as in the action table). */
 const char *const KEYACT_ID[N_KEYACT] = { "rain.toggle", "lights.toggle", "ac.toggle", "dash.prev", "dash.next", "night", "light.night",
-    "alarm.toggle", "open.sound", "open.lights", "open.ac", "open.alarm", "menu", "refresh", "live.next", "none" };
+    "alarm.toggle", "open.sound", "open.lights", "open.ac", "open.alarm", "menu", "refresh", "live.next", "alarm.skip", "none" };
 const char *const KEYACT_NAME[N_KEYACT] = { "Sleep noise on/off", "Lights on/off", "AC on/off", "Previous dashboard", "Next dashboard", "Night mode", "Night light",
-    "Alarm on/off", "Open Rain", "Open Lights", "Open AC", "Open Alarms", "Open menu", "Refresh dashboard", "Next Live layout", "Nothing" };
+    "Alarm on/off", "Open Rain", "Open Lights", "Open AC", "Open Alarms", "Open menu", "Refresh dashboard", "Next Live layout", "Skip next alarm", "Nothing" };
 const char *const KNOBACT_ID[N_KNOBACT]   = { "back", "none", "night", "rain.toggle", "dash.next" };
 const char *const KNOBACT_NAME[N_KNOBACT] = { "Back", "Nothing", "Night mode", "Rain on/off", "Next dashboard" };
 /* Time zones: standard offset and daylight-saving rule (0 none, 1 south-east
@@ -304,6 +305,7 @@ const action_t ACTIONS[] = {
     { "lights.toggle", "Lights on/off" },
     { "ac.toggle",     "AC on/off" },
     { "alarm.toggle",  "Alarm on/off" },
+    { "alarm.skip",    "Skip next alarm" },
     { "light.night",   "Night light" },
     { "dash.next",     "Next dashboard" },
     { "dash.prev",     "Previous dashboard" },

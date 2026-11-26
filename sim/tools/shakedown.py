@@ -174,7 +174,7 @@ BAD_LOG = [
     (re.compile(r"\b(FAILED|failed|error|overflow|truncated|too large|unknown|invalid|bad )", re.I), "log"),
     (re.compile(r"^stall: "), "stall"),
 ]
-LOG_OK = re.compile(r"SomaFM|no address for|rest: connect failed|could not fetch|mqtt:|tap expired|"
+LOG_OK = re.compile(r"radio: now playing|SomaFM|no address for|rest: connect failed|could not fetch|mqtt:|tap expired|"
                     r"connect failed \(|no server|bind: unknown input|"
                     r"radio: .*; retry \d+ in|radio: tcp error|radio: stopped \(|"
                     r"sim: tls: handshake failed .*not correctly signed by the trusted CA", re.I)   # the radio and https scenarios' broken servers, on purpose
@@ -491,7 +491,8 @@ SETS = {
     "keylights": [0, 255, 40], "patter": [0, 100, 60], "wash": [0, 100, 55], "tone": [0, 100, 50], "wind": [0, 100, 20],
     "thunder": [100, 0], "thunder_near": [100, 35], "surface": [1, 2, 3, 0], "key_col": [1, 0], "menu_col": [1, 0],
     "night_col": [1, 0], "knob_light": [0, 1], "auto_night": [0, 1, 2], "clock12": [1, 0], "snooze": [5, 15, 9],
-    "night_keys": [1, 2, 0], "overlay": [1, 0], "show": [0, 15, 7], "at_night": [0, 1, 2], "large_text": [1, 0], "theme": [1, 0],
+    "night_keys": [1, 2, 0], "overlay": [1, 2, 3, 4, 0], "bleed_corner": [0, 1, 2, 3], "alarm_skip": [1, 0], "show": [0, 15, 7], "at_night": [0, 1, 2], "large_text": [1, 0], "theme": [1, 2, 3, 4, 0],
+    "throb": [0, 2, 3, 4, 5, 1], "throb_col": [1, 9, 10, 0], "knob_click": [1, 0], "chorus_on": [0, 1],
     "clock_du": [1, 2, 0], "live_demo": [1, 0], "live_layout": [1, 2, 3, 0], "live_dark": [1, 2, 0], "tz": [1, 5, 0],
     "autoupdate": [1, 0], "speaker": [0, 1], "bird_soft": [0, 100, 35], "spk_gain": [-6, 6, 0], "spk_soft": [1, 0],
     "spk_hpf": [1, 0], "spk_limit": [1, 0], "refresh_mode": [0, 2, 1], "turn_hints": [1, 0], "quick_menus": [0, 1],

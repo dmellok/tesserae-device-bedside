@@ -11,7 +11,8 @@
  * full-screen layout. */
 
 /* The overlay in force: nothing to show means none. */
-int ov_kind(void) { return (S.show & 0x1F) ? S.overlay : 3; }
+/* 4, full bleed: the dashboard has the whole glass and only a clock sits on it, in a corner. */
+int ov_kind(void) { return S.overlay == 4 ? 4 : (S.show & 0x1F) ? S.overlay : 3; }
 bool ov_active(void) { return s_mode == M_HOME && S.dash_page > 0 && S.phase != PHASE_RINGING; }
 
 static bool ov_rect(int *x, int *y, int *w, int *h)
@@ -20,6 +21,10 @@ static bool ov_rect(int *x, int *y, int *w, int *h)
     case 0: *x = 0; *y = H - OV_STRIP_H; *w = W; *h = OV_STRIP_H; return true;
     case 1: *x = 0; *y = 0; *w = OV_LEFT_W; *h = H; return true;
     case 2: *x = 0; *y = H - OV_BOTTOM_H; *w = W; *h = OV_BOTTOM_H; return true;
+    case 4: {                                              /* a tab flush in the corner, as wide as the widest time */
+        int cw = clock_slots(NULL, 0, 0, F_XL, 0, "00:00") + (S.clock12 ? 12 + draw_font_w(F_M, "pm") : 0) + 2 * 44;
+        cw = (cw + 15) & ~15; int chh = F_XL->line_h + 2 * 22;
+        *w = cw; *h = chh; *x = (S.bleed_corner & 1) ? W - cw : 0; *y = (S.bleed_corner & 2) ? H - chh : 0; return true; }
     default: *x = *y = *w = *h = 0; return false;
     }
 }
@@ -129,7 +134,7 @@ static int ov_values(ov_val_t *v, bool *clock, char *clk, char *clock_ampm, char
  * the overlay has one for it (bit as in Shows), else a card over the page. */
 void confirm(const char *icon, const char *txt, const char *val, int ov_bit)
 {
-    if (ov_bit && ov_active() && ov_kind() != 3 && (S.show & ov_bit)) {
+    if (ov_bit && ov_active() && ov_kind() < 3 && (S.show & ov_bit)) {
         bool clock_only = S.night && S.at_night == 1 && (S.show & 1);
         bool alarm_only = S.night && S.at_night == 2 && (S.show & 1) && ov_bit != 2;
         if (!clock_only && !alarm_only) { ov_flash(ov_bit); return; }
@@ -168,7 +173,7 @@ bool clock_du_active(void)
 
 bool strip_du(void)
 {
-    return ov_kind() == 0 && clock_du_active();
+    return (ov_kind() == 0 || ov_kind() == 4) && clock_du_active();
 }
 
 void build_overlay(layer_t *l)
@@ -183,6 +188,14 @@ void build_overlay(layer_t *l)
     const char *wifi = net_connected() ? ICON_WIFI_HIGH : ICON_WIFI_SLASH;
     int kind = ov_kind();
 
+    if (kind == 4) {                                         /* full bleed: the time alone, white on a black tab */
+        layer_reset(l, ox, oy, ow, oh, G_BLACK);
+        int tw = clock_slots(NULL, 0, 0, F_XL, 0, ct) + (ap[0] ? 12 + draw_font_w(F_M, ap) : 0);
+        int x = ox + (ow - tw) / 2, y = oy + (oh - F_XL->line_h) / 2;
+        x += clock_slots(l, x, y, F_XL, G_WHITE, ct);
+        if (ap[0]) op_text(l, x + 12, y + F_XL->line_h - F_M->line_h - 6, F_M, G_WHITE, ap);
+        return;
+    }
     if (kind == 0) {                                         /* the strip */
         uint8_t dim = strip_du() ? G_BLACK : G_DARK;
         op_fill(l, 0, oy, W, 4, G_BLACK);
@@ -409,8 +422,9 @@ void build_toast(layer_t *l)
 {
     if (s_toast_alert && sys7()) { build_alert(l); return; }
     /* A rounded card: big icon on the left, the label above, the state large. */
-    layer_reset(l, TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, G_WHITE);
-    bool s7 = sys7();                        /* System 7: an alert's double frame, the icon as it is */
+    bool s7 = sys7();
+    if (s7) layer_reset(l, TOAST_X - 32, TOAST_Y - 32, TOAST_W + 64, TOAST_H + 64, G_WHITE);
+    else layer_reset(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H, G_WHITE);       /* the card alone: nothing blanked around it */                        /* System 7: an alert's double frame, the icon as it is */
     if (s7) s7_dialog(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H);
     else {
         op_rrect(l, TOAST_X, TOAST_Y, TOAST_W, TOAST_H, 44, G_BLACK);

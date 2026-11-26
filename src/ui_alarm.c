@@ -79,6 +79,42 @@ bool clock_now(int *wday, int *sec, int64_t *minute)
     return true;
 }
 
+/* Skip next alarm: the next ring is passed over, once, and the alarm stays on.
+ * The same mark the dawn chorus's stop leaves (s_skip_min), set ahead of time. */
+static bool next_ring(int *idx, int64_t *ring_min)
+{
+    int wday, sec; int64_t minute; int32_t d;
+    if (!clock_now(&wday, &sec, &minute)) return false;
+    int i = alarm_next(s_alarms, s_nalarms, wday * 86400 + sec, false, &d);
+    if (i < 0) return false;
+    *idx = i; *ring_min = (minute * 60 + sec % 60 + d) / 60;
+    return true;
+}
+bool alarm_skipping(void)
+{
+    int wday, sec; int64_t minute;
+    return clock_now(&wday, &sec, &minute) && s_skip_min > minute;
+}
+uint32_t alarm_skip_get(void) { return s_skip_min > 0 ? (uint32_t)s_skip_min : 0; }
+void alarm_skip_set(uint32_t m) { s_skip_min = m ? (int64_t)m : -10; }
+void alarm_skip_toggle(void)
+{
+    int i; int64_t rm;
+    bool home = s_mode == M_HOME;                          /* a card only on the home page; in the menu the row itself says it */
+    if (alarm_skipping()) { s_skip_min = -10; if (home) toast(ICON_ALARM, "Alarm", "Not skipped"); }
+    else if (next_ring(&i, &rm)) {
+        char hm[8], v[32]; fmt_hm(hm, sizeof hm, s_alarms[i].h * 60 + s_alarms[i].m);
+        snprintf(v, sizeof v, "%s, this once", hm);
+        s_skip_min = rm; if (home) toast(ICON_ALARM, "Skipping", v);
+    } else { if (home) toast(ICON_ALARM, "No alarm", "Nothing to skip"); return; }
+    sync_alarm_summary(); state_changed(); rebuild();
+    if (s_mode == M_HOME) mark_screen();
+}
+void alarm_skip_desc(char *b, size_t n)
+{
+    snprintf(b, n, alarm_skipping() ? "The next ring is skipped; press to ring after all" : "Passes over the next ring, once; the alarm stays on");
+}
+
 /* The next enabled alarm and the seconds until it; without a clock yet, the
  * first enabled alarm and -1. */
 bool next_alarm(int *idx, int32_t *delta_s)
@@ -122,7 +158,7 @@ void ring(int i)
     s_ring_alarm = i; s_ring_ms = now_ms(); s_snooze_until_ms = 0; s_preview_len_ms = 0;
     if (i >= 0 && i < s_nalarms) { S.alarm_h = s_alarms[i].h; S.alarm_m = s_alarms[i].m; }
     S.phase = PHASE_RINGING; S.rain_on = false; S.lights_on = true;
-    s_tone_due = 0; S.tone_playing = S.alarm_tone; S.tone_level = 0.35f; S.tone_until = 0;   /* the sound, after the chorus has built: gently at first */
+    s_tone_due = 0; S.tone_playing = S.alarm_tone || chorus_on() ? S.alarm_tone : 3; S.tone_level = 0.35f; S.tone_until = 0;   /* the sound, after the chorus has built: gently at first */
     publish("event", "alarm_ringing");
     s_mode = M_HOME; s_depth = 0; mark_screen();
 }
@@ -161,6 +197,8 @@ void stop_prewake(void)
     else snprintf(v, sizeof v, "Alarm skipped");
     toast(ICON_ALARM, "Dawn chorus off", v);
 }
+
+uint16_t local_chorus_birds(void) { return S.chorus_off && !s_preview_len_ms ? 0 : S.birds; }
 
 void chorus_preview(int seconds)
 {
@@ -213,6 +251,10 @@ void local_alarm_tick(bool *changed)
     int best = alarm_next(s_alarms, s_nalarms, wday * 86400 + sec, true, &best_delta);
     if (best >= 0 && best_delta <= 0 && minute - s_fired_min > 1) {
         s_fired_min = minute;
+        if (minute == s_skip_min) {                         /* skipped ahead of time: not this once */
+            if (alarm_is_once(&s_alarms[best])) { s_alarms[best].on = false; alarms_save(); sync_alarm_summary(); }
+            publish("event", "alarm_skipped"); rebuild(); if (changed) *changed = true; S.chorus = c; return;
+        }
         ring(best); if (changed) *changed = true; S.chorus = 1.0f; return;
     }
     if (best >= 0 && best_delta > 0) {
@@ -226,12 +268,13 @@ void local_alarm_tick(bool *changed)
             if (S.phase == PHASE_IDLE) {
                 S.phase = PHASE_PREWAKE; S.lights_on = true; S.bright = 30;
                 publish("event", "prewake %02d:%02d", s_alarms[best].h, s_alarms[best].m);
-                rebuild(); if (s_mode == M_HOME) R_SBMID(); if (changed) *changed = true;
+                rebuild(); if (s_mode == M_HOME) { R_SBMID(); R_TOPBAR(); } if (changed) *changed = true;
+                if (ov_active()) toast(ICON_ALARM, chorus_on() ? "Dawn chorus" : "Alarm soon", "Press the knob to stop");   /* a dashboard has no top bar to say it */
             }
             S.chorus = c; return;
         }
     }
-    if (S.phase == PHASE_PREWAKE) S.phase = PHASE_IDLE;   /* the alarm was moved or switched off */
+    if (S.phase == PHASE_PREWAKE) { S.phase = PHASE_IDLE; rebuild(); if (s_mode == M_HOME) R_TOPBAR(); if (changed) *changed = true; }   /* the alarm was moved or switched off */
     S.chorus = c;
 }
 

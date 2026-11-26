@@ -52,6 +52,7 @@ int node_rows(node_t nd, row_def_t *r)
             r[n++] = (row_def_t){ S_ALARM_ITEM, K_SUB, s_labels[i], NULL, i };
         }
         if (s_nalarms < MAX_ALARMS) r[n++] = (row_def_t){ A_ADD_ALARM, K_ACTION, "Add alarm", NULL, 0 };
+        if (S.alarm_on) r[n++] = (row_def_t){ A_SKIP_ALARM, K_ACTION, "Skip next alarm", NULL, 0 };
         r[n++] = (row_def_t){ S_CHORUS, K_SUB, "Dawn chorus", NULL, 0 };
         r[n++] = (row_def_t){ C_ALARM_TONE, K_CHOICE, "Alarm sound", NULL, 0 };
         r[n++] = (row_def_t){ C_SNOOZE, K_CHOICE, "Snooze", NULL, 0 };
@@ -67,6 +68,7 @@ int node_rows(node_t nd, row_def_t *r)
         for (int i = 0; i < 7; i++) r[n++] = (row_def_t){ T_DAY, K_TOGGLE, DAY_NAMES[i], NULL, i };
         break;
     case N_CHORUS:
+        r[n++] = (row_def_t){ T_CHORUS_ON, K_TOGGLE, "Dawn chorus", NULL, 0 };
         for (int i = 0; i < BIRD_COUNT; i++) r[n++] = (row_def_t){ T_BIRD, K_TOGGLE, bird_name(i), NULL, i };
         r[n++] = (row_def_t){ V_BIRD_VOL, K_VALUE, "Alarm volume", NULL, 0 };
         r[n++] = (row_def_t){ V_BIRD_SOFT, K_VALUE, "Softness", NULL, 0 };
@@ -83,6 +85,7 @@ int node_rows(node_t nd, row_def_t *r)
         break;
     case N_HOMESCR:
         r[n++] = (row_def_t){ C_OVERLAY, K_CHOICE, "Overlay", NULL, 0 };
+        if (S.overlay == 4) r[n++] = (row_def_t){ C_BLEEDCORNER, K_CHOICE, "Clock corner", NULL, 0 };
         r[n++] = (row_def_t){ S_SHOWS, K_SUB, "Shows", NULL, 0 };
         r[n++] = (row_def_t){ C_ATNIGHT, K_CHOICE, "At night", NULL, 0 };
         r[n++] = (row_def_t){ C_LIVE_LAYOUT, K_CHOICE, "Live layout", NULL, 0 };
@@ -251,6 +254,7 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case A_DELETE_ALARM: snprintf(b, n, "Removes this alarm"); break;
     case T_DAY:       snprintf(b, n, "Rings on this day"); break;
     case T_BIRD:      snprintf(b, n, "Sings in the dawn chorus"); break;
+    case T_CHORUS_ON: snprintf(b, n, S.chorus_off ? "Off: no birds; the lights still come on early" : "Birds build up before each alarm"); break;
     case V_BIRD_VOL:  snprintf(b, n, "How loud the chorus is when the alarm rings"); break;
     case V_BIRD_SOFT: snprintf(b, n, "Takes the edge off whistles and chirps"); break;
     case A_PREVIEW:   snprintf(b, n, s_preview_len_ms ? "Playing; press to stop" : "Plays the chorus building up"); break;
@@ -291,6 +295,8 @@ void row_desc(const row_def_t *r, char *b, size_t n)
     case T_KNOB:      snprintf(b, n, "Lights the ring around the knob"); break;
     case C_THROB:     snprintf(b, n, "The keys move while a page is on its way"); break;
     case C_THROBCOL:  snprintf(b, n, "The colour they move in"); break;
+    case C_BLEEDCORNER: snprintf(b, n, "Where the clock sits on a full-bleed dashboard"); break;
+    case A_SKIP_ALARM: alarm_skip_desc(b, n); break;
     case T_TURNHINTS: snprintf(b, n, "Beside each row: turns to reach it, + clockwise"); break;
     case T_QUICKMENU: snprintf(b, n, "Steps in black and white, full quality when you stop"); break;
     case T_QUICK_A2:  snprintf(b, n, "The fastest waveform for steps; faint ghosts until the clean refresh"); break;
@@ -357,7 +363,7 @@ bool toggle_get(const row_def_t *r)
     case T_AUTOUPD: return S.auto_update;
     case T_SPEAKER: return S.speaker; case T_POWERMON: return S.power_mon;
     case T_TURNHINTS: return S.turn_hints; case T_QUICKMENU: return S.quick_menus; case T_SETTLEFULL: return S.settle_full;
-    case T_STOPCLEAN: return S.stop_clean; case T_KNOBCLICK: return S.knob_click;
+    case T_STOPCLEAN: return S.stop_clean; case T_KNOBCLICK: return S.knob_click; case T_CHORUS_ON: return !S.chorus_off;
     case T_QUICK_A2: return S.quick_a2;
     case T_LARGE: return S.large_text;
     case T_DEMO: return S.live_demo;
@@ -383,6 +389,7 @@ void toggle_flip(const row_def_t *r)
     case T_SETTLEFULL: S.settle_full = !S.settle_full; break;
     case T_STOPCLEAN: S.stop_clean = !S.stop_clean; break;
     case T_KNOBCLICK: S.knob_click = !S.knob_click; break;
+    case T_CHORUS_ON: S.chorus_off = !S.chorus_off; break;
     case T_QUICK_A2: S.quick_a2 = !S.quick_a2; break;
     case T_LARGE:   S.large_text = !S.large_text; break;
     case T_DEMO:    S.live_demo = !S.live_demo; break;
@@ -477,7 +484,8 @@ int choice_opts(item_t id, const char *const **o)
     case C_ALARM_TONE: *o = RS_TONE_NAMES; return RS_TONES;
     case C_RESET:     *o = RESETS; return 2;
     case C_THUNDER:   *o = THUNDERS; return 3;
-    case C_OVERLAY:   *o = OVERLAYS; return 4;
+    case C_OVERLAY:   *o = OVERLAYS; return 5;
+    case C_BLEEDCORNER: *o = CORNERS; return 4;
     case C_ATNIGHT:   *o = ATNIGHT; return 2;
     case C_CLOCKDU:   *o = CLOCKDU; return 3;
     case C_THEME:     *o = (const char *const *)THEMES; return N_THEMES;
@@ -528,6 +536,7 @@ int choice_get(item_t id)
     case C_RESET:     return 0;
     case C_THUNDER:   return !S.thunder ? 0 : S.thunder_near < 50 ? 1 : 2;
     case C_OVERLAY:   return S.overlay;
+    case C_BLEEDCORNER: return S.bleed_corner;
     case C_ATNIGHT:   return S.at_night;
     case C_CLOCKDU:   return S.clock_du;
     case C_THEME:     return S.theme;
@@ -579,6 +588,7 @@ void choice_set(item_t id, int k)
     case C_ALARM_TONE: S.alarm_tone = k; publish("config/alarm_tone", "%s", RS_TONE_NAMES[k]); break;
     case C_RESET:     if (k == 1) { printf("local: master reset asked for\n"); s_req = LREQ_RESET; } break;
     case C_OVERLAY:   S.overlay = k; overlay_apply(); break;
+    case C_BLEEDCORNER: S.bleed_corner = k; break;
     case C_ATNIGHT:   S.at_night = k; break;
     case C_CLOCKDU:   S.clock_du = k; break;
     case C_THEME:     theme_set(k); break;
@@ -642,6 +652,7 @@ void row_value(const row_def_t *r, char *b, size_t n)
         else snprintf(b, n, "Mains");
         break;
     case K_ACTION: if (r->id == A_PREVIEW && s_preview_len_ms) snprintf(b, n, "Playing");
+                   else if (r->id == A_SKIP_ALARM && alarm_skipping()) snprintf(b, n, "Skipping");
                    if ((r->id == A_RESTART || r->id == A_WIFISETUP) && s_armed == (int)r->id) snprintf(b, n, "Press again");
                    if (r->id == A_SOMA && radio_now(-1, radio_soma(r->arg)->id)) snprintf(b, n, "Playing");
                    if (r->id == A_STATION && radio_now(r->arg, NULL)) snprintf(b, n, "Playing");
@@ -661,7 +672,7 @@ void row_value(const row_def_t *r, char *b, size_t n)
                          if (a->on) snprintf(b, n, "%.23s", d); else snprintf(b, n, "Off"); } break;
         case S_DAYS:   alarm_days_txt(&s_alarms[s_ai], b, n); break;
         case S_CHORUS: { int k = 0; for (int i = 0; i < BIRD_COUNT; i++) k += (S.birds >> i) & 1;
-                         if (k) snprintf(b, n, "%d birds", k); else snprintf(b, n, "Off"); } break;
+                         if (k && !S.chorus_off) snprintf(b, n, "%d birds", k); else snprintf(b, n, "Off"); } break;
         case S_HOMESCR: snprintf(b, n, "%s", OVERLAYS[ov_kind()]); break;
         case S_NIGHTG:  snprintf(b, n, "%s", S.night ? "On" : S.auto_night ? AUTONIGHT[S.auto_night] : "Off"); break;
         case S_KEY:     snprintf(b, n, "%s", local_label_for_action(config_get()->bind[CONFIG_BIND_KEY1 + r->arg])); break;

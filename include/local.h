@@ -77,6 +77,8 @@ typedef struct {
     int  wiz;                          /* first-run setup: the step showing (ui_wizard.c), -1 when it is not running */
     bool knob_click;                   /* a tick from the speaker for each detent of the knob (default off) */
     int  throb;                        /* the loading lights' effect (inputs.h THROB_*; default the scanner) */
+    int  bleed_corner;                 /* full bleed: the corner its clock sits in (0 top left, 1 top right, 2 bottom left, 3 bottom right) */
+    bool chorus_off;                   /* the dawn chorus switched off as a whole (the birds chosen are kept) */
     int  throb_col;                    /* ...and colour: 0 the keys' own, 1..palette, palette + 1 rainbow */
     bool stop_clean;                   /* a full clean refresh ~15 s after the user stops (knob, keys, web app) (default on) */
     bool settle_full;                  /* ...and that full-quality pass repaints the whole screen (INIT + GC16) rather than the list */
@@ -202,6 +204,8 @@ float local_sleep_tick(bool *changed);
 /* The alarm clock: runs the wake window (the chorus builds), rings, snoozes
  * and previews. Updates S.chorus; sets *changed when the panel needs a repaint. */
 void  local_alarm_tick(bool *changed);
+/* The birds that sing in the chorus now: none while it is switched off, except in a preview. */
+uint16_t local_chorus_birds(void);
 /* The knob has rested on a menu row: repaint the list and preview in full quality. True = flush. */
 bool  local_settle_tick(void);
 /* Save the sound settings a few seconds after they stop changing. */

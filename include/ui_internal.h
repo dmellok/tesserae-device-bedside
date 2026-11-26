@@ -107,7 +107,7 @@ enum { WIN_PLAIN, WIN_ACTIVE, WIN_DARK };           /* s7_window: no stripes; st
 #define N_PAL 9
 #define N_WFTEMP 9
 #define N_CLEAN 6
-#define N_KEYACT 16
+#define N_KEYACT 17
 #define N_KNOBACT 5
 #define N_TZ 9
 
@@ -211,7 +211,7 @@ typedef enum {
     C_KEY_PRESS, C_KEY_HOLD, C_KNOB_HOLD, I_MENUKEY,
     T_AUTOTIME, C_TZ, V_TIME, V_DATE, C_REFRESHMODE, C_WFTEMP, C_CLEANMIN, A_WIFISETUP,
     S_SOFTWARE, I_FWVER, A_OTACHECK, T_AUTOUPD, A_RELEASE,
-    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL, T_STOPCLEAN, T_KNOBCLICK, C_THROB, C_THROBCOL,
+    T_SPEAKER, T_POWERMON, T_TURNHINTS, T_QUICKMENU, T_SETTLEFULL, T_STOPCLEAN, T_KNOBCLICK, T_CHORUS_ON, C_BLEEDCORNER, A_SKIP_ALARM, C_THROB, C_THROBCOL,
     /* the speaker tuning page and the birds' softness */
     V_BIRD_SOFT, S_SPEAKER, V_SPK_GAIN, C_SPK_PRESET, V_SPK_EQ, C_SPK_SOFT, C_SPK_HPF, C_SPK_LIMIT, C_SPK_TEST,
     C_CLOCKDU, T_DEMO, C_STATION,
@@ -308,7 +308,8 @@ extern const int SNOOZE_V[4];
 extern const char *const RESETS[2];
 extern local_req_t s_req;
 extern int s_req_arg;
-extern const char *const OVERLAYS[4];
+extern const char *const OVERLAYS[5];
+extern const char *const CORNERS[4];
 extern const char *const ATNIGHT[3];
 extern const char *const NIGHTKEYS[2];
 extern const char *const REFRESHES[3];
@@ -353,6 +354,12 @@ int sleep_left_s(void);
 int sleep_stop_min(void);             /* the minute of the day the sleep timer stops, -1 without one */
 void build_ring(layer_t *l);
 void chorus_preview(int seconds);
+bool alarm_skipping(void);
+uint32_t alarm_skip_get(void);
+void alarm_skip_set(uint32_t m);
+void alarm_skip_toggle(void);
+void alarm_skip_desc(char *b, size_t n);
+static inline bool chorus_on(void) { return !S.chorus_off && S.birds; }   /* birds will sing before an alarm */
 void tone_preview(int tone, int seconds);
 void tone_preview_soon(int tone);
 void ring(int i);

@@ -57,7 +57,7 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "clock12"))    { S.clock12 = v != 0; rebuild(); if (s_mode == M_HOME && S.dash_page == 0) mark(0, LV_HEAD_Y, W, LV_HEAD_H, IT8951_MODE_GL16); return true; }
     else if (!strcmp(key, "snooze"))     { if (v < 1 || v > 30) return false; S.snooze_min = v; return true; }
     else if (!strcmp(key, "night_keys")) { if (v < 0 || v > 1) return false; S.night_keys = v; apply_colours(); return true; }
-    else if (!strcmp(key, "overlay"))    { if (v < 0 || v > 3) return false; S.overlay = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
+    else if (!strcmp(key, "overlay"))    { if (v < 0 || v > 4) return false; S.overlay = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "show"))       { if (v < 0 || v > 31) return false; S.show = v; overlay_apply(); if (s_mode == M_HOME) mark_screen(); return true; }
     else if (!strcmp(key, "at_night"))   { if (v < 0 || v > 2) return false; S.at_night = v; rebuild(); if (ov_active()) mark_ov(); return true; }
     else if (!strcmp(key, "theme"))      { if (v < 0 || v >= N_THEMES) return false; theme_set(v); return true; }
@@ -92,6 +92,9 @@ bool local_set(const char *key, const char *val)
     else if (!strcmp(key, "settle_full"))  { S.settle_full = v != 0; return true; }
     else if (!strcmp(key, "wiz"))          { if (v >= WZ_STEPS) return false; if (v < 0) wizard_finish(); else wizard_goto(v); return true; }   /* setup: a step, or -1 to finish */
     else if (!strcmp(key, "stop_clean"))   { S.stop_clean = v != 0; return true; }
+    else if (!strcmp(key, "bleed_corner")) { if (v < 0 || v > 3) return false; S.bleed_corner = v; if (s_mode == M_HOME) mark_screen(); return true; }
+    else if (!strcmp(key, "alarm_skip"))   { if (alarm_skipping() != (v != 0)) alarm_skip_toggle(); return true; }
+    else if (!strcmp(key, "chorus_on"))    { S.chorus_off = v == 0; if (s_mode == M_LIST) mark_screen(); return true; }
     else if (!strcmp(key, "knob_click"))   { S.knob_click = v != 0; if (s_mode == M_LIST) mark_screen(); return true; }
     else if (!strcmp(key, "clean_min"))    { if (v < 1 || v > 240) return false; S.clean_min = v; return true; }
     else if (!strcmp(key, "wf_temp"))      { if (v < 0 || v > 50) return false; S.wf_temp = v; s_req = LREQ_REFRESH; return true; }
@@ -183,7 +186,7 @@ void settings_load(void)
 {
     set_blob_t b; set1_blob_t o;
     if (config_blob_load(4, SET2_MAGIC, &b, sizeof b)) {
-        S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 4; S.show = b.show & 0x1F; S.at_night = b.at_night % 3;
+        S.night_keys = b.night_keys % 2; S.overlay = b.overlay % 5; S.show = b.show & 0x1F; S.at_night = b.at_night % 3;
         S.tz = b.tz % N_TZ; S.auto_time = b.auto_time; S.refresh_mode = b.refresh_mode % 3; S.auto_update = b.auto_update == 1;
         S.wf_temp = b.pad[0] <= 50 ? b.pad[0] : 0;
     } else if (config_blob_load(4, SET_MAGIC, &o, sizeof o)) {
@@ -227,7 +230,9 @@ static void ext_pack(ext_blob_t *b)
     b->rsv1[30] = (char)(S.wiz < 0 ? 1 : S.wiz + 2);              /* setup: 1 done, 2 + the step while it runs; 0 = never decided */
     b->rsv1[31] = (char)(S.theme + 1);                           /* 0 = not set: standard */
     b->rsv1[32] = (char)(S.knob_click ? 2 : 1);                  /* 0 = not set: off */
-    b->rsv1[33] = (char)(S.throb + 1); b->rsv1[34] = (char)(S.throb_col + 1);   /* the loading lights; 0 = not set: the scanner, in the keys' colours */
+    b->rsv1[33] = (char)(S.throb + 1); b->rsv1[34] = (char)(S.throb_col + 1); b->rsv1[35] = (char)(S.chorus_off ? 2 : 1);
+    b->rsv1[36] = (char)(S.bleed_corner + 1);                    /* 0 = not set: bottom right */
+    { uint32_t sk = alarm_skip_get(); memcpy(&b->rsv1[37], &sk, 4); }   /* the ring being skipped, as a minute; survives a restart */   /* the loading lights; 0 = not set: the scanner, in the keys' colours */
     memcpy(b->rec, S.rec, sizeof b->rec);
 }
 void local_theme_boot(void)
@@ -263,6 +268,9 @@ void ext_load(void)
         wiz = (uint8_t)b.rsv1[30];
         if (b.rsv1[31]) S.theme = clampi((uint8_t)b.rsv1[31] - 1, 0, N_THEMES - 1);
         S.knob_click = (uint8_t)b.rsv1[32] == 2;
+        S.chorus_off = (uint8_t)b.rsv1[35] == 2;                /* 0 = not set: on */
+        if (b.rsv1[36]) S.bleed_corner = clampi((uint8_t)b.rsv1[36] - 1, 0, 3);
+        { uint32_t sk; memcpy(&sk, &b.rsv1[37], 4); alarm_skip_set(sk); }
         if (b.rsv1[33]) S.throb = clampi((uint8_t)b.rsv1[33] - 1, 0, THROB_EFFECTS - 1);
         if (b.rsv1[34]) S.throb_col = clampi((uint8_t)b.rsv1[34] - 1, 0, N_PAL + 1);
         S.spk_soft = clampi(b.spk_soft, 0, 5); S.spk_hpf = clampi(b.spk_hpf, 0, 4); S.spk_limit = clampi(b.spk_limit, 0, 2);
@@ -368,8 +376,8 @@ size_t local_state_json(char *b, size_t cap)
         int left = s_preview_len_ms ? (int)((int32_t)(s_preview_start_ms + s_preview_len_ms + 20000u - now_ms()) / 1000) : 0;
         int snz = s_snooze_until_ms ? (int)((int32_t)(s_snooze_until_ms - now_ms()) / 1000) : 0;
         int tp = S.tone_playing && S.tone_until ? (int)((int32_t)(S.tone_until - now_ms()) / 1000) : 0;   /* a preview's seconds left */
-        J("\"chorus\":{\"birds\":%u,\"vol\":%d,\"soft\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"tone\":%d,\"tone_preview_s\":%d,\"tones\":[",
-          S.birds, S.bird_vol, S.bird_soft, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0, S.alarm_tone, tp > 0 ? tp : 0);
+        J("\"chorus\":{\"skip\":%d,\"on\":%d,\"birds\":%u,\"vol\":%d,\"soft\":%d,\"level\":%d,\"preview_s\":%d,\"snooze_s\":%d,\"tone\":%d,\"tone_preview_s\":%d,\"tones\":[",
+          alarm_skipping(), !S.chorus_off, S.birds, S.bird_vol, S.bird_soft, (int)(S.chorus * 100), left > 0 ? left : 0, snz > 0 ? snz : 0, S.alarm_tone, tp > 0 ? tp : 0);
         for (int i = 0; i < RS_TONES; i++) J("%s\"%s\"", i ? "," : "", RS_TONE_NAMES[i]);
         J("],\"names\":[");
         for (int i = 0; i < BIRD_COUNT; i++) J("%s\"%s\"", i ? "," : "", bird_name(i));
@@ -379,8 +387,8 @@ size_t local_state_json(char *b, size_t cap)
       S.key_col, S.menu_col, S.night_col, S.knob_light, S.auto_night, S.clock12, S.snooze_min);
     for (int i = 0; i < N_PAL; i++) J("%s\"%s\"", i ? "," : "", PAL[i].name);
     {   int vx, vy, vw, vh; viewport(&vx, &vy, &vw, &vh);
-        J("],\"throb\":%d,\"throb_col\":%d,\"knob_click\":%d,\"auto_update\":%d,\"turn_hints\":%d,\"large_text\":%d,\"theme\":%d,\"quick_a2\":%d,\"onebit\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"stop_clean\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
-          S.throb, S.throb_col, S.knob_click, S.auto_update, S.turn_hints, S.large_text, S.theme, S.quick_a2, S.load_1bpp, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.stop_clean, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
+        J("],\"bleed_corner\":%d,\"throb\":%d,\"throb_col\":%d,\"knob_click\":%d,\"auto_update\":%d,\"turn_hints\":%d,\"large_text\":%d,\"theme\":%d,\"quick_a2\":%d,\"onebit\":%d,\"clock_du\":%d,\"live_demo\":%d,\"live_layout\":%d,\"live_dark\":%d,\"quick_menus\":%d,\"settle_full\":%d,\"clean_min\":%d,\"stop_clean\":%d,\"wf_temp\":%d,\"temp_sensed\":%d,\"temp_forced\":%d,\"refresh_mode\":%d,\"night_keys\":%d,\"overlay\":%d,\"show\":%d,\"at_night\":%d,\"tz\":%d,\"auto_time\":%d,\"vp\":[%d,%d,%d,%d],\"tzs\":[",
+          S.bleed_corner, S.throb, S.throb_col, S.knob_click, S.auto_update, S.turn_hints, S.large_text, S.theme, S.quick_a2, S.load_1bpp, S.clock_du, S.live_demo, S.live_layout, S.live_dark, S.quick_menus, S.settle_full, S.clean_min, S.stop_clean, S.wf_temp, it8951_temp_sensed(), it8951_temp_forced(), S.refresh_mode, S.night_keys, S.overlay, S.show, S.at_night, S.tz, S.auto_time, vx, vy, vw, vh); }
     for (int i = 0; i < N_TZ; i++) J("%s\"%s\"", i ? "," : "", TZ_NAMES[i]);
     J("],\"keyacts\":[");
     for (int i = 0; i < N_KEYACT; i++) J("%s{\"id\":\"%s\",\"label\":\"%s\"}", i ? "," : "", KEYACT_ID[i], KEYACT_NAME[i]);

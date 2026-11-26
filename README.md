@@ -165,7 +165,8 @@ tried four times before the update is given up.
 | Keys 1 to 3, in a list or a choice | up, down, select |
 | Keys 1 to 3, on a slider | less, more, done |
 | Key 4 MENU (orange) | the menu, then back one level; hold to go straight home |
-| Alarm ringing | a knob press or hold stops it; a key or a turn snoozes |
+| Alarm ringing | a knob press or hold, or the orange key, stops it; keys 1 to 3 or a turn snooze |
+| Skip next alarm | Alarms > Skip next alarm (or a key bound to it, or the web app): the next ring is passed over once and the alarm stays on |
 
 Screens: the server dashboard between a top bar (title, key icons) and a status
 bar (volume, and on the dashboard what is playing, lights, A/C, alarm); a split

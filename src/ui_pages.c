@@ -62,7 +62,7 @@ void build_live_clock(layer_t *l)
     int h, m, early; int32_t delta;
     if (live_alarm(&h, &m, &early, &delta)) {
         int cm = ((h * 60 + m - early) % 1440 + 1440) % 1440;
-        snprintf(c, sizeof c, "Alarm %02d:%02d " DOT " %s %02d:%02d", h, m, S.live_demo || S.birds ? "dawn chorus" : "wake window", cm / 60, cm % 60);
+        snprintf(c, sizeof c, "Alarm %02d:%02d " DOT " %s %02d:%02d", h, m, S.live_demo || chorus_on() ? "dawn chorus" : "lights", cm / 60, cm % 60);
     } else snprintf(c, sizeof c, "No alarm set");
     fact_c(l, W / 2, y, ICON_ALARM, F_L, c); y += 135;
     live_sound_line(c, sizeof c);
@@ -150,7 +150,7 @@ void build_live_tonight(layer_t *l)
     op_text_r(l, xr, TB_H + 40, F_XL, G_BLACK, c);
     if (alarm) alarm_rel(c, sizeof c, delta); else snprintf(c, sizeof c, "Set one from Menu, Alarms");
     op_text_r(l, xr, TB_H + 176, F_M, 0x4, c);
-    if (alarm) snprintf(c, sizeof c, "%s from %02d:%02d", S.live_demo || S.birds ? "Dawn chorus" : "Wake window", cm / 60, cm % 60);
+    if (alarm) snprintf(c, sizeof c, "%s from %02d:%02d", S.live_demo || chorus_on() ? "Dawn chorus" : "Lights", cm / 60, cm % 60);
     else c[0] = 0;
     op_text_r(l, xr, TB_H + 240, F_M, G_BLACK, c);
 
@@ -174,7 +174,7 @@ void build_live_tonight(layer_t *l)
     }
     if (alarm) {
         snprintf(b, sizeof b, "%02d:%02d", cm / 60, cm % 60);
-        tl_mark(l, TLX(70), 0, ly, b, S.live_demo || S.birds ? "Chorus" : "Wake window", false);
+        tl_mark(l, TLX(70), 0, ly, b, S.live_demo || chorus_on() ? "Chorus" : "Lights", false);
         int sr = live_sunrise_today(am);
         if (sr >= 0 && sr > cm && sr < am) { snprintf(b, sizeof b, "%02d:%02d", sr / 60, sr % 60); tl_mark(l, TLX(84), 0, ly, b, "Sunrise", false); }
         snprintf(b, sizeof b, "%02d:%02d", h, m);

@@ -87,6 +87,11 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:0;border-radiu
 /* fields */
 .fld{display:block;margin-top:12px}
 .fld span{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+.fld select{-webkit-appearance:none;appearance:none;min-height:46px;padding-right:34px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 12px center!important}
+.jump{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;position:sticky;top:0;z-index:5;background:var(--bg);scrollbar-width:none} .jump::-webkit-scrollbar{display:none}
+.jump .chip{flex:none;min-height:36px;padding:8px 14px}
+h2.fold{scroll-margin-top:58px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:32px} h2.fold::after{content:'–';font-size:16px} h2.fold.shut::after{content:'+'}
+.folded{display:none!important}
 .fld input,.fld select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px;font-size:16px;-webkit-user-select:text;user-select:text}
 .inl{display:flex;gap:8px;align-items:flex-end} .inl .fld{flex:1}
 /* alarms */
@@ -417,11 +422,13 @@ nav .brand,nav .side-foot{display:none}
     <div class="grid2"><button class="btn" id="ring-snooze">Snooze 9 min</button><button class="btn pri" id="ring-stop">Stop</button></div></div>
   <div id="alarms"></div>
   <button class="btn pri w" id="alarm-add" style="margin-bottom:12px"><span data-i="plus"></span>Add alarm</button>
+  <button class="btn w" id="alarm-skip" style="margin-bottom:12px">Skip next alarm</button>
   <!--part:chorus-->
   <div class="card" id="c-chorus">
     <div class="ttl"><div class="ic" data-i="bird"></div><div class="t">Dawn chorus<small id="chorus-sub">Builds through each alarm's wake-up window</small></div></div>
     <div class="body">
       <div style="font-size:14px;color:var(--sub)">Real recordings of Australian birds, with a few synthesised ones for variety, arranged fresh every morning. One magpie starts far off, more birds join as the alarm nears, and the rain fades out under them.</div>
+      <div class="row" style="margin-top:12px"><div style="flex:1">Dawn chorus<small style="display:block;color:var(--sub);font-size:12px">Off: alarms ring with no birds before them. The birds chosen below are kept.</small></div><label class="sw"><input type="checkbox" id="chorus_on" data-set="chorus_on"><span></span></label></div>
       <div id="birds" style="margin-top:6px"></div>
       <div class="lbl">Alarm volume</div>
       <div class="sl"><span data-i="speaker-high" style="color:var(--sub)"></span><input type="range" id="bird_vol" min="1" max="10" step="1" data-set="bird_vol"><output id="bird_vol-o"></output></div>
@@ -542,7 +549,8 @@ nav .brand,nav .side-foot{display:none}
   <!--part:homescreen-->
   <div class="card">
     <div class="grid2">
-      <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option></select></label>
+      <label class="fld"><span>Overlay</span><select data-pset="overlay"><option value="0">Strip</option><option value="1">Cards left</option><option value="2">Cards bottom</option><option value="3">Off</option><option value="4">Full bleed</option></select></label>
+      <label class="fld" id="bleed-fld"><span>Full-bleed clock</span><select data-pset="bleed_corner"><option value="0">Top left</option><option value="1">Top right</option><option value="2">Bottom left</option><option value="3">Bottom right</option></select></label>
       <label class="fld"><span>At night</span><select data-pset="at_night"><option value="0">Same</option><option value="1">Clock only</option><option value="2">Clock and alarm</option></select></label>
       <label class="fld"><span>Theme</span><select data-pset="theme"><option value="0">Standard</option><option value="1">System 7</option><option value="2">Terminal</option><option value="3">Blueprint</option><option value="4">Instrument</option></select></label>
       <label class="fld"><span>Clock updates</span><select data-pset="clock_du"><option value="0">Full quality</option><option value="1">Two-level at night</option><option value="2">Two-level always</option></select></label>
@@ -849,13 +857,15 @@ function renderChorus(){
     $$('[data-bird]').forEach(x=>x.onchange=()=>{let m=0;$$('[data-bird]').forEach(y=>{if(y.checked)m|=1<<+y.dataset.bird});touch('birds',3000);cmd('set='+enc('birds|'+m))});
     $$('[data-aud]').forEach(b=>b.onclick=()=>{cmd('set='+enc('audition|'+b.dataset.aud));if(!AUD.on)toast('Turn on Listen (Room tab) to hear it')});
   }
+  if(!held('chorus_on'))$('#chorus_on').checked=c.on!==0;
+  { const sk=$('#alarm-skip'); if(sk){sk.textContent=c.skip?'Skipping the next alarm · tap to ring after all':'Skip next alarm'; sk.dataset.on=c.skip?1:0} }
   const lvl=c.level, prev=c.preview_s>0;
   $('#chorus-preview').innerHTML=svg(prev?'pause':'play')+(prev?`Stop preview (${c.preview_s}s)`:'Preview the build-up');
   if(c.tones){const sel=$('#alarm_tone');
     if(sel.options.length!==c.tones.length)sel.innerHTML=c.tones.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
     if(!held('alarm_tone')&&sel!==document.activeElement)sel.value=String(c.tone);
     const tp=c.tone_preview_s>0; $('#tone-preview').innerHTML=svg(tp?'pause':'play')+(tp?`Stop (${c.tone_preview_s}s)`:'Preview'); $('#tone-preview').disabled=!c.tone&&!tp}
-  $('#chorus-sub').textContent=lvl>0?`Singing · ${lvl}%`:c.snooze_s>0?`Snoozed, back in ${Math.ceil(c.snooze_s/60)} min`:"Builds through each alarm's wake-up window";
+  $('#chorus-sub').textContent=lvl>0?`Singing · ${lvl}%`:c.snooze_s>0?`Snoozed, back in ${Math.ceil(c.snooze_s/60)} min`:c.on===0?'Off':"Builds through each alarm's wake-up window";
   const ringing=ui.phase===2; $('#ringing').classList.toggle('on',ringing);
   if(ringing){const a=ui.alarms.find(a=>a.on)||{h:0,m:0};$('#ring-time').textContent=`${String(a.h).padStart(2,'0')}:${String(a.m).padStart(2,'0')}`;$('#ring-what').textContent='Good morning'}
 }
@@ -863,6 +873,7 @@ $('#chorus-preview').onclick=()=>{const prev=ui&&ui.chorus&&ui.chorus.preview_s>
   if(!prev&&!AUD.on)toast('Turn on Listen (Room tab) to hear it')};
 $('#alarm_tone').onchange=e=>{touch('alarm_tone',3000);cmd('set='+enc('alarm_tone|'+e.target.value));if(+e.target.value)cmd('set='+enc('tone_preview|'+e.target.value))};
 $('#tone-preview').onclick=()=>{const tp=ui&&ui.chorus&&ui.chorus.tone_preview_s>0;cmd('set='+enc('tone_preview|'+(tp?0:-1)))};
+{ const sk=$('#alarm-skip'); if(sk)sk.onclick=()=>{cmd('set='+enc('alarm_skip|'+(sk.dataset.on==='1'?0:1)));toast(sk.dataset.on==='1'?'Alarm back on':'Next alarm skipped')}; }
 $('#ring-stop').onclick=()=>cmd('set='+enc('alarm_stop|1'));
 $('#ring-snooze').onclick=()=>cmd('set='+enc('alarm_snooze|1'));
 
@@ -1206,7 +1217,8 @@ function renderHome(p){
     $('#shows').innerHTML=SHOWS.map((n,i)=>`<div class="row"><div style="flex:1">${n}</div><label class="sw"><input type="checkbox" data-show="${i}" ${p.show>>i&1?'checked':''}><span></span></label></div>`).join('');
     $$('[data-show]').forEach(c=>c.onchange=()=>{touch('show',4000);let m=0;$$('[data-show]').forEach(x=>{if(x.checked)m|=1<<+x.dataset.show});showMask=m;set('show',m)})}
   const v=p.vp||[0,0,1872,1404], none=!(p.show&31)||+p.overlay===3;
-  $('#vp').textContent=none?'No overlay: the dashboard gets the whole panel, 1872 × 1404.':`Tesserae is told the dashboard is ${v[2]} × ${v[3]} at x ${v[0]}, y ${v[1]}, and renders frames at that size.`;
+  const bleed=+p.overlay===4; const bf=$('#bleed-fld'); if(bf)bf.style.display=bleed?'':'none';
+  $('#vp').textContent=bleed?'Full bleed: the dashboard gets the whole panel, 1872 × 1404, with only the clock over one corner.':none?'No overlay: the dashboard gets the whole panel, 1872 × 1404.':`Tesserae is told the dashboard is ${v[2]} × ${v[3]} at x ${v[0]}, y ${v[1]}, and renders frames at that size.`;
   renderKeymap();
 }
 
@@ -1404,6 +1416,36 @@ async function poll(){
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 poll();
+
+/* ---- the Device page: a row of jump chips, and each heading folds its cards (phone layout: the one long page) ---- */
+(function(){
+  const dev=$('#t-device'); if(!dev)return;
+  const hs=[...dev.querySelectorAll('h2')]; if(hs.length<5)return;      /* each heading sits in a .grp with its first card; later cards follow the .grp */
+  let shut={}; try{shut=JSON.parse(localStorage.getItem('devfold')||'{}')}catch(e){}
+  const body=h=>{const out=[];for(let e=h.nextElementSibling;e;e=e.nextElementSibling)out.push(e);
+    const g=h.parentElement; if(g!==dev)for(let e=g.nextElementSibling;e&&!e.classList.contains('grp')&&e.tagName!=='H2';e=e.nextElementSibling)out.push(e);
+    else{out.length=0;for(let e=h.nextElementSibling;e&&e.tagName!=='H2'&&!e.classList.contains('grp');e=e.nextElementSibling)out.push(e)}
+    return out};
+  const apply=h=>{const s=!!shut[h.textContent];h.classList.toggle('shut',s);body(h).forEach(e=>e.classList.toggle('folded',s))};
+  const jump=document.createElement('div'); jump.className='jump'; jump.setAttribute('role','navigation'); jump.setAttribute('aria-label','Device sections');
+  hs.forEach(h=>{ h.classList.add('fold'); h.setAttribute('role','button'); h.tabIndex=0; apply(h);
+    const flip=()=>{shut[h.textContent]=!shut[h.textContent];apply(h);try{localStorage.setItem('devfold',JSON.stringify(shut))}catch(e){}};
+    h.onclick=flip; h.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip()}};
+    const c=document.createElement('button'); c.className='chip'; c.textContent=h.textContent;
+    c.onclick=()=>{if(shut[h.textContent])flip();h.scrollIntoView({behavior:'smooth',block:'start'})};
+    jump.appendChild(c)});
+  dev.insertBefore(jump,dev.firstChild);
+})();
+/* ---- names for the controls a screen reader would otherwise call "slider" ---- */
+function nameControls(){
+  $$('input[type=range],select,input[type=time]').forEach(e=>{
+    if(e.getAttribute('aria-label')||(e.labels&&e.labels.length))return;
+    let n='', w=e.closest('.sl')||e; const k=e.closest('.sl')&&e.closest('.sl').querySelector('.k'); if(k)n=k.textContent.trim();
+    for(let p=w.previousElementSibling;p&&!n;p=p.previousElementSibling)if(p.classList&&p.classList.contains('lbl'))n=p.textContent.trim();
+    if(!n){const c=e.closest('.card');const t=c&&c.querySelector('.ttl .t');if(t)n=(t.childNodes[0].textContent||'').trim()}
+    if(!n&&e.id)n=e.id.replace(/[_-]/g,' ');
+    if(n)e.setAttribute('aria-label',n)})}
+nameControls(); setInterval(nameControls,4000);
 </script>
 </body>
 </html>

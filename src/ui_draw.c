@@ -8,7 +8,7 @@
 void layer_reset(layer_t *l, int x, int y, int w, int h, uint8_t bg)
 {
     l->n = 0; l->x = x; l->y = y; l->w = w; l->h = h; l->bg = bg; l->on = true;
-    l->inv = term();
+    l->inv = term() && S.phase != PHASE_RINGING;   /* the alarm's screen is dark as drawn */
     if (inst() && bg == G_WHITE) l->bg = G_GROUND;
 }
 
@@ -55,7 +55,7 @@ static bool theme_shade(layer_t *l, int x, int y, int w, int h, int r, uint8_t g
         else { op_pat(l, x, y, w, h, PAT_HATCH, G_BLACK); op_frame(l, x, y, w, h, 2, G_BLACK); }
         return true;
     }
-    if (inst() && g >= 9 && w > 60 && h > 60) { op_rrect_r(l, x, y, w, h, r > 0 ? r : 24, G_WHITE); return true; }
+    if (inst() && g >= 9 && w > 200 && h > 100)   /* a tile, not a bar of a chart */ { op_rrect_r(l, x, y, w, h, r > 0 ? r : 24, G_WHITE); return true; }
     return false;
 }
 

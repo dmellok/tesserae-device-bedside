@@ -73,7 +73,7 @@ static void key_role(int i, const char **icon, const char **label)
 {
     *icon = NULL; *label = "";
     if (i < 0 || i > 3) return;
-    if (S.phase == PHASE_RINGING) { *icon = ICON_ALARM; *label = "Snooze"; return; }
+    if (S.phase == PHASE_RINGING) { *icon = i == 3 ? ICON_CHECK : ICON_ALARM; *label = i == 3 ? "Stop" : "Snooze"; return; }   /* the orange key stops, as the knob does */
     if (s_mode == M_HOME) {
         if (i == 3) { *icon = ICON_LIST; *label = "Menu"; return; }
         const char *b = config_get()->bind[CONFIG_BIND_KEY1 + i];
@@ -96,6 +96,8 @@ static void key_glyph(layer_t *l, int cx, int cy, int kind, uint8_t g)
     op_line(l, cx, cy + d * 10, cx + 20, cy - d * 10, 6, g);
 }
 
+static int wrap_c(layer_t *l, int cx, int y, const bfont_t *f, uint8_t g, const char *t, int maxw, int max_lines);
+
 /* ---- building ---- */
 int s_row_h = 116;              /* shrinks for long lists (the days) */
 int s_list_n;                   /* rows in the list on screen */
@@ -111,6 +113,7 @@ void build_top(layer_t *l, bool inv)
     if (s7 && !inv) s7_corners(l, true);
     const char *title = "";
     if (S.phase == PHASE_RINGING) title = s_date;
+    else if (s_mode == M_HOME && S.phase == PHASE_PREWAKE) title = chorus_on() ? "Dawn chorus " DOT " press the knob to stop" : "Alarm soon " DOT " press the knob to stop";
     else if (s_mode == M_HOME) title = s_date;     /* which rotation page is showing is the server's to say */
     else if (s_mode == M_LIST) title = node_title(s_stack[s_depth - 1].node);
     else title = s_edit_label;
@@ -135,19 +138,7 @@ void build_top(layer_t *l, bool inv)
         }
         if (ic) op_text_c(l, cx, 26, F_IM, g, ic);
         else if (lab[0] && s_mode != M_HOME) key_glyph(l, cx, 49, s_mode == M_VALUE ? 2 + i : i, g);
-        if (lab[0]) op_text_c(l, cx, 82, draw_font_w(lf, lab) <= 150 ? lf : sf, g, lab);
-    }
-}
-
-/* One line, cut at a word with an ellipsis to fit maxw in f. */
-static void fit_line(char *s, size_t cap, const bfont_t *f, int maxw)
-{
-    while (s[0] && draw_font_w(f, s) > maxw) {
-        char *sp = strrchr(s, ' ');
-        if (!sp) { s[strlen(s) - 1] = 0; continue; }
-        *sp = 0; size_t k = strlen(s);
-        while (k && (s[k - 1] == ',' || s[k - 1] == '.' || s[k - 1] == ';' || s[k - 1] == ' ')) s[--k] = 0;
-        if (draw_font_w(f, s) + draw_font_w(f, "...") <= maxw) { snprintf(s + k, cap - k, "..."); break; }
+        if (lab[0]) op_text_c(l, cx, 82, draw_font_w(lf, lab) <= 150 && 82 + lf->line_h <= 134 ? lf : sf, g, lab);   /* inside the key's frame, large text or not */
     }
 }
 
@@ -221,8 +212,9 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
         else if (s && blue()) {                                                   /* Blueprint: the row in section, hatched around its words */
             op_pat(l, 0, y, lw, s_row_h, PAT_HATCH, G_BLACK);
             op_fill(l, 0, y, lw, 3, G_BLACK); op_fill(l, 0, y + s_row_h - 3, lw, 3, G_BLACK);
-            op_fill(l, 18, y + 15, lw - 36, s_row_h - 30, G_WHITE);
-            op_frame(l, 18, y + 15, lw - 36, s_row_h - 30, 2, G_BLACK);
+            int in_y = s_row_h >= 90 ? 15 : 5;                                     /* a long list's rows are short */
+            op_fill(l, 18, y + in_y, lw - 36, s_row_h - 2 * in_y, G_WHITE);
+            op_frame(l, 18, y + in_y, lw - 36, s_row_h - 2 * in_y, 2, G_BLACK);
             fg = dim = G_BLACK;
         }
         else if (s && inst()) op_rrect_r(l, 24, y + 4, LIST_W - 46, s_row_h - 8, 28, G_BLACK);
@@ -254,7 +246,7 @@ static int build_split(layer_t *l, const char *const *labels, const char *const 
     const bfont_t *bf = numeric(pv_big) && draw_font_w(F_NUM, pv_big) < room ? F_NUM : F_XL;
     if (draw_font_w(bf, pv_big) > room) bf = fm;
     op_text_c(l, cx, y, bf, G_BLACK, pv_big); y += bf->line_h + 18;
-    if (pv_small[0]) { op_text_c(l, cx, y, fl, DIM_G, pv_small); y += fl->line_h; }
+    if (pv_small[0]) y = wrap_c(l, cx, y, fl, DIM_G, pv_small, room, 2);     /* two lines before anything is lost */
     return y;
 }
 
@@ -330,7 +322,6 @@ void build_list(layer_t *l)
     if (r->kind == K_SUB && r->id == S_ALARM_ITEM) snprintf(big, sizeof big, "%s", r->label);
     if (r->id == I_STATUS) { if (S.on_battery) snprintf(big, sizeof big, "Battery %d%%", S.batt_pct); else snprintf(big, sizeof big, "Mains"); }
     if (r->id == A_SOMA) snprintf(big, sizeof big, "%.22s", radio_soma(r->arg)->title);
-    fit_line(small, sizeof small, mf_lbl(), pv_room(60));
     if (nd == N_WIZARD) {
         /* setup: the step's heading and what it is for; what the highlighted row does under it */
         int y = build_split(l, labels, icons, vals, chev, NULL, sw, shown, sel - top, n, top, wizard_icon(), wizard_heading(), "");
@@ -350,7 +341,6 @@ void build_choice(layer_t *l)
     const char *labels[16]; bool check[16];
     for (int i = 0; i < shown; i++) { labels[i] = o[top + i]; check[i] = (top + i == cur); }
     char small[96]; row_desc(&s_edit_row, small, sizeof small);
-    fit_line(small, sizeof small, mf_lbl(), pv_room(60));
     build_split(l, labels, NULL, NULL, NULL, check, NULL, shown, s_csel - top, n, top, NULL, o[s_csel], small);
 }
 
@@ -396,8 +386,7 @@ void build_value(layer_t *l)
     op_text_r(l, bx + bw, by + bh + 50, mf_m(), DIM_G, m.hi);
     /* what the value does, not how to turn the knob: the top bar labels the keys */
     char d[96]; row_desc(&s_edit_row, d, sizeof d);
-    fit_line(d, sizeof d, mf_lbl(), W - 2 * MARGIN);
-    op_text_c(l, W / 2, TB_H + 760, mf_lbl(), DIM_G, d);
+    wrap_c(l, W / 2, TB_H + 760, mf_lbl(), DIM_G, d, W - 2 * MARGIN, 2);
 }
 
 static void disarm(void) { s_armed = -1; s_rel_armed = -1; }
@@ -582,6 +571,8 @@ bool local_press(void)
             } else if (r.id == A_RELEASE) {
                 if (s_rel_armed != r.arg) { s_rel_armed = r.arg; int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
                 else { s_rel_armed = -1; local_ota_prepare(r.arg); }      /* the card first, then main.c fetches */
+            } else if (r.id == A_SKIP_ALARM) {
+                alarm_skip_toggle(); mark_screen();
             } else if (r.id == A_PREVIEW) {
                 chorus_preview(s_preview_len_ms ? 0 : 90);
                 rebuild(); { int sl = s_stack[s_depth - 1].sel - s_stack[s_depth - 1].top; mark_rows(sl, sl); }
@@ -649,7 +640,7 @@ bool local_key_has_hold(int i)
 bool local_key(int i, bool hold)
 {
     if (i < 0 || i > 3) return false;
-    if (S.phase == PHASE_RINGING) { snooze(); return true; }
+    if (S.phase == PHASE_RINGING) { if (i == 3) stop_alarm(); else snooze(); return true; }
     if (alert_dismiss()) return true;
     if (i == 3) { if (hold) { if (s_mode != M_HOME) go_home(); return true; } return local_back(); }
     if (s_mode == M_HOME) return false;
@@ -694,6 +685,7 @@ bool local_action(const char *id)
                                         confirm(ICON_ALARM, "Alarm", v, 2); return true; }
     if (!strcmp(id, "night"))         { toggle_flip(&R_T_NIGHT); state_changed(); toast(S.night ? FACE(S7_ASLEEP, ICON_MOON) : ICON_MOON, "Night mode", S.night ? "On" : "Off"); return true; }
     if (!strcmp(id, "light.night"))   { S.lights_on = true; S.light_mode = 1; S.bright = 10; publish("set/lights", "night 10%%"); state_changed(); confirm(ICON_LIGHTBULB, "Night light", "10%", 8); return true; }
+    if (!strcmp(id, "alarm.skip"))    { alarm_skip_toggle(); return true; }
     if (!strcmp(id, "dash.next"))     { dash_step(+1); return true; }
     if (!strcmp(id, "dash.prev"))     { dash_step(-1); return true; }
     if (!strcmp(id, "live.next"))     { S.live_layout = (S.live_layout + 1) % 4; if (S.dash_page) dash_go(0);

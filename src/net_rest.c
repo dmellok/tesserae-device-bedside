@@ -290,7 +290,46 @@ static rest_status_t map_status(int http)
  * application/json. With a sink, the body streams there and *body_out is NULL;
  * otherwise *body_out points into the static rx buffer (valid until the next
  * call). Returns the mapped status; *http_out gets the raw code. */
+/* Secure requests are padded to a length that gets through. Measured on the
+ * panel against github.com (26 Nov 2026): a GET whose TLS record (the request
+ * plus 29 bytes of TLS 1.2 GCM framing) is a multiple of 4 bytes long was
+ * answered every time, any other length never (lwIP -13 with nothing received,
+ * after 5 to 8 s), while this Mac sending the same bytes was answered at every
+ * length, and api.github.com answered the panel at every length. The cause is
+ * not known. So: an "X-Pad" header brings the request to the length that works,
+ * and a GET that still dies with nothing received is tried at the other three. */
+static int s_pad_add;                    /* bytes of padding header to add to this request; 0: none */
+static int s_req_base;                   /* the request's length before any padding */
+static rest_status_t do_request_once(const char *method, const char *url,
+                                const char *const *headers, int nh, const char *body,
+                                uint8_t *sink, size_t sink_cap,
+                                const char **body_out, int *http_out, uint32_t timeout_ms);
 static rest_status_t do_request(const char *method, const char *url,
+                                const char *const *headers, int nh, const char *body,
+                                uint8_t *sink, size_t sink_cap,
+                                const char **body_out, int *http_out, uint32_t timeout_ms)
+{
+    if (strncmp(url, "https://", 8) != 0) { s_pad_add = 0; return do_request_once(method, url, headers, nh, body, sink, sink_cap, body_out, http_out, timeout_ms); }
+    static const int ADD[4] = { 0, 9, 10, 11 };          /* "X-Pad: \r\n" is 9 bytes: 9, 10 and 11 shift the length by 1, 2 and 3 (mod 4) */
+    rest_status_t st = REST_NET_ERR;
+    int first = -1;
+    for (int k = 0; k < 4; k++) {
+        if (first < 0) {                                   /* measure: build it once without padding */
+            s_pad_add = -1;
+            st = do_request_once(method, url, headers, nh, body, sink, sink_cap, body_out, http_out, timeout_ms);
+            first = (4 - (s_req_base + 29) % 4) % 4;       /* the shift that makes the record a multiple of 4 */
+        }
+        s_pad_add = ADD[(first + k) % 4];
+        st = do_request_once(method, url, headers, nh, body, sink, sink_cap, body_out, http_out, timeout_ms);
+        bool silent = st == REST_NET_ERR && s_err && s_rx_len == 0 && s_sink_len == 0;
+        if (!silent || strcmp(method, "GET") != 0) break;
+        if (k < 3) printf("rest: no answer at this length; trying another (%d of 3)\n", k + 1);
+    }
+    s_pad_add = 0;
+    return st;
+}
+
+static rest_status_t do_request_once(const char *method, const char *url,
                                 const char *const *headers, int nh, const char *body,
                                 uint8_t *sink, size_t sink_cap,
                                 const char **body_out, int *http_out, uint32_t timeout_ms)
@@ -321,8 +360,10 @@ static rest_status_t do_request(const char *method, const char *url,
     if (body && n > 0 && n < (int)sizeof s_req)
         n += snprintf(s_req + n, sizeof s_req - n,
                       "Content-Type: application/json\r\nContent-Length: %u\r\n", (unsigned)blen);
+    if (s_pad_add >= 9 && n > 0 && n < (int)sizeof s_req) n += snprintf(s_req + n, sizeof s_req - n, "X-Pad: %.*s\r\n", s_pad_add - 9, "xx");
     if (n > 0 && n < (int)sizeof s_req) n += snprintf(s_req + n, sizeof s_req - n, "\r\n");
     if (n <= 0 || n >= (int)sizeof s_req - (int)blen) { printf("rest: request too large\n"); return REST_NET_ERR; }
+    if (s_pad_add < 0) { s_req_base = n + (int)blen; return REST_NET_ERR; }   /* only measuring */
     if (body) { memcpy(s_req + n, body, blen); n += (int)blen; }
     s_req_len = (size_t)n;
 
