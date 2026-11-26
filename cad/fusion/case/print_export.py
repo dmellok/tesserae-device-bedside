@@ -3,7 +3,7 @@
 OUT = '/Users/kayden/Developer/PlatformIO/tesserae-device-bedside/cad/print/'
 # Numbered in the order to print them: the three black parts first, then the three beige ones, so the filament changes once. Within each colour the part
 # everything else is checked against comes first: the frame plate, then the tray that screws to its foot, then the plinth that slides over the tray.
-PRINT = [('1-frame-plate-black', 'Frame plate', 105), ('2-base-tray-black', 'Base tray', 0), ('3-plinth-black', 'Plinth', 180), ('3-plinth-with-lugs-black', 'Plinth with lugs', 0),      # the plinth with lugs cannot lie on its roof, so it prints as it stands
+PRINT = [('1-frame-plate-black', 'Frame plate', 105), ('2-base-tray-black', 'Base tray', 0), ('3-plinth-black', 'Plinth', 180),
          ('4-front-bezel-beige', 'Front bezel', 105), ('5-rear-shell-beige', 'Rear shell', -75), ('6-access-cover-beige', 'Access cover', 180)]
 def run(_context: str):
     case = doc_named('Bedside case'); case.activate()

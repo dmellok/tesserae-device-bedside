@@ -51,12 +51,11 @@ The six case parts, each turned to the way it prints and numbered in the order t
 
 | File | Part | Prints |
 |---|---|---|
-| `1-frame-plate-black-r4.stl` | Frame plate | Front face down |
+| `1-frame-plate-black-r5.stl` | Frame plate | Front face down |
 | `2-base-tray-black-r1.stl` | Base tray | As it stands |
 | `3-plinth-black-r3.stl` | Plinth | Roof down |
-| `3-plinth-with-lugs-black-r3.stl` | Plinth with lugs, to print in place of the plain one | As it stands |
 | `4-front-bezel-beige-r2.stl` | Front bezel | Front face down |
-| `5-rear-shell-beige-r1.stl` | Rear shell | Back down |
+| `5-rear-shell-beige-r2.stl` | Rear shell | Back down |
 | `6-access-cover-beige-r10.stl` | Access cover | Top down |
 
 `../fusion/case/print_export.py` makes them (run after `case_mk3.py` in the same script).
@@ -91,6 +90,9 @@ Frame plate revisions:
   `../test-fits/16-flex-slot-fixture.stl` (slot and rails only) or `17-flex-relief-fixture.stl` (the relief as well), screw it to the bezel and try it on the panel before printing the whole plate.
 - R4: the four holes in the power and amp board's posts are 1.8 mm, not 1.7, which was too tight for an M2 screw to cut its thread in. On an
   R3 plate, open those holes with a 1.8 mm drill instead of reprinting. `../test-fits/02-power-board-posts.stl` has the new holes.
+- R5: four posts for the rear shell's back screws, not six. The lowest pair, thinner than the others at 6.4 mm across, broke off the printed
+  plate, so they are gone and rear shell R2 has no screws there. An R4 plate with those two posts broken or cut off is the same as R5: there is
+  no need to reprint it.
 
 Access cover revisions:
 
@@ -138,15 +140,15 @@ Plinth revisions:
 - R3: that cutout goes right back to the inside of the rear wall, 7 mm further, so no roof is left behind the stack. The rear wall is whole. Needs
   access cover R10 to close it.
 
-### Plinth with lugs
+A plinth with a lug at each end, screwed through the rear shell's lowest pair of back holes, was drawn after R3 and dropped unprinted: the two
+posts those holes led to broke off the frame plate (see frame plate R5).
 
-`3-plinth-with-lugs-black-r3.stl` is the same plinth with a lug standing up from each end of its roof, against the back of the rear shell and
-over the shell's lowest pair of back screws. Print it in place of the plain plinth for two more fixings: leave the M3 x 8 out of those two holes
-and put an M3 x 12 through each lug, through the shell's hole and into the same post in the frame plate. The rear shell is not changed and either
-plinth fits it. Each lug is 8.4 mm wide and 5.2 mm thick, as thick as the access cover's base, with its screw head sunk the same way.
+Rear shell revisions:
 
-It cannot lie on its roof, because the lugs stand 13 mm above it, so it prints as it stands, open side down. The whole roof is then a bridge and
-needs support underneath, which the plain plinth avoids; the lugs lean back 15 degrees and need none. The viewer's Plinth option shows it.
+- R1: the first print, with six screws through its back.
+- R2: four screws through its back, the top four. The lowest pair, with their recesses and bosses, are gone, because their posts on the frame
+  plate broke. The bottom corners are still held by the two screws up through the floor. Goes with frame plate R5; on an R4 plate the two
+  low posts, if they are still there, stand 2.5 mm short of the back wall and are in nobody's way.
 
 The rear shell also has two pixel cats with whiskers, one sitting and one asleep, sunk 0.4 mm into the middle of the inside of its back. They are
 hidden once the case is together. The access cover has a pixel turtle, 20 mm long, sunk 0.4 mm into the underside of its roof. Decoration like this

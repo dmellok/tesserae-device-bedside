@@ -39,7 +39,7 @@ const fill = new THREE.DirectionalLight(0xbfd0ff, 0.75); fill.position.set(-420,
 const model = new THREE.Group();
 scene.add(model);
 const parts = [];              // { mesh, e1, e2, name }
-const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2', bg: 'Auto', lugs: false };
+const state = { explode: 0, parts: 0, spin: 0, hidden: new Set(), design: 'mk2', bg: 'Auto' };
 const shown = { explode: 0, parts: 0 };
 
 // Four versions of the case share one set of components. MK I is the chamfered wedge, MK II the leaning slab on a black plinth,
@@ -102,7 +102,7 @@ function setFinish(name, save = true) {
 
 async function load() {
   // The .json holds offsets into the .bin, so a browser must never pair an old copy of one with a new copy of the other: change DATA_V with every export.
-  const DATA_V = '20261126b';
+  const DATA_V = '20261126c';
   const get = (stem) => [fetch(`./data/${stem}.json?v=${DATA_V}`).then((r) => r.json()), fetch(`./data/${stem}.bin?v=${DATA_V}`).then((r) => r.arrayBuffer())];
   const [meta, bin, meta1, bin1, meta2, bin2, meta21, bin21] = await Promise.all([...get('bedside'), ...get('mk1'), ...get('mk2'), ...get('mk21')]);
   // bedside.* holds the components plus the newest case; mk1.*, mk2.* and mk21.* hold the earlier cases. Each case part says which versions it belongs to.
@@ -120,12 +120,6 @@ const SCREW_NAMES = { 'Base screws, M3 x 12': 'Base screws, M3', 'Speaker screws
 function addParts(meta, bin, variantOf) {
   for (const p of meta.parts) {
     p.name = SCREW_NAMES[p.name] || p.name;
-    // MK III's plinth comes in two forms. lugs is true on what belongs to the one with lugs, false on what belongs to the plain one, and unset on everything else.
-    let lugs;
-    if (p.name === 'Plinth with lugs') { p.name = 'Plinth'; lugs = true; }
-    else if (p.name === 'Plinth lug screws, M3 x 12') lugs = true;
-    else if (p.name === 'Low back screws, M3 x 8') { p.name = 'Back screws, M3 x 8'; lugs = false; }      // the two the lugs' longer screws take the place of
-    else if (p.name === 'Plinth' && (variantOf(p.name) || []).includes('mk3')) lugs = false;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, p.pos, p.verts * 3), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bin, p.nrm, p.verts * 3), 3));
@@ -137,7 +131,7 @@ function addParts(meta, bin, variantOf) {
     mesh.userData.name = p.name;
     mesh.userData.base = colour.clone();
     model.add(mesh);
-    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name), op: p.opacity, lugs });
+    parts.push({ mesh, name: p.name, e1: new THREE.Vector3(...p.e1), e2: new THREE.Vector3(...p.e2), variants: variantOf(p.name), op: p.opacity });
   }
 }
 // ---------- key marks ----------
@@ -227,27 +221,10 @@ for (const [label, id] of Object.entries(DESIGNS)) {
   b.addEventListener('click', () => { setDesign(id); track('bedside_version', { version: label }); });
   $('design').appendChild(b);
 }
-// ---------- plinth ----------
-// MK III's plinth can have a lug at each end that takes the rear shell's lowest pair of back screws, for two more fixings. The other versions have one plinth.
-const PLINTHS = { Plain: false, 'With lugs': true };
-for (const [label, on] of Object.entries(PLINTHS)) {
-  const b = document.createElement('button');
-  b.type = 'button'; b.textContent = label;
-  b.addEventListener('click', () => { setPlinth(on); track('bedside_plinth', { plinth: label }); });
-  $('plinth').appendChild(b);
-}
-function setPlinth(on, save = true) {
-  state.lugs = !!on;
-  for (const b of $('plinth').children) b.setAttribute('aria-pressed', String(PLINTHS[b.textContent] === state.lugs));
-  if (save && !/[#&]embed/.test(location.hash)) try { localStorage.setItem('bedside-plinth', state.lugs ? 'lugs' : 'plain'); } catch (e) { /* storage blocked */ }
-  applyVisibility();
-  pointerMoved = true;
-}
 function setDesign(id) {
   state.design = Object.values(DESIGNS).includes(id) ? id : 'mk2';
   for (const b of $('design').children) b.setAttribute('aria-pressed', String(DESIGNS[b.textContent] === state.design));
   for (const b of $('show').children) if (NOT_MK1.includes(b.textContent)) b.style.display = state.design === 'mk1' ? 'none' : '';   // MK I has no plinth or access cover
-  $('plinthGroup').style.display = state.design === 'mk3' ? '' : 'none';
   if (!/[#&]embed/.test(location.hash)) try { localStorage.setItem('bedside-version', state.design); } catch (e) { /* storage blocked */ }      // the copy inside the assembly guide doesn't change what the viewer remembers
   applyVisibility();
   pointerMoved = true;
@@ -321,7 +298,7 @@ $('closeControls').addEventListener('click', () => { setOpen(false); track('beds
 canvas.addEventListener('pointerdown', () => { if (phone.matches) setOpen(false); });
 
 // With the electronics hidden, what is left is what gets printed or screwed together: the case, its own screws, the keycaps and the knob.
-const CASE_SCREWS = /^(Bezel|Base|Back|Frame|Shell corner|Plinth lug) screws/;
+const CASE_SCREWS = /^(Bezel|Base|Back|Frame|Shell corner) screws/;
 const isHardware = (p) => !p.screen && (SHELL.includes(p.name) || p.name === 'Accent stripe' || p.name === 'Keycaps' || p.name === 'Knob' || p.name === 'Rubber feet' || p.name === 'Panel foam tape' || CASE_SCREWS.test(p.name));
 let elec = true;
 function setElec(on) {
@@ -333,7 +310,7 @@ $('elecToggle').addEventListener('click', () => { setElec(!elec); track('bedside
 
 function applyVisibility() {
   for (const p of parts) {
-    const hide = (!elec && !isHardware(p)) || state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.lugs !== undefined && p.lugs !== state.lugs) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
+    const hide = (!elec && !isHardware(p)) || state.hidden.has(p.name) || (p.variants && !p.variants.includes(state.design)) || (p.name === 'Accent stripe' && state.hidden.has('Front bezel'));
     p.off = hide; p.mesh.visible = !hide;
   }
   if (build) planBuild();
@@ -360,7 +337,6 @@ $('reset').addEventListener('click', () => {
   setLabels(false);
   setCats(CATS_DEFAULT);
   setMarks('Dots and bar');
-  setPlinth(false);
   setWire(false);
   elec = true; $('elecToggle').setAttribute('aria-pressed', 'true');
   setDesign('mk2');
@@ -379,7 +355,6 @@ function shareURL() {
   q.set('mk', MK_HASH[state.design]);
   q.set('case', state.finish.toLowerCase());
   if (state.marks !== 'Dots and bar') q.set('keys', state.marks.toLowerCase().replace(/ /g, '-'));
-  if (state.lugs) q.set('plinth', 'lugs');
   q.set('bg', state.bg.toLowerCase());
   if (state.explode > 0) q.set('x', state.explode.toFixed(2));
   if (state.parts > 0) q.set('c', state.parts.toFixed(2));
@@ -493,7 +468,7 @@ const BUILD = [
   ['Wiring', ['Wires to the GPIO header', 'USB-C inlet wires', 'Power switch wires', 'Speaker leads', 'Battery lead', 'STEMMA QT cables'], [0, 60, 30]],
   ['Rear shell', ['Rear shell', 'Back screws, M3 x 8', 'Shell corner screws, M3 x 8'], [0, 210, 30]],
   ['Keycaps and knob', ['Keycaps', 'Knob'], along(VN, 110)],
-  ['Plinth', ['Plinth', 'Base screws, M3', 'Plinth lug screws, M3 x 12'], [0, 230, 0]],
+  ['Plinth', ['Plinth', 'Base screws, M3'], [0, 230, 0]],
   ['Access cover', ['Access cover', 'Access cover screws, M3 x 8'], [0, 130, 110]],
   ['Rubber feet', ['Rubber feet'], [0, 0, -90]],
 ];
@@ -765,7 +740,6 @@ const DETAILS = {
   'Base screws, M3': 'Up through the base into the shell and plinth posts. M3 x 12, or on MK III two M3 x 16 into the plinth posts.',
   'Shell corner screws, M3 x 8': 'Two, up through the floor of the rear shell where it overhangs the base, into the bottom corners of the frame plate.',
   'Back screws, M3 x 8': 'Through the back of the rear shell into chassis posts.',
-  'Plinth lug screws, M3 x 12': 'Two, through the lugs on the plinth and the rear shell\'s lowest pair of holes into the same posts, in place of the M3 x 8 there.',
   'Driver HAT screws, M2.5 x 8': 'Two; the other two corners sit on locating pins.',
   'Power board screws, M2 x 6': 'Four, one per corner.',
   'Flex adapter screws, M2.5 x 6': 'Four, one per corner, into whichever holes in the rails let the flex reach.',
@@ -775,7 +749,7 @@ const DETAILS = {
   'Panel foam tape': 'Single-sided EVA foam, 2 mm thick and 5 mm wide, stuck to the front of the frame plate by its blue side. It presses the edges of the glass against the bezel without gluing it.',
   'Rubber feet': 'Four self-adhesive pads, 12 mm across and 2 mm thick, stuck to the flat underside of the base tray. Bought, not printed.',
   'Power switch': 'Mini toggle, fixed to the chassis beside the USB-C inlet.',
-  'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet. MK III has a second form with a lug at each end, screwed through the rear shell\'s lowest pair of holes.',
+  'Plinth': 'Printed case, in black. Covers the battery, speaker and USB-C inlet.',
   'E Ink ED103TC2 panel': '10.3 inch, 1872 × 1404, 16 greys.',
   'Waveshare IT8951 driver HAT': 'Drives the e-paper panel over SPI.',
   'GPIO splitter': 'Doubles the 40-pin header: one for the HAT, one for wiring.',
@@ -839,7 +813,7 @@ function buildLabels() {
   for (const p of parts) {
     if (p.screen) continue;
     p.mesh.geometry.computeBoundingBox();
-    const id = p.name + '|' + (p.variants || []).join() + (p.lugs ? '|lugs' : '');       // each case version gets its own callouts, and so does the plinth with lugs
+    const id = p.name + '|' + (p.variants || []).join();       // each case version gets its own callouts
     if (!seen.has(id)) seen.set(id, { box: new THREE.Box3(), part: p });
     seen.get(id).box.union(p.mesh.geometry.boundingBox);
   }
@@ -903,7 +877,7 @@ function layoutLabels(e1) {
     } else {
       proj.copy(l.anchor).add(l.part.mesh.position).project(camera);
       l.sx = (proj.x * 0.5 + 0.5) * W; l.sy = (-proj.y * 0.5 + 0.5) * H;
-      const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws') || l.name.startsWith('Plinth lug');
+      const outside = OUTSIDE.has(l.name) || l.name.startsWith('Back screws');
       l.alpha = !labelsOn || !cats.has(l.cat) || !l.part.mesh.visible || proj.z > 1 ? 0 : (outside ? 1 : inside);
     }
     if (l.alpha > 0.02) { if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; } live.push(l); }
@@ -1126,7 +1100,6 @@ load().then(() => {
   const fin = q.get('case');
   setFinish(fin ? fin[0].toUpperCase() + fin.slice(1).toLowerCase() : (stored('bedside-finish') || 'Beige'));
   setBackdrop(q.get('bg') || stored('bedside-backdrop'));
-  setPlinth(q.has('plinth') ? q.get('plinth') === 'lugs' : stored('bedside-plinth') === 'lugs', false);
   buildKeyMarks();
   setMarks(Object.keys(MARKS).find((n) => n.toLowerCase().replace(/ /g, '-') === q.get('keys')) || stored('bedside-marks'), false);
   buildLabels();

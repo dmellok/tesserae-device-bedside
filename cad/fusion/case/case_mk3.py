@@ -28,7 +28,7 @@ def bezel():
     cuts += [wcyl(u, v, 0.5, 6.5, R3) for u, v in BZ] + [lead(F(u, v, WB), nW_, R3) for u, v in BZ]      # holes from the back, 2.6 mm: sized for M3 screws to cut their own thread, but as printed an M3 would not go in and an M2.5 x 8 held well, so the bezel is fixed with M2.5
     return SUB(b, cuts)
 def vadd(a, b, k=1.0): return tuple(a[i] + k*b[i] for i in range(3))
-BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0), (11.2, 72, 3.2), (232.8, 72, 3.2)]   # rear shell screws through the back (u, v, post radius); the low pair hold the overhanging bottom corners
+BACK = [(16, 178, 4.0), (228, 178, 4.0), (16, 105, 4.0), (228, 105, 4.0)]   # rear shell screws through the back (u, v, post radius). There was a lower pair too, at (11.2, 72) and (232.8, 72) on thinner posts, 3.2 mm: both posts broke off the printed plate, so from frame plate R5 and rear shell R2 they are gone. The shell's bottom corners are still held by the two screws up through its floor
 def NUT_RELIEF(): return cyl((PI + T + 0.1, 27.79, 12.09), (15, 27.79, 12.09), 4.8)     # room beside the front-left post for the lower speaker screw's head (first drawn for a nut there)
 def TIP_RELIEF(): return [cyl((10.2, y, z), (15, y, z), 2.6) for y, z in ((70.21, 54.51), (27.79, 12.09))]     # from when the speaker's screws were M4 x 10 with their ends here; now their heads sit short of it, and it is left so the printed parts stay as they are
 R3, R25, R2 = 1.3, 1.075, 0.9                 # holes the M3, M2.5 and M2 screws cut their own thread in: 2.6, 2.15 and 1.8 mm. From test prints: an M2 would not start in 1.6 mm with no chamfer, was loose in 1.9 mm, and an M2.5 was tight but held in 1.9 mm. In the printed frame plate (R3) an M2 was too tight in 1.7 mm, so from R4 it is 1.8.
@@ -146,8 +146,7 @@ def braces(u, v, r, H, L):
     return out
 # Revision marks. Every printed part carries "MK3 R<n>" sunk 0.4 mm into a face that is hidden once the case is together, so a print on the bench can be
 # told from an older one. A part's number goes up by one whenever its printed shape changes; the first plate, printed before the marks, counts as R1.
-REV = {'Frame plate': 4, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 3, 'Rear shell': 1, 'Access cover': 10}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
-REV['Plinth with lugs'] = REV['Plinth']       # the plinth's other form carries the same mark
+REV = {'Frame plate': 5, 'Front bezel': 2, 'Base tray': 1, 'Plinth': 3, 'Rear shell': 2, 'Access cover': 10}      # a revision is a change to how a part fits or works; decoration such as the cats does not count
 FONT = {'M': '10001 11011 10101 10101 10001 10001 10001', 'K': '10001 10010 10100 11000 10100 10010 10001', 'R': '11110 10001 10001 11110 10100 10010 10001',
         '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110', '2': '01110 10001 00001 00010 00100 01000 11111',
         '3': '11110 00001 00001 01110 00001 00001 11110', '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
@@ -453,23 +452,6 @@ def cover():
     ribs = SUB(U([box(r0 + RIB_P*i, -80, ZP + CVH, r0 + RIB_P*i + RIB_W, 200, ZB + 1) for i in range(RIB_N)]), [cover_block(BU0, BU1, ZB, RIB_D)])
     holes = [cyl((x, y, ZP - 1), (x, y, ZP + CVH + 1), 1.7) for x, y in cover_screws()] + [cyl((x, y, ZP + SEAT), (x, y, ZP + CVH + 1), CBR) for x, y in cover_screws()]
     return SUB(U([c, base]), [ribs, hollow] + holes)
-# The plinth with lugs: a second plinth, the same but for a lug standing up from each end of its roof against the back of the rear shell, over the
-# shell's lowest pair of back screws. Each of those screws is swapped for an M3 x 12 that goes through the lug first, so the plinth is held at two more
-# points and the rear shell is not changed. A lug is as thick as the access cover's base, and its screw head is sunk the same way.
-LUG_R, LUG_UP, LUG_C = 4.2, 5.0, 0.8             # half a lug's width (the shell's back is flat for only 4.2 mm outside the screw), how far it stands above the screw, and the chamfer round its back face
-def lug_screws(): return [(u, v) for u, v, r in BACK if v < 100]
-def lugs():
-    out = []; w0, w1 = WSO + G, WSO + G + CVH
-    for u, v in lug_screws():
-        left = u < 122; u0, u1, vt = u - LUG_R, u + LUG_R, v + LUG_UP
-        b = INTER(obox(u0, 40, w0, u1, vt, w1), box(-10, -80, ZP - T, 260, 300, 320))
-        # it is 2 mm wider than the plinth on the outside, so a 45 degree foot runs it out into the plinth's side wall
-        foot = halfspace((PI, 0, ZP - EC), (-1, 0, -1)) if left else halfspace((244 - PI, 0, ZP - EC), (1, 0, -1))
-        cuts = [foot, cham(F(u0, 0, w1), XL, W_, LUG_C), cham(F(u1, 0, w1), XR, W_, LUG_C), cham(F(0, vt, w1), V_, W_, LUG_C), cham(F(u0, vt, 0), XL, V_, 2.0), cham(F(u1, vt, 0), XR, V_, 2.0)]
-        out.append(SUB(b, cuts))
-    return out
-def lug_holes(): return [wcyl(u, v, WSO - 1, WSO + G + CVH + 1, 1.7) for u, v in lug_screws()] + [wcyl(u, v, WSO + G + SEAT, WSO + G + CVH + 1, CBR) for u, v in lug_screws()]
-def lug_screw_bodies(): return [('Lug screw %d' % (i + 1), screw(F(u, v, WSO + G + SEAT), neg(W_), 12.0, 1.5, 2.75, 3.0), (186, 189, 195)) for i, (u, v) in enumerate(lug_screws())]      # M3 x 12: 4.5 mm into the frame plate's post, where the M3 x 8 it replaces had 6
 def switch_bodies():
     x0, x1, z0, z1, yw = SWX - 6.3, SWX + 6.3, SWZ - 6.6, SWZ + 6.6, YR - T
     red, metal = (200, 38, 44), (192, 192, 197)
@@ -491,8 +473,7 @@ def screws():
     add('Adapter', [screw(F(u, v, FAZ + 1.6), nW, 6.0, 1.0, 2.25, 1.6) for u in FAU for v in FAV])   # M2.5 x 6, flex adapter
     add('Key', [screw(F(u0, 179.5, 26.05), neg(V_), 8.0, 1.0, 2.25, 1.6) for u0 in (161.85, 199.95)])   # M2.5 x 8 down through the NeoKey's two back holes
     add('Speaker', [U([screw((15.0, y, z), (1, 0, 0), 8.0, 2.0, 3.5, 2.4), cyl((19.5, y, z), (22.7, y, z), 3.8)]) for y, z in ((70.21, 54.51), (27.79, 12.09))])   # M4 x 8 from behind the baffle, head towards the grille, with the nut on the speaker's lug and no washers: as built. An M4 x 10 put in from the speaker's side, with washers and the nut behind the baffle, did not go together
-    add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK if v >= 100])           # M3 x 8 through the back of the rear shell into the chassis posts
-    add('Low', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK if v < 100])             # the lowest pair of them, on their own because the plinth with lugs has longer ones here
+    add('Back', [screw(F(u, v, WSO - CB), nW, 8.0, 1.5, 2.75, 3.0) for u, v, r in BACK])                      # M3 x 8 through the back of the rear shell into the chassis posts
     add('Corner', [screw((x, y, 10 + G + CB), (0, 0, 1), 8.0, 1.5, 2.75, 3.0) for x, y in CS])               # M3 x 8 up through the shell's floor into the frame plate's corners
     add('USB', [screw((x, YR - 3.06, 43.6), (0, 0, -1), 8.0, 1.0, 2.25, 1.6) for x in (114.36 + PX, 129.6 + PX)])
     add('Cover', [screw((x, y, ZP + SEAT), (0, 0, -1), 8.0, 1.5, 2.75, 3.0) for x, y in cover_screws()])        # M3 x 8 down through the access cover's shoulders into the plinth's roof, heads in recesses
@@ -501,7 +482,7 @@ def screws():
 def feet():
     # bought, not printed: self-adhesive rubber pads on the flat underside of the tray, clear of every screw head
     return [('Foot %d' % (i + 1), cyl((x, y, -2), (x, y, 0), 6.0), (28, 28, 30)) for i, (x, y) in enumerate(FEET)]
-def plinth(with_lugs=False):
+def plinth():
     # black: the box behind the foot of the frame, over the battery, speaker and USB-C inlet. Slides off backwards.
     s = SUB(plinth_solid(0), [cavity()])
     rear = [p for p in POSTS if p[1] > 40]
@@ -512,7 +493,6 @@ def plinth(with_lugs=False):
     s = U([s] + [cyl((x, y, ZP - T - 5.0), (x, y, ZP - T + 0.5), 3.5) for x, y in cover_screws()])              # bosses under the roof for the access cover's two screws (from R2)
     cuts += [cyl((x, y, ZP - T - 6), (x, y, ZP + 1), R3) for x, y in cover_screws()] + [lead((x, y, ZP), (0, 0, -1), R3) for x, y in cover_screws()]
     cuts += [roof_cut()]
-    if with_lugs: s = U([s] + lugs()); cuts += lug_holes()
     return SUB(s, cuts)
 def run(_context: str):
     case = doc_named('Bedside case'); case.activate()
@@ -544,10 +524,6 @@ def run(_context: str):
         add_bodies(o.component, [(n, marked(n, fn()), COL[n])], design); made[n] = o.component
         b = o.component.bRepBodies.item(0)
         print('%-12s volume %.0f cm3, %d lump(s)' % (n, b.volume, b.lumps.count))
-    # the other plinth, with its two longer screws: kept hidden, and shown in the viewer as an option
-    o = rc.occurrences.addNewComponent(adsk.core.Matrix3D.create()); o.component.name = 'Plinth with lugs'
-    add_bodies(o.component, [('Plinth with lugs', marked('Plinth', plinth(True)), BLACK)] + lug_screw_bodies(), design)
-    print('%-12s volume %.0f cm3, %d lump(s)' % ('with lugs', o.component.bRepBodies.item(0).volume, o.component.bRepBodies.item(0).lumps.count)); o.isLightBulbOn = False
     def uvw(p):
         y, z = p.y/MM, p.z/MM - 12
         return (p.x/MM, y*S + z*C, y*C - z*S, y, p.z/MM)          # u, v, w, Y, Z

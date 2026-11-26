@@ -10,7 +10,7 @@ def kept(top):
     for k, pre in KEPT.items():
         if top.startswith(pre): return k, top[len(pre):]
     return None, top
-SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base screws, M3 x 12', [0, 0, -45], Z3), 'Back': ('Back screws, M3 x 8', [0, 205, 0], Z3), 'Low': ('Low back screws, M3 x 8', [0, 205, 0], Z3), 'Frame': ('Frame screws, M3 x 8', [0, 0, -45], Z3), 'Corner': ('Shell corner screws, M3 x 8', [0, 0, -45], Z3), 'Cover': ('Access cover screws, M3 x 8', [0, 215, 75], Z3),
+SCREWS = {'Bezel': ('Bezel screws, M3 x 8', Z3, mul(W, 26)), 'Shell': ('Base screws, M3 x 12', [0, 0, -45], Z3), 'Back': ('Back screws, M3 x 8', [0, 205, 0], Z3), 'Frame': ('Frame screws, M3 x 8', [0, 0, -45], Z3), 'Corner': ('Shell corner screws, M3 x 8', [0, 0, -45], Z3), 'Cover': ('Access cover screws, M3 x 8', [0, 215, 75], Z3),
           'HAT': ('Driver HAT screws, M2.5 x 8', Z3, mul(W, 12)), 'Board': ('Power board screws, M2 x 6', Z3, mul(W, 9)), 'Adapter': ('Flex adapter screws, M2.5 x 6', Z3, [0, 36, 0]),
           'Key': ('Key module screws, M2.5 x 8', Z3, mul(V, 9)), 'Speaker': ('Speaker screws and nuts, M4 x 8', Z3, [28, 0, 0]), 'USB': ('USB-C inlet screws, M2.5 x 8', Z3, [0, 70, 42])}
 def classify(path, bname=''):
@@ -23,7 +23,6 @@ def classify(path, bname=''):
     if top.startswith('Base tray'): return 'Base tray', Z3, Z3
     if top.startswith('Frame plate'): return 'Frame plate', Z3, Z3
     if top.startswith('Rear shell'): return 'Rear shell', [0, 170, 0], Z3
-    if top.startswith('Plinth with lugs'): return ('Plinth lug screws, M3 x 12', [0, 285, 0], Z3) if bname.startswith('Lug screw') else ('Plinth with lugs', [0, 250, 0], Z3)
     if top.startswith('Plinth'): return 'Plinth', [0, 250, 0], Z3
     if top.startswith('Screws'): return SCREWS[bname.split()[0]]
     if top.startswith('Access cover'): return 'Access cover', [0, 215, 30], Z3
@@ -72,10 +71,9 @@ def run(_context: str):
     groups = {}; nb = 0; nomesh = 0; names = {}
     for occ in rc.allOccurrences:
         path = occ.fullPathName.split('+'); mk1 = kept(path[0])[0]
-        other = path[0].startswith('Plinth with lugs')          # the plinth's other form is kept hidden in the design, and exported all the same
-        if mk1 != ONLY or (not mk1 and not occ.isVisible and not other): continue
+        if mk1 != ONLY or (not mk1 and not occ.isVisible): continue
         for body in occ.bRepBodies:
-            if not mk1 and not body.isVisible and not other: continue
+            if not mk1 and not body.isVisible: continue
             try: m = body.meshManager.displayMeshes.bestMesh
             except RuntimeError: m = None          # hidden bodies have no display mesh
             if path[0].startswith('Wiring') and not body.name.startswith(('Dupont', 'Battery plug', 'STEMMA QT plug', 'GPIO cable tie')):
