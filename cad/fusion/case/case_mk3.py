@@ -79,6 +79,7 @@ KCU, KCW = (152.325, 171.375, 190.425, 209.475), 17.8          # switch centres 
 KC_HALF, KC_W0, KC_W1 = 8.75, 6.7, 25.8                        # half the cap's width, and its front and back faces
 KC_TOP, KC_SKIRT, KC_SEAT = 198.5, 193.0, 191.1                # top face, bottom of the skirt, and the shoulder on the switch's slider that the post sits on
 KC_WALL, KC_ROOF, KC_POST, KC_SOCK = 1.2, 1.4, 2.75, 4.0       # wall, top thickness, post radius, socket depth
+KC_ROOT, KC_TIP = 3.75, 3.2                                    # the post is this thick (radius) from the cap's roof down, and only its last 3.2 mm is the thin 5.5 mm that fits into the switch's housing when the key is down. It was 5.5 mm all the way, with 0.5 mm of wall round the socket: two posts broke going onto their switches
 KC_ARM = (4.25, 1.35, 4.45)                                    # the cross socket: one arm's length, both arms' width, the other arm's length. The stem's arms are 4.0 x 1.17.
 # Marks sunk into the top of each cap so the keys can be told apart by touch: a number of dots, or a bar. Sunk, not raised, because the caps print top face
 # down. From the front, left to right: one, two and three dots on the grey keys, and a bar on the orange menu key.
@@ -93,7 +94,7 @@ def keycap(uc, mark=None):
 def keycap_plain(uc):
     hu, w = KC_HALF, KCW
     shell = SUB(obox(uc - hu, KC_SKIRT, KC_W0, uc + hu, KC_TOP, KC_W1), [obox(uc - hu + KC_WALL, KC_SKIRT - 0.1, KC_W0 + KC_WALL, uc + hu - KC_WALL, KC_TOP - KC_ROOF, KC_W1 - KC_WALL)])
-    cap = U([shell, cyl(F(uc, KC_SEAT, w), F(uc, KC_TOP - KC_ROOF + 0.1, w), KC_POST)])
+    cap = U([shell, cyl(F(uc, KC_SEAT, w), F(uc, KC_TOP - KC_ROOF + 0.1, w), KC_POST), cyl(F(uc, KC_SEAT + KC_TIP + 1.0, w), F(uc, KC_TOP - KC_ROOF + 0.1, w), KC_ROOT), cone(F(uc, KC_SEAT + KC_TIP + 1.0, w), KC_ROOT, F(uc, KC_SEAT + KC_TIP, w), KC_POST)])
     a, t, b = KC_ARM
     return SUB(cap, [obox(uc - a/2, KC_SEAT - 0.1, w - t/2, uc + a/2, KC_SEAT + KC_SOCK, w + t/2), obox(uc - t/2, KC_SEAT - 0.1, w - b/2, uc + t/2, KC_SEAT + KC_SOCK, w + b/2)])
 def keycap_flat(arm=None, mark=None):
@@ -107,7 +108,8 @@ def keycap_flat_plain(arm=None):
     zs, zp = KC_TOP - KC_SKIRT, KC_TOP - KC_SEAT
     y0, y1 = KC_W0 - KCW, KC_W1 - KCW             # the post stays on the origin; the long side is the front of the cap
     shell = SUB(box(-hu, y0, 0, hu, y1, zs), [box(-hu + KC_WALL, y0 + KC_WALL, KC_ROOF, hu - KC_WALL, y1 - KC_WALL, zs + 0.1)])
-    cap = U([shell, cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp), KC_POST)])
+    # the post: thick from the roof, then a cone down to the thin end that goes into the switch. Printed top down, it narrows as it rises
+    cap = U([shell, cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp), KC_POST), cyl((0, 0, KC_ROOF - 0.1), (0, 0, zp - KC_TIP - 1.0), KC_ROOT), cone((0, 0, zp - KC_TIP - 1.0), KC_ROOT, (0, 0, zp - KC_TIP), KC_POST)])
     return SUB(cap, [box(-a/2, -t/2, zp - KC_SOCK, a/2, t/2, zp + 0.1), box(-t/2, -b/2, zp - KC_SOCK, t/2, b/2, zp + 0.1)])
 # Printed knob for the rotary encoder: 32 mm across and 12 mm long, with a straight knurl of 54 V-grooves round a band and a chamfer at each end.
 # 32 mm is as big as it goes without standing proud of the back of the case: its axis is 16.8 mm in from the back face.

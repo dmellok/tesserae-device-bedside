@@ -16,6 +16,11 @@ The viewer's "Key marks" option shows each arrangement. Print `../test-fits/15-k
 one, two and three notches (tight, as modelled, loose). Push each onto a switch and say which one holds firmly without forcing; the keycaps use
 the two-notch size.
 
+The post under each cap is 7.5 mm across from the cap's roof down, and narrows through a cone to 5.5 mm for its last 3.2 mm, the part that goes
+into the switch's housing when the key is pressed. It was 5.5 mm all the way, which left 0.5 mm of wall round the socket, and two posts broke
+going onto their switches. The socket is unchanged, so the stem-fit test still applies. Three or more walls and a slightly hotter nozzle make
+the post stronger still, since it prints standing up and its layers are what a sideways push tries to part.
+
 ### All of them on one plate
 
 `keycaps-set-grey.stl` and `keycaps-set-orange.stl` are the same plate of 30 caps, one file for each filament: every mark above, and 24 caps with a
